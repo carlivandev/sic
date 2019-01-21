@@ -47,9 +47,9 @@ struct component_view
 	component_view(storage_type* in_storage) : m_storage(in_storage) {}
 
 	iterator begin() { return iterator(m_storage, 0); }
-	iterator end() { return iterator(m_storage, m_storage->m_components.size() / m_storage->m_component_type_size); }
+	iterator end() { return iterator(m_storage, static_cast<int>(m_storage->m_components.size() / m_storage->m_component_type_size)); }
 	const const_iterator begin() const { return const_iterator(m_storage, 0); }
-	const const_iterator end() const { return const_iterator(m_storage, m_storage->m_components.size() / m_storage->m_component_type_size); }
+	const const_iterator end() const { return const_iterator(m_storage, static_cast<int>(m_storage->m_components.size() / m_storage->m_component_type_size)); }
 
 	storage_type* m_storage = nullptr;
 };
