@@ -1,14 +1,16 @@
 #pragma once
 #include "pch.h"
 
-struct world_event_base
+#include <functional>
+
+struct event_base
 {
-	virtual ~world_event_base() = default;
+	virtual ~event_base() = default;
 	virtual void invoke(void* in_data) = 0;
 };
 
 template <typename data_to_send>
-struct world_event : public world_event_base
+struct event : public event_base
 {
 	typedef data_to_send argument_type;
 
@@ -49,21 +51,8 @@ struct world_event : public world_event_base
 	std::vector<std::function<void(data_to_send&)>> m_listeners;
 };
 
-struct world_event_index
-{
-	template <typename event_type>
-	static size_t get()
-	{
-		static size_t index = m_event_index_ticker++;
-		return index;
-	}
-	static size_t m_event_index_ticker;
-};
-
-size_t world_event_index::m_event_index_ticker = 0;
+template <typename component_type>
+struct on_component_created : public event<component_type> {};
 
 template <typename component_type>
-struct on_component_created : public world_event<component_type> {};
-
-template <typename component_type>
-struct on_component_destroyed : public world_event<component_type> {};
+struct on_component_destroyed : public event<component_type> {};

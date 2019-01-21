@@ -3,10 +3,24 @@
 
 #include <new>
 #include <chrono>
+#include <unordered_map>
 
 #include "component.h"
 #include "component_view.h"
 #include "event.h"
+
+struct world_event_index
+{
+	template <typename event_type>
+	static size_t get()
+	{
+		static size_t index = m_event_index_ticker++;
+		return index;
+	}
+	static size_t m_event_index_ticker;
+};
+
+size_t world_event_index::m_event_index_ticker = 0;
 
 struct world;
 
@@ -101,7 +115,7 @@ struct world
 	bucket_allocator<entity> m_entities;
 	std::vector<int> m_entity_free_indices;
 
-	std::vector<std::unique_ptr<world_event_base>> m_world_events;
+	std::vector<std::unique_ptr<event_base>> m_world_events;
 	std::unordered_map<size_t, size_t> m_component_type_index_to_destroyed_event_index_lut;
 	std::chrono::time_point<std::chrono::high_resolution_clock> m_previous_frame_time_point;
 	float m_time_delta = -1.0f;
