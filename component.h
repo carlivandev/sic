@@ -1,6 +1,6 @@
 #pragma once
 #include "bucket_allocator.h"
-#include "entity.h"
+#include "object.h"
 
 namespace impuls
 {
@@ -8,11 +8,11 @@ namespace impuls
 	{
 		virtual ~i_component() = default;
 
-		bool is_valid() const
+		inline bool is_valid() const
 		{
 			return m_owner != nullptr;
 		}
-		entity* m_owner = nullptr;
+		object* m_owner = nullptr;
 		i32 m_instance_index = -1;
 	};
 
@@ -44,8 +44,6 @@ namespace impuls
 		uint64_t m_component_flag_value = 0;
 		ui32 m_bucket_size = 0;
 	};
-
-	ui32 component_storage::index_ticker = 0;
 
 	template<typename component_type>
 	inline void component_storage::initialize(ui32 in_initial_capacity, ui32 in_bucket_capacity)
@@ -95,7 +93,7 @@ namespace impuls
 		static_assert(std::is_base_of<i_component, component_type>::value, "component_type must derive from struct i_component");
 
 		const i32 index = in_component_to_destroy.m_instance_index;
-		entity* owner = in_component_to_destroy.m_owner;
+		object* owner = in_component_to_destroy.m_owner;
 
 		m_free_indices.push_back(index);
 
@@ -116,31 +114,5 @@ namespace impuls
 		in_component_to_destroy.~component_type();
 		in_component_to_destroy.m_instance_index = -1;
 		in_component_to_destroy.m_owner = nullptr;
-	}
-
-	i_component* component_storage::next_valid_component(i32 in_instance_index)
-	{
-		for (ui32 i = in_instance_index + 1; i < m_components.size() / m_component_type_size; i++)
-		{
-			i_component* comp = reinterpret_cast<i_component*>(&m_components[i * m_component_type_size]);
-
-			if (comp->is_valid())
-				return comp;
-		}
-
-		return nullptr;
-	}
-
-	inline i_component* component_storage::previous_valid_component(i32 in_instance_index)
-	{
-		for (i32 i = in_instance_index - 1; i >= 0; i--)
-		{
-			i_component* comp = reinterpret_cast<i_component*>(&m_components[i * m_component_type_size]);
-
-			if (comp->is_valid())
-				return comp;
-		}
-
-		return nullptr;
 	}
 }

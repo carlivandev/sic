@@ -1,6 +1,7 @@
 #pragma once
-#include "pch.h"
+#include "defines.h"
 
+#include <assert.h>
 #include <vector>
 
 namespace impuls
