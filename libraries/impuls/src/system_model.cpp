@@ -26,23 +26,18 @@ void impuls::component_model::set_material(std::shared_ptr<asset_material>& in_m
 	if (!m_model)
 		return;
 
-	const i32 mesh_count = m_model->m_meshes.size();
+	const i32 mesh_idx = m_model->get_slot_index(in_material_slot);
 
-	for (i32 i = 0; i < mesh_count; i++)
-	{
-		auto& mesh = m_model->m_meshes[i];
-		if (mesh.first.material_slot == in_material_slot)
-		{
-			if (m_material_overrides.size() <= i)
-				m_material_overrides.resize(mesh_count);
+	if (mesh_idx == -1)
+		return;
 
-			m_material_overrides[i] = in_material;
-			return;
-		}
-	}
+	if (m_material_overrides.size() <= mesh_idx)
+		m_material_overrides.resize((size_t)mesh_idx + 1);
+
+	m_material_overrides[mesh_idx] = in_material;
 }
 
-std::shared_ptr<impuls::asset_material> impuls::component_model::get_material(i32 in_index)
+std::shared_ptr<impuls::asset_material> impuls::component_model::get_material(i32 in_index) const
 {
 	if (!m_model)
 		return nullptr;

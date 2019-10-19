@@ -161,7 +161,7 @@ namespace impuls
 	{
 		static_assert(std::is_base_of<i_system, t_system_type>::value, "system_type must derive from struct i_system");
 
-		const ui32 new_system_idx = m_systems.size();
+		const ui64 new_system_idx = m_systems.size();
 
 		m_systems.push_back(std::move(std::make_unique<t_system_type>()));
 		

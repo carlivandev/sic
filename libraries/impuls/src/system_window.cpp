@@ -251,7 +251,7 @@ void impuls::system_window::on_tick(world_context&& in_context, float in_time_de
 
 				const glm::mat4 mvp = proj_mat * view_mat * model_mat;
 
-				const i32 mesh_count = model_component.m_model->m_meshes.size();
+				const ui64 mesh_count = model_component.m_model->m_meshes.size();
 
 				for (i32 mesh_idx = 0; mesh_idx < mesh_count; mesh_idx++)
 				{

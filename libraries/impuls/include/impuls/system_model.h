@@ -12,7 +12,7 @@ namespace impuls
 	{
 	public:
 		void set_material(std::shared_ptr<asset_material>& in_material, const char* in_material_slot);
-		std::shared_ptr<asset_material> get_material(i32 in_index);
+		std::shared_ptr<asset_material> get_material(i32 in_index) const;
 
 	public:
 		std::shared_ptr<asset_model> m_model;
