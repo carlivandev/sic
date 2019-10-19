@@ -12,10 +12,13 @@ void impuls::threadpool::spawn(ui16 in_worker_count)
 	assert(is_caller_owner());
 
 	for (ui16 i = 0; i < in_worker_count; ++i)
+		m_threads_initialized.push_back(false);
+
+	for (ui16 i = 0; i < in_worker_count; ++i)
 	{
 		m_threads.emplace_back
 		(
-			[this]() -> void
+			[this, i]() -> void
 		{
 			closure task;
 
@@ -37,6 +40,7 @@ void impuls::threadpool::spawn(ui16 in_worker_count)
 				{
 					while (m_tasks.empty() && !m_stop)
 					{
+						m_threads_initialized[i] = true;
 						m_worker_signal.wait(lock);
 					}
 				}
@@ -48,6 +52,17 @@ void impuls::threadpool::spawn(ui16 in_worker_count)
 		const std::string name = ("worker_thread: " + std::to_string(i));
 		m_thread_id_to_name[m_threads.back().get_id()] = name;
 		set_thread_name(&m_threads.back(), name.c_str());
+	}
+
+	bool ready = false;
+
+	while (!ready)
+	{
+		ready = true;
+
+		for (ui16 i = 0; i < in_worker_count; ++i)
+			if (!m_threads_initialized[i])
+				ready = false;
 	}
 }
 

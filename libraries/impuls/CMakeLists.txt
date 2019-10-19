@@ -66,6 +66,7 @@ add_sources(IMPULS_SOURCES
 	component.cpp
 	pch.cpp
 	scheduler.cpp
+	system.cpp
 	threadpool.cpp
 	world.cpp
 	world_context.cpp

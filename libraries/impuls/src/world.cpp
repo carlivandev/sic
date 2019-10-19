@@ -25,17 +25,6 @@ namespace impuls
 		if (!m_initialized)
 			return;
 
-		/*
-			TODO:
-
-			target flow:
-
-			always tick all editor systems
-
-			user needs to manually call begin_simulation();
-			only tick() if m_begun_simulation = true
-		*/
-
 		if (!m_begun_simulation)
 		{
 			begin_simulation();
@@ -57,7 +46,35 @@ namespace impuls
 		for (auto& system : m_systems)
 		{
 			if (!m_is_destroyed)
-				system->on_begin_simulation(std::move(world_context(*this)));
+				system->on_begin_simulation(std::move(world_context(*this, *system.get())));
+		}
+
+		i32 most_parallel_possible = 0;
+		for (auto& system : m_systems)
+		{
+			if (system->m_subsystems.size() > most_parallel_possible)
+				most_parallel_possible = system->m_subsystems.size();
+		}
+
+		most_parallel_possible += m_async_ticksteps.size();
+
+		most_parallel_possible = 1;
+
+		m_tickstep_threadpool.spawn(most_parallel_possible);
+
+		for (auto& async_tickstep : m_async_ticksteps)
+		{
+			m_tickstep_threadpool.emplace
+			(
+				[this, async_tickstep]()
+				{
+					while (!m_tickstep_threadpool.is_shutting_down())
+					{
+						//todo: add time delta support on async systems
+						async_tickstep->execute_tick(world_context(*this, *async_tickstep), 0.0f);
+					}
+				}
+			);
 		}
 
 		m_begun_simulation = true;
@@ -65,19 +82,68 @@ namespace impuls
 
 	void world::tick()
 	{
+		std::vector<threadpool::closure> tasks_to_run;
+		tasks_to_run.reserve(8);
+
+		for (auto& synced_tickstep : m_synced_ticksteps)
+		{
+			if (synced_tickstep.size())
+			{
+				synced_tickstep[0]->execute_tick(world_context(*this, *synced_tickstep[0]), m_time_delta);
+				synced_tickstep[0]->m_finished_tick = true;
+
+				for (ui32 system_idx = 1; system_idx < synced_tickstep.size(); system_idx++)
+				{
+					i_system* system_to_tick = synced_tickstep[system_idx];
+
+					tasks_to_run.emplace_back
+					(
+						[this, system_to_tick]()
+						{
+							system_to_tick->execute_tick(world_context(*this, *system_to_tick), m_time_delta);
+							system_to_tick->m_finished_tick = true;
+						}
+					);
+
+					system_to_tick->m_finished_tick = false;
+				}
+			}
+
+			m_tickstep_threadpool.batch(std::move(tasks_to_run));
+
+			//wait for all to finish
+			bool all_finished = false;
+
+			while (!all_finished)
+			{
+				all_finished = true;
+
+				for (i_system* system_to_tick : synced_tickstep)
+				{
+					if (!system_to_tick->m_finished_tick)
+						all_finished = false;
+				}
+			}
+
+		}
+
+		/*
 		for (auto& system : m_systems)
 		{
 			if (!m_is_destroyed)
-				system->on_tick(std::move(world_context(*this)), m_time_delta);
+				system->execute_tick(std::move(world_context(*this, *system.get())), m_time_delta);
 		}
+		*/
 	}
 
 	void world::end_simulation()
 	{
+		m_tickstep_threadpool.shutdown();
+
 		for (auto& system : m_systems)
 		{
 			if (!m_is_destroyed)
-				system->on_end_simulation(std::move(world_context(*this)));
+				system->on_end_simulation(std::move(world_context(*this, *system.get())));
 		}
 	}
 

@@ -16,6 +16,11 @@ namespace impuls_private
 {
 	using namespace impuls;
 
+	void glfw_error(int in_error_code, const char* in_message)
+	{
+		printf("glfw error[%i]: %s\n", in_error_code, in_message);
+	}
+
 	void window_resized(GLFWwindow* in_window, i32 in_width, i32 in_height)
 	{
 		component_window* wdw = static_cast<component_window*>(glfwGetWindowUserPointer(in_window));
@@ -92,6 +97,14 @@ namespace impuls_private
 
 void impuls::system_window::on_created(world_context&& in_context) const
 {
+	if (!glfwInit())
+	{
+		fprintf(stderr, "Failed to initialize GLFW\n");
+		return;
+	}
+
+	glfwSetErrorCallback(&impuls_private::glfw_error);
+
 	in_context.register_component_type<component_window>("component_window", 4, 1);
 	in_context.register_object<object_window>("window", 4, 1);
 
@@ -109,12 +122,6 @@ void impuls::system_window::on_created(world_context&& in_context) const
 			glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 			glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
 			glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL 
-
-			if (!glfwInit())
-			{
-				fprintf(stderr, "Failed to initialize GLFW\n");
-				return;
-			}
 
 			component_window& new_window_component = new_window.get<component_window>();
 			new_window_component.m_dimensions_x = 1600;
@@ -150,6 +157,8 @@ void impuls::system_window::on_created(world_context&& in_context) const
 
 			// Ensure we can capture the escape key being pressed below
 			glfwSetInputMode(new_window_component.m_window, GLFW_STICKY_KEYS, GL_TRUE);
+
+			glfwMakeContextCurrent(nullptr);
 		}
 	);
 }
@@ -182,6 +191,8 @@ void impuls::system_window::on_tick(world_context&& in_context, float in_time_de
 
 		if (current_window_x == 0 || current_window_y == 0)
 			continue;
+
+		glfwMakeContextCurrent(render_window.m_window);
 
 		// Direction : Spherical coordinates to Cartesian coordinates conversion
 		const glm::vec3 direction
@@ -253,6 +264,7 @@ void impuls::system_window::on_tick(world_context&& in_context, float in_time_de
 		}
 
 		glfwSwapBuffers(render_window.m_window);
+		glfwPollEvents();
 
 		if (glfwWindowShouldClose(render_window.m_window) != 0)
 		{
@@ -262,6 +274,8 @@ void impuls::system_window::on_tick(world_context&& in_context, float in_time_de
 				glfwDestroyWindow(render_window.m_window);
 		}
 	}
+
+	glfwMakeContextCurrent(nullptr);
 }
 
 void impuls::system_window::on_end_simulation(world_context&& in_context) const

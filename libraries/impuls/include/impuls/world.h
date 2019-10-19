@@ -25,6 +25,12 @@ namespace impuls
 
 	struct world
 	{
+		template <typename ...t_systems>
+		friend struct tickstep_async;
+
+		template <typename ...t_systems>
+		friend struct tickstep_synced;
+
 		void initialize();
 
 		void simulate();
@@ -34,6 +40,9 @@ namespace impuls
 
 		void destroy() { m_is_destroyed = true; }
 		bool is_destroyed() const { return m_is_destroyed; }
+
+		template <typename ...t_steps>
+		void set_ticksteps();
 
 		template <typename t_component_type>
 		void register_component_type(ui32 in_initial_capacity = 128, ui32 in_bucket_capacity = 64);
@@ -75,6 +84,10 @@ namespace impuls
 		std::vector<typeinfo*> m_state_typeinfos;
 		std::unordered_map<std::string, std::unique_ptr<typeinfo>> m_typename_to_typeinfo_lut;
 
+		std::vector<i_system*> m_async_ticksteps;
+		std::vector<std::vector<i_system*>> m_synced_ticksteps;
+		threadpool m_tickstep_threadpool;
+
 		std::chrono::time_point<std::chrono::high_resolution_clock> m_previous_frame_time_point;
 		float m_time_delta = -1.0f;
 
@@ -82,6 +95,44 @@ namespace impuls
 		bool m_initialized = false;
 		bool m_begun_simulation = false;
 	};
+
+	template <typename ...t_systems>
+	struct tickstep_async
+	{
+		template <typename t_system>
+		static void add_to_tickstep(world& in_world)
+		{
+			in_world.m_async_ticksteps.push_back(&in_world.create_system<t_system>());
+		}
+
+		static void add_tickstep(world& in_world)
+		{
+			(add_to_tickstep<t_systems>(in_world), ...);
+		}
+	};
+
+	//first system will always execute on main thread
+	template <typename ...t_systems>
+	struct tickstep_synced
+	{
+		template <typename t_system>
+		static void add_to_tickstep(world& in_world, std::vector<i_system*>& out_tickstep)
+		{
+			out_tickstep.push_back(&in_world.create_system<t_system>());
+		}
+
+		static void add_tickstep(world& in_world)
+		{
+			auto& tickstep = in_world.m_synced_ticksteps.emplace_back();
+			(add_to_tickstep<t_systems>(in_world, tickstep), ...);
+		}
+	};
+
+	template<typename ...t_steps>
+	inline void world::set_ticksteps()
+	{
+		(t_steps::add_tickstep(*this), ...);
+	}
 
 	template<typename t_component_type>
 	inline void world::register_component_type(ui32 in_initial_capacity, ui32 in_bucket_capacity)
@@ -110,11 +161,14 @@ namespace impuls
 	{
 		static_assert(std::is_base_of<i_system, t_system_type>::value, "system_type must derive from struct i_system");
 
+		const ui32 new_system_idx = m_systems.size();
+
 		m_systems.push_back(std::move(std::make_unique<t_system_type>()));
-		m_systems.back()->m_name = typeid(t_system_type).name();
-		m_systems.back()->on_created(std::move(world_context(*this)));
 		
-		return *reinterpret_cast<t_system_type*>(m_systems.back().get());
+		m_systems.back()->m_name = typeid(t_system_type).name();
+		m_systems.back()->on_created(std::move(world_context(*this, *m_systems.back().get())));
+		
+		return *reinterpret_cast<t_system_type*>(m_systems[new_system_idx].get());
 	}
 
 	template<typename t_component_type>

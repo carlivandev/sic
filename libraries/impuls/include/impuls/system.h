@@ -3,6 +3,7 @@
 #include "type_index.h"
 
 #include <string>
+#include <vector>
 
 namespace impuls
 {
@@ -13,6 +14,7 @@ namespace impuls
 
 	struct i_system
 	{
+		friend world_context;
 		friend world;
 
 		/*
@@ -98,7 +100,13 @@ namespace impuls
 		const std::string& name() const { return m_name; }
 
 	protected:
+		void execute_tick(world_context&& in_context, float in_time_delta) const;
+
 		std::string m_name;
 		bool m_enabled = true;
+
+	private:
+		std::vector<i_system*> m_subsystems;
+		bool m_finished_tick = false;
 	};
 }

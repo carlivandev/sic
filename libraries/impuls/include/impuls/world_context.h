@@ -12,6 +12,16 @@ namespace impuls
 	struct world_context
 	{
 		world_context(world& in_world) : m_world(&in_world) {}
+		world_context(world& in_world, i_system& in_system) : m_world(&in_world), m_current_system(&in_system) {}
+
+		template<typename t_system_type>
+		__forceinline t_system_type& create_subsystem()
+		{
+			auto& new_system = m_world->create_system<t_system_type>();
+			m_current_system->m_subsystems.push_back(&new_system);
+
+			return new_system;
+		}
 
 		template <typename t_component_type>
 		__forceinline constexpr t_component_type& create_component(i_object_base& in_object_to_attach_to)
@@ -381,6 +391,7 @@ namespace impuls
 		}
 
 		world* m_world = nullptr;
+		i_system* m_current_system = nullptr;
 	};
 }
 
