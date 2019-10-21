@@ -17,3 +17,10 @@ std::string impuls::file_management::load_file(const std::string& in_filepath, b
 
 	return str;
 }
+
+void impuls::file_management::save_file(const std::string& in_filepath, const std::string& in_filedata, bool in_binary)
+{
+	std::ofstream outfile(in_filepath, in_binary ? std::ios_base::binary : std::ios_base::in);
+
+	outfile.write(in_filedata.c_str(), in_filedata.size());
+}

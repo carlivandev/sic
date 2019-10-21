@@ -50,6 +50,7 @@ add_headers(IMPULS_HEADERS
 	world.h
 	world_context.h
 	file_management.h
+	system_file.h
 	asset_management.h
 	asset_types.h
 	system_window.h
@@ -71,6 +72,7 @@ add_sources(IMPULS_SOURCES
 	world.cpp
 	world_context.cpp
 	file_management.cpp
+	system_file.cpp
 	asset_management.cpp
 	system_window.cpp
 	system_input.cpp
