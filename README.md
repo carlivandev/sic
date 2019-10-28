@@ -21,12 +21,12 @@ struct component_model : i_component<component_transform>
 
 object creation:
 ```cpp
-auto& player_instance = context.create_object<player>();
+player& player_instance = context.create_object<player>();
 ```
 
 component iteration:
 ```cpp
-for (auto&& instance : context.each<component_model>())
+for (component_model& instance : context.each<component_model>())
 {
 	//gets the cached dependency pointer
 	instance.get<component_transform>();
