@@ -15,7 +15,6 @@ component type creation:
 struct component_model : i_component<component_transform>
 {
 	asset_ref<asset_model> m_model;
-	std::vector<asset_ref<asset_material>> m_material_overrides;
 };
 ```
 
