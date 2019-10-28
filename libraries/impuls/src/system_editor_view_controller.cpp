@@ -29,8 +29,6 @@ void impuls::system_editor_view_controller::on_begin_simulation(world_context&& 
 		impuls::i32 window_width, window_height;
 		glfwGetWindowSize(wd.m_window, &window_width, &window_height);
 
-		// reset mouse position for next frame
-		glfwSetCursorPos(wd.m_window, window_width / 2, window_height / 2);
 	}
 }
 
@@ -54,14 +52,11 @@ void impuls::system_editor_view_controller::on_tick(world_context&& in_context, 
 
 		object_window& window_to_control = *evc.m_view_to_control->m_window_render_on;
 		component_window& wd = window_to_control.get<component_window>();
-
-		double xpos, ypos;
-		glfwGetCursorPos(wd.m_window, &xpos, &ypos);
 		
 		if (input_state->is_mousebutton_pressed(e_mousebutton::right))
-			evc.m_mouse_pos_on_rightclick = { xpos, ypos };
-		else if (input_state->is_mousebutton_pressed(e_mousebutton::right))
-			glfwSetCursorPos(wd.m_window, evc.m_mouse_pos_on_rightclick.x, evc.m_mouse_pos_on_rightclick.y);
+			wd.set_input_mode(e_window_input_mode::disabled);
+		else if (input_state->is_mousebutton_released(e_mousebutton::right))
+			wd.set_input_mode(e_window_input_mode::normal);
 
 		if (!input_state->is_mousebutton_down(e_mousebutton::right))
 			continue;
@@ -74,8 +69,8 @@ void impuls::system_editor_view_controller::on_tick(world_context&& in_context, 
 		float& vertical_angle = evc.m_view_to_control->m_vertical_angle;
 
 		// Compute new orientation
-		horizontal_angle += evc.m_mouse_speed * in_time_delta * float(evc.m_mouse_pos_on_rightclick.x - xpos);
-		vertical_angle += evc.m_mouse_speed * in_time_delta * float(evc.m_mouse_pos_on_rightclick.y - ypos);
+		horizontal_angle += evc.m_mouse_speed * in_time_delta * -wd.get_cursor_movement().x;
+		vertical_angle += evc.m_mouse_speed * in_time_delta * -wd.get_cursor_movement().y;
 
 		const float max_vertical_angle = glm::radians(80.0f);
 		vertical_angle = glm::clamp(vertical_angle, -max_vertical_angle, max_vertical_angle);
@@ -118,8 +113,5 @@ void impuls::system_editor_view_controller::on_tick(world_context&& in_context, 
 
 		if (input_state->is_key_down(e_key::left_control))
 			position -= up * move_speed;
-
-		// reset mouse position for next frame
-		glfwSetCursorPos(wd.m_window, evc.m_mouse_pos_on_rightclick.x, evc.m_mouse_pos_on_rightclick.y);
 	}
 }

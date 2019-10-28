@@ -52,47 +52,6 @@ namespace impuls_private
 		wdw->m_scroll_offset_x += in_xoffset;
 		wdw->m_scroll_offset_y += in_yoffset;
 	}
-
-	void draw_mesh(const asset_model::mesh& in_mesh, const asset_material& in_material, const glm::mat4& in_mvp)
-	{
-		// Use our shader
-		glUseProgram(in_material.m_program_id);
-
-		GLuint mvp_uniform_loc = glGetUniformLocation(in_material.m_program_id, "MVP");
-
-		if (mvp_uniform_loc == -1)
-			return;
-
-		glUniformMatrix4fv(mvp_uniform_loc, 1, GL_FALSE, glm::value_ptr(in_mvp));
-
-		ui32 texture_param_idx = 0;
-
-		for (auto& texture_param : in_material.m_texture_parameters)
-		{
-			//in future we want to render an error texture instead
-			if (!texture_param.m_texture)
-				continue;
-
-			const i32 uniform_loc = glGetUniformLocation(in_material.m_program_id, texture_param.m_name.c_str());
-			
-			//error handle this
-			if (uniform_loc == -1)
-				continue;
-
-			glActiveTexture(GL_TEXTURE0 + texture_param_idx);
-			glBindTexture(GL_TEXTURE_2D, texture_param.m_texture->m_render_id);
-			glUniform1i(uniform_loc, texture_param_idx);
-
-			++texture_param_idx;
-		}
-
-		// draw mesh
-		glBindVertexArray(in_mesh.m_vao);
-		glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(in_mesh.m_indices.size()), GL_UNSIGNED_INT, 0);
-		glBindVertexArray(0);
-
-		glActiveTexture(GL_TEXTURE0);
-	}
 }
 
 void impuls::system_window::on_created(world_context&& in_context) const
@@ -117,6 +76,9 @@ void impuls::system_window::on_created(world_context&& in_context) const
 	(
 		[](object_window& new_window)
 		{
+			constexpr i32 dimensions_x = 1600;
+			constexpr i32 dimensions_y = 800;
+
 			glfwWindowHint(GLFW_SAMPLES, 4); // 4x antialiasing
 			glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); // We want OpenGL 3.3
 			glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -124,8 +86,8 @@ void impuls::system_window::on_created(world_context&& in_context) const
 			glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL 
 
 			component_window& new_window_component = new_window.get<component_window>();
-			new_window_component.m_dimensions_x = 1600;
-			new_window_component.m_dimensions_y = 800;
+			new_window_component.m_dimensions_x = dimensions_x;
+			new_window_component.m_dimensions_y = dimensions_y;
 
 			new_window_component.m_window = glfwCreateWindow(new_window_component.m_dimensions_x, new_window_component.m_dimensions_y, "impuls_test_game", NULL, NULL);
 
@@ -189,82 +151,58 @@ void impuls::system_window::on_tick(world_context&& in_context, float in_time_de
 			glfwSetWindowSize(render_window.m_window, render_window.m_dimensions_x, render_window.m_dimensions_y);
 		}
 
-		if (current_window_x == 0 || current_window_y == 0)
-			continue;
-
-		glfwMakeContextCurrent(render_window.m_window);
-
-		// Direction : Spherical coordinates to Cartesian coordinates conversion
-		const glm::vec3 direction
-		(
-			cos(component_view_it.m_vertical_angle) * sin(component_view_it.m_horizontal_angle),
-			sin(component_view_it.m_vertical_angle),
-			cos(component_view_it.m_vertical_angle) * cos(component_view_it.m_horizontal_angle)
-		);
-
-		// Right vector
-		const glm::vec3 right = glm::vec3
-		(
-			sin(component_view_it.m_horizontal_angle - 3.14f / 2.0f),
-			0,
-			cos(component_view_it.m_horizontal_angle - 3.14f / 2.0f)
-		);
-
-		// Up vector : perpendicular to both direction and right
-		const glm::vec3 up = glm::cross(right, direction);
-
-		const float fov = 45.0f;
-		const float ratio = static_cast<float>(current_window_x) / static_cast<float>(current_window_y);
-		const float near_plane = 0.1f;
-		const float far_plane = 100.0f;
-
-		const glm::mat4x4 proj_mat = glm::perspective
-		(
-			glm::radians(fov),
-			ratio,
-			near_plane,
-			far_plane
-		);
-
-		// ortho camera :
-		//glm::mat4 Projection = glm::ortho(-10.0f,10.0f,-10.0f,10.0f,0.0f,100.0f); // In world coordinates
-
-		const glm::mat4x4 view_mat = glm::lookAt
-		(
-			component_view_it.m_position,
-			component_view_it.m_position + direction,
-			up
-		);
-
-		glClearColor(0.0f, 0.0f, 0.1f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		for (auto& model_component : in_context.each<component_model>())
+		if (render_window.m_cursor_pos_to_set.has_value())
 		{
-			if (model_component.m_model && model_component.m_transform)
+			render_window.m_cursor_pos = render_window.m_cursor_pos_to_set.value();
+			glfwSetCursorPos(render_window.m_window, render_window.m_cursor_pos.x, render_window.m_cursor_pos.y);
+
+			render_window.m_cursor_pos_to_set.reset();
+		}
+
+		bool needs_cursor_reset = false;
+
+		if (render_window.m_input_mode_to_set.has_value())
+		{
+			if (render_window.m_current_input_mode != e_window_input_mode::disabled &&
+				render_window.m_input_mode_to_set.value() == e_window_input_mode::disabled)
+				needs_cursor_reset = true;
+
+			render_window.m_current_input_mode = render_window.m_input_mode_to_set.value();
+			render_window.m_input_mode_to_set.reset();
+
+			switch (render_window.m_current_input_mode)
 			{
-				const glm::mat4 model_mat = glm::mat4(
-					1.0f, 0.0f, 0.0f, 0.0f,
-					0.0f, 1.0f, 0.0f, 0.0f,
-					0.0f, 0.0f, 1.0f, 0.0f,
-					model_component.m_transform->m_position.x, model_component.m_transform->m_position.y, model_component.m_transform->m_position.z, 1.0);
-
-				const glm::mat4 mvp = proj_mat * view_mat * model_mat;
-
-				const ui64 mesh_count = model_component.m_model->m_meshes.size();
-
-				for (i32 mesh_idx = 0; mesh_idx < mesh_count; mesh_idx++)
-				{
-					auto& mesh = model_component.m_model->m_meshes[mesh_idx];
-
-					if (auto mat_to_draw = model_component.get_material(mesh_idx))
-						impuls_private::draw_mesh(mesh.first, *mat_to_draw, mvp);
-				}
+			case e_window_input_mode::normal:
+				glfwSetInputMode(render_window.m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+				break;
+			case e_window_input_mode::disabled:
+				glfwSetInputMode(render_window.m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+				break;
+			case e_window_input_mode::hidden:
+				glfwSetInputMode(render_window.m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+				break;
+			default:
+				break;
 			}
 		}
 
-		glfwSwapBuffers(render_window.m_window);
 		glfwPollEvents();
+
+		double cursor_x, cursor_y;
+		glfwGetCursorPos(render_window.m_window, &cursor_x, &cursor_y);
+
+		if (needs_cursor_reset)
+		{
+			render_window.m_cursor_movement = { 0.0f, 0.0f };
+		}
+		else
+		{
+			render_window.m_cursor_movement.x = static_cast<float>(cursor_x) - render_window.m_cursor_pos.x;
+			render_window.m_cursor_movement.y = static_cast<float>(cursor_y) - render_window.m_cursor_pos.y;
+		}
+
+		render_window.m_cursor_pos.x = static_cast<float>(cursor_x);
+		render_window.m_cursor_pos.y = static_cast<float>(cursor_y);
 
 		if (glfwWindowShouldClose(render_window.m_window) != 0)
 		{

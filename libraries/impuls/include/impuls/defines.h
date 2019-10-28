@@ -4,7 +4,7 @@
 
 namespace impuls
 {
-	typedef unsigned char byte;
+	typedef char byte;
 	
 	typedef int8_t		i8;
 	typedef int16_t		i16;

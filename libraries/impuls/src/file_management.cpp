@@ -23,4 +23,5 @@ void impuls::file_management::save_file(const std::string& in_filepath, const st
 	std::ofstream outfile(in_filepath, in_binary ? std::ios_base::binary : std::ios_base::in);
 
 	outfile.write(in_filedata.c_str(), in_filedata.size());
+	outfile.flush();
 }

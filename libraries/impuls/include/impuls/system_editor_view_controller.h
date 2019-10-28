@@ -11,7 +11,6 @@ namespace impuls
 	{
 		component_view* m_view_to_control = nullptr;
 
-		glm::vec2 m_mouse_pos_on_rightclick;
 		float m_speed = 3.0f; // 3 units / second
 		float m_mouse_speed = 0.05f;
 

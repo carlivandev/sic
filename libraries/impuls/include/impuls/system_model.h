@@ -2,6 +2,8 @@
 #include "system.h"
 #include "world_context.h"
 
+#include "system_asset.h"
+
 namespace impuls
 {
 	struct asset_model;
@@ -16,7 +18,9 @@ namespace impuls
 
 	public:
 		std::shared_ptr<asset_model> m_model;
+
 		component_transform* m_transform = nullptr;
+		asset_ref<asset_model> m_model_ref;
 
 	protected:
 		std::vector<std::shared_ptr<asset_material>> m_material_overrides;

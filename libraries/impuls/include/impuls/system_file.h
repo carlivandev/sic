@@ -33,7 +33,10 @@ namespace impuls
 		friend struct system_file;
 
 		void request_load(file_load_request&& in_request);
+		void request_load(std::vector<file_load_request>&& in_requests);
+
 		void request_save(file_save_request&& in_request);
+		void request_save(std::vector<file_save_request>&& in_requests);
 
 	private:
 		std::vector<file_load_request> m_load_requests;

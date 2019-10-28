@@ -7,10 +7,22 @@ void impuls::state_filesystem::request_load(file_load_request&& in_request)
 	m_load_requests.push_back(in_request);
 }
 
+void impuls::state_filesystem::request_load(std::vector<file_load_request>&& in_requests)
+{
+	std::scoped_lock lock(m_load_mutex);
+	std::move(in_requests.begin(), in_requests.end(), std::back_inserter(m_load_requests));
+}
+
 void impuls::state_filesystem::request_save(file_save_request&& in_request)
 {
 	std::scoped_lock lock(m_save_mutex);
 	m_save_requests.push_back(in_request);
+}
+
+void impuls::state_filesystem::request_save(std::vector<file_save_request>&& in_requests)
+{
+	std::scoped_lock lock(m_save_mutex);
+	std::move(in_requests.begin(), in_requests.end(), std::back_inserter(m_save_requests));
 }
 
 void impuls::system_file::on_created(world_context&& in_context) const
@@ -69,8 +81,8 @@ void impuls::system_file::on_tick(world_context&& in_context, float in_time_delt
 
 	file_state->m_worker_pool.batch(std::move(closures));
 
-	file_state->m_save_requests.empty();
-	file_state->m_load_requests.empty();
+	file_state->m_save_requests.clear();
+	file_state->m_load_requests.clear();
 }
 
 void impuls::system_file::on_end_simulation(world_context&& in_context) const

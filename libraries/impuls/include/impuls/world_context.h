@@ -3,7 +3,6 @@
 #include "world.h"
 #include "object.h"
 #include "type.h"
-#include "snapshot.h"
 
 namespace impuls
 {
@@ -325,69 +324,6 @@ namespace impuls
 		void invoke(event_data& event_data_to_send)
 		{
 			m_world->invoke<t_event_type, event_data>(event_data_to_send);
-		}
-
-		void snapshot(std::vector<byte>& out_snapshot)
-		{
-			snapshot_data data;
-			
-			for (ui32 obj_storage_idx = 0; obj_storage_idx < m_world->m_objects.size(); obj_storage_idx++)
-			{
-				std::unique_ptr<i_object_storage_base>& storage = m_world->m_objects[obj_storage_idx];
-
-				bucket_allocator& allocator = reinterpret_cast<object_storage*>(storage.get())->m_instances;
-
-				for (ui32 i = 0; i < allocator.m_byte_allocator.size(); i += allocator.m_byte_allocator.m_typesize)
-				{
-					i_object_base* as_obj = reinterpret_cast<i_object_base*>(&allocator.m_byte_allocator[i]);
-					//as_obj->snapshot(out_snapshot, obj_storage_idx);
-					as_obj;
-				}
-			}
-
-			/*
-
-			1. for each component type, create its own vector with data
-
-			2. for each object type create its own vector with data
-
-			3. serialized object is just its parent index and children index
-
-			4. serialized component is object type index, object instance index, and lastly its actual component data
-
-			ex.
-			shape
-			-1 empty_vec (first shape)
-			-1 empty_vec (second shape)
-
-			shape_data
-			0 0 <instance0> (owner type idx, owner instance idx, component data)
-			0 1 <instance1> (owner type idx, owner instance idx, component data)
-
-			*/
-
-			serialize(data.m_object_type_datas, out_snapshot);
-			serialize(data.m_component_type_datas, out_snapshot);
-		}
-
-		void load_snapshot(const std::vector<byte>& in_snapshot)
-		{
-			//first make sure world has no objects
-			for (std::unique_ptr<i_object_storage_base>& storage : m_world->m_objects)
-			{
-				bucket_allocator& allocator = reinterpret_cast<object_storage*>(storage.get())->m_instances;
-
-				for (ui32 i = 0; i < allocator.m_byte_allocator.size(); i += allocator.m_byte_allocator.m_typesize)
-				{
-					i_object_base* as_obj = reinterpret_cast<i_object_base*>(&allocator.m_byte_allocator[i]);
-					as_obj->destroy_instance(*m_world);
-				}
-			}
-
-			//then, load
-			snapshot_data data;
-			const ui32 end_idx = deserialize(in_snapshot[0], data.m_object_type_datas);
-			deserialize(in_snapshot[end_idx], data.m_component_type_datas);
 		}
 
 		world* m_world = nullptr;

@@ -58,8 +58,6 @@ namespace impuls
 
 		most_parallel_possible += m_async_ticksteps.size();
 
-		most_parallel_possible = 1;
-
 		m_tickstep_threadpool.spawn(most_parallel_possible);
 
 		for (auto& async_tickstep : m_async_ticksteps)
@@ -87,11 +85,10 @@ namespace impuls
 
 		for (auto& synced_tickstep : m_synced_ticksteps)
 		{
+			tasks_to_run.clear();
+
 			if (synced_tickstep.size())
 			{
-				synced_tickstep[0]->execute_tick(world_context(*this, *synced_tickstep[0]), m_time_delta);
-				synced_tickstep[0]->m_finished_tick = true;
-
 				for (ui32 system_idx = 1; system_idx < synced_tickstep.size(); system_idx++)
 				{
 					i_system* system_to_tick = synced_tickstep[system_idx];
@@ -107,9 +104,13 @@ namespace impuls
 
 					system_to_tick->m_finished_tick = false;
 				}
+
+				synced_tickstep[0]->execute_tick(world_context(*this, *synced_tickstep[0]), m_time_delta);
+				synced_tickstep[0]->m_finished_tick = true;
 			}
 
-			m_tickstep_threadpool.batch(std::move(tasks_to_run));
+			if (!tasks_to_run.empty())
+				m_tickstep_threadpool.batch(std::move(tasks_to_run));
 
 			//wait for all to finish
 			bool all_finished = false;

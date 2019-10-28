@@ -1,6 +1,7 @@
 #include "impuls/system_model.h"
 #include "impuls/transform.h"
 #include "impuls/asset_types.h"
+#include "impuls/system_renderer.h"
 
 void impuls::system_model::on_created(world_context&& in_context) const
 {
@@ -18,7 +19,26 @@ void impuls::system_model::on_created(world_context&& in_context) const
 void impuls::system_model::on_tick(world_context&& in_context, float in_time_delta) const
 {
 	in_time_delta;
-	in_context;
+
+	state_renderer* renderer_state = in_context.get_state<state_renderer>();
+
+	if (!renderer_state)
+		return;
+
+	renderer_state->m_model_drawcalls.write
+	(
+		[&in_context](std::vector<drawcall_model>& out_drawcalls)
+		{
+			for (component_model& model : in_context.each<component_model>())
+			{
+				if (!model.m_model_ref.is_valid())
+					continue;
+
+				out_drawcalls.push_back(drawcall_model{ model.m_model, model.m_model_ref, model.m_transform->m_position });
+			}
+		}
+	);
+	
 }
 
 void impuls::component_model::set_material(std::shared_ptr<asset_material>& in_material, const char* in_material_slot)

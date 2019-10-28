@@ -41,7 +41,6 @@ add_headers(IMPULS_HEADERS
 	pch.h
 	scheduler.h
 	serializer.h
-	snapshot.h
 	system.h
 	thread_naming.h
 	threadpool.h
@@ -52,7 +51,9 @@ add_headers(IMPULS_HEADERS
 	file_management.h
 	system_file.h
 	asset_management.h
+	asset_mesh.h
 	asset_types.h
+	system_asset.h
 	system_window.h
 	system_input.h
 	input.h
@@ -60,6 +61,9 @@ add_headers(IMPULS_HEADERS
 	system_editor_view_controller.h
 	view.h
 	system_model.h
+	system_renderer.h
+	system_renderer_state_swapper.h
+	double_buffer.h
 	transform.h
 	)
 
@@ -74,11 +78,16 @@ add_sources(IMPULS_SOURCES
 	file_management.cpp
 	system_file.cpp
 	asset_management.cpp
+	asset_mesh.cpp
+	system_asset.cpp
 	system_window.cpp
 	system_input.cpp
 	input.cpp
 	system_editor_view_controller.cpp
-	system_model.cpp)
+	system_model.cpp
+	system_renderer.cpp
+	system_renderer_state_swapper.cpp
+	)
 
 add_subdirectory(libraries/fmt)
 set (EXTRA_LIBS ${EXTRA_LIBS} fmt)
@@ -95,10 +104,18 @@ set (EXTRA_LIBS ${EXTRA_LIBS} libglew_static)
 add_subdirectory(libraries/assimp-master)
 set (EXTRA_LIBS ${EXTRA_LIBS} assimp)
 
+add_subdirectory(libraries/crossguid-master)
+set (EXTRA_LIBS ${EXTRA_LIBS} crossguid)
+
+add_subdirectory(libraries/nlohmann-json)
+set (EXTRA_LIBS ${EXTRA_LIBS} nlohmann_json)
+
 include_directories(
 	libraries/stb
 	libraries/glew/include
-	libraries/glm-0.9.9.6)
+	libraries/glm-0.9.9.6
+	libraries/crossguid-master/include
+	libraries/nlohmann-json/include)
 	
 add_library(impuls STATIC ${IMPULS_SOURCES} ${IMPULS_HEADERS} include/impuls)
 
