@@ -1,6 +1,7 @@
 # impuls
-very very wip engine
-an engine where objects are pre-defined list of components and systems iterate components to manipulate their state.
+very very wip!
+
+impuls is an engine where objects are pre-defined list of components and systems iterate components to manipulate their state.
 
 object type creation:
 ```cpp
