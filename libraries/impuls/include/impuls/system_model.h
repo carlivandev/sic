@@ -12,18 +12,18 @@ namespace impuls
 
 	struct component_model : public i_component
 	{
-	public:
-		void set_material(std::shared_ptr<asset_material>& in_material, const char* in_material_slot);
-		std::shared_ptr<asset_material> get_material(i32 in_index) const;
+		friend struct system_model;
 
 	public:
-		std::shared_ptr<asset_model> m_model;
+		void set_material(asset_ref<asset_material> in_material, const char* in_material_slot);
+		asset_ref<asset_material> get_material_override(const char* in_material_slot) const;
 
+	public:
 		component_transform* m_transform = nullptr;
-		asset_ref<asset_model> m_model_ref;
+		asset_ref<asset_model> m_model;
 
 	protected:
-		std::vector<std::shared_ptr<asset_material>> m_material_overrides;
+		std::unordered_map<std::string, asset_ref<asset_material>> m_material_overrides;
 	};
 
 	struct system_model : i_system

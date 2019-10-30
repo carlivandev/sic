@@ -8,9 +8,147 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
+#include "stb/stb_image.h"
+
 namespace impuls_private
 {
 	using namespace impuls;
+
+	void init_texture(asset_texture& out_texture)
+	{
+		GLuint& texture_id = out_texture.m_render_id;
+
+		glGenTextures(1, &texture_id);
+
+		glBindTexture(GL_TEXTURE_2D, texture_id);
+
+		// Nice trilinear filtering.
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		// When MAGnifying the image (no bigger mipmap available), use LINEAR filtering
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		// When MINifying the image, use a LINEAR blend of two mipmaps, each filtered LINEARLY too
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+
+		i32 gl_texture_format = 0;
+
+		switch (out_texture.m_format)
+		{
+		case e_texture_format::gray:
+			gl_texture_format = GL_R;
+			break;
+		case e_texture_format::gray_a:
+			gl_texture_format = GL_RG;
+			break;
+		case e_texture_format::rgb:
+			gl_texture_format = GL_RGB;
+			break;
+		case e_texture_format::rgb_a:
+			gl_texture_format = GL_RGBA;
+			break;
+		default:
+			break;
+		}
+
+		glTexImage2D(GL_TEXTURE_2D, 0, gl_texture_format, out_texture.m_width, out_texture.m_height, 0, gl_texture_format, GL_UNSIGNED_BYTE, out_texture.m_texture_data);
+
+		glGenerateMipmap(GL_TEXTURE_2D);
+
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		if (out_texture.m_free_texture_data_after_setup)
+		{
+			stbi_image_free(out_texture.m_texture_data);
+			out_texture.m_texture_data = nullptr;
+		}
+
+		//end gpu texture setup
+	}
+
+	void init_material(asset_material& out_material)
+	{
+		const std::string vertex_file_path = out_material.m_vertex_shader;
+		const std::string fragment_file_path = out_material.m_fragment_shader;
+
+		// Create the shaders
+		GLuint vertex_shader_id = glCreateShader(GL_VERTEX_SHADER);
+		GLuint fragment_shader_id = glCreateShader(GL_FRAGMENT_SHADER);
+
+		const std::string vertex_shader_code = file_management::load_file(vertex_file_path, false);
+
+		if (vertex_shader_code.size() == 0)
+		{
+			printf("Impossible to open %s. Are you in the right directory ? Don't forget to read the FAQ !\n", vertex_file_path.c_str());
+			return;
+		}
+		const std::string fragment_shader_code = file_management::load_file(fragment_file_path, false);
+
+		if (fragment_shader_code.size() == 0)
+		{
+			printf("Impossible to open %s. Are you in the right directory ? Don't forget to read the FAQ !\n", fragment_file_path.c_str());
+			return;
+		}
+
+		GLint result_id = GL_FALSE;
+		i32 info_log_length;
+
+		// Compile Vertex Shader
+		printf("Compiling shader : %s\n", vertex_file_path.c_str());
+		const GLchar* vertex_source_ptr = vertex_shader_code.data();
+		glShaderSource(vertex_shader_id, 1, &vertex_source_ptr, NULL);
+		glCompileShader(vertex_shader_id);
+
+		// Check Vertex Shader
+		glGetShaderiv(vertex_shader_id, GL_COMPILE_STATUS, &result_id);
+		glGetShaderiv(vertex_shader_id, GL_INFO_LOG_LENGTH, &info_log_length);
+		if (info_log_length > 0)
+		{
+			std::vector<char> VertexShaderErrorMessage(info_log_length + 1);
+			glGetShaderInfoLog(vertex_shader_id, info_log_length, NULL, &VertexShaderErrorMessage[0]);
+			printf("%s\n", &VertexShaderErrorMessage[0]);
+		}
+
+		// Compile Fragment Shader
+		printf("Compiling shader : %s\n", fragment_file_path.c_str());
+		const GLchar* fragment_source_ptr = fragment_shader_code.data();
+		glShaderSource(fragment_shader_id, 1, &fragment_source_ptr, NULL);
+		glCompileShader(fragment_shader_id);
+
+		// Check Fragment Shader
+		glGetShaderiv(fragment_shader_id, GL_COMPILE_STATUS, &result_id);
+		glGetShaderiv(fragment_shader_id, GL_INFO_LOG_LENGTH, &info_log_length);
+		if (info_log_length > 0)
+		{
+			std::vector<char> fragment_shader_error_message(info_log_length + 1);
+			glGetShaderInfoLog(fragment_shader_id, info_log_length, NULL, &fragment_shader_error_message[0]);
+			printf("%s\n", &fragment_shader_error_message[0]);
+		}
+
+		// Link the program
+		printf("Linking program\n");
+		GLuint program_id = glCreateProgram();
+		glAttachShader(program_id, vertex_shader_id);
+		glAttachShader(program_id, fragment_shader_id);
+		glLinkProgram(program_id);
+
+		// Check the program
+		glGetProgramiv(program_id, GL_LINK_STATUS, &result_id);
+		glGetProgramiv(program_id, GL_INFO_LOG_LENGTH, &info_log_length);
+		if (info_log_length > 0)
+		{
+			std::vector<char> program_error_message(info_log_length + 1);
+			glGetProgramInfoLog(program_id, info_log_length, NULL, &program_error_message[0]);
+			printf("%s\n", &program_error_message[0]);
+		}
+
+		glDetachShader(program_id, vertex_shader_id);
+		glDetachShader(program_id, fragment_shader_id);
+
+		glDeleteShader(vertex_shader_id);
+		glDeleteShader(fragment_shader_id);
+
+		out_material.m_program_id = program_id;
+	}
 
 	void init_mesh(asset_model::mesh& out_mesh)
 	{
@@ -65,7 +203,7 @@ namespace impuls_private
 		for (auto& texture_param : in_material.m_texture_parameters)
 		{
 			//in future we want to render an error texture instead
-			if (!texture_param.m_texture)
+			if (!texture_param.m_texture.is_valid())
 				continue;
 
 			const i32 uniform_loc = glGetUniformLocation(in_material.m_program_id, texture_param.m_name.c_str());
@@ -75,7 +213,7 @@ namespace impuls_private
 				continue;
 
 			glActiveTexture(GL_TEXTURE0 + texture_param_idx);
-			glBindTexture(GL_TEXTURE_2D, texture_param.m_texture->m_render_id);
+			glBindTexture(GL_TEXTURE_2D, texture_param.m_texture.get()->m_render_id);
 			glUniform1i(uniform_loc, texture_param_idx);
 
 			++texture_param_idx;
@@ -104,7 +242,28 @@ void impuls::system_renderer::on_tick(world_context&& in_context, float in_time_
 	if (!assetsystem_state)
 		return;
 
+	state_main_window* mainwindow_state = in_context.get_state<state_main_window>();
+
+	glfwMakeContextCurrent(mainwindow_state->m_window->get<component_window>().m_window);
 	
+	assetsystem_state->do_post_load<asset_texture>
+		(
+			[](asset_ref<asset_texture>&& in_texture)
+			{
+				//do opengl load
+				impuls_private::init_texture(*in_texture.get());
+			}
+	);
+
+	assetsystem_state->do_post_load<asset_material>
+		(
+			[](asset_ref<asset_material>&& in_material)
+			{
+				//do opengl load
+				impuls_private::init_material(*in_material.get());
+			}
+	);
+
 	assetsystem_state->do_post_load<asset_model>
 	(
 		[](asset_ref<asset_model>&& in_model)
@@ -114,13 +273,14 @@ void impuls::system_renderer::on_tick(world_context&& in_context, float in_time_
 				impuls_private::init_mesh(mesh.first);
 		}
 	);
-	
 
 	state_renderer* renderer_state = in_context.get_state<state_renderer>();
 
 	if (!renderer_state)
 		return;
 
+	std::vector<asset_ref<asset_texture>> textures_to_load;
+	std::vector<asset_ref<asset_material>> materials_to_load;
 	std::vector<asset_ref<asset_model>> models_to_load;
 
 	for (component_view& component_view_it : in_context.each<component_view>())
@@ -185,7 +345,7 @@ void impuls::system_renderer::on_tick(world_context&& in_context, float in_time_
 
 		renderer_state->m_model_drawcalls.read
 		(
-			[&models_to_load, &proj_mat, &view_mat](const std::vector<drawcall_model> & models)
+			[&textures_to_load, &materials_to_load, &models_to_load, &proj_mat, &view_mat](const std::vector<drawcall_model> & models)
 			{
 				for (const drawcall_model& model : models)
 				{
@@ -207,9 +367,35 @@ void impuls::system_renderer::on_tick(world_context&& in_context, float in_time_
 						{
 							auto& mesh = model_asset->m_meshes[mesh_idx];
 
-							//TODO: get material from drawcall, to get proper material overrides
-							if (auto mat_to_draw = model_asset->get_material(mesh_idx))
-								impuls_private::draw_mesh(mesh.first, *mat_to_draw, mvp);
+							auto material_override_it = model.m_material_overrides.find(mesh.first.material_slot);
+
+							const asset_ref<asset_material> mat_to_draw = material_override_it != model.m_material_overrides.end() ? material_override_it->second : model_asset->get_material(mesh_idx);
+							if (mat_to_draw.is_valid())
+							{
+								if (mat_to_draw.get_load_state() == e_asset_load_state::loaded)
+								{
+									bool all_texture_loaded = true;
+
+									for (asset_material::texture_parameter& texture_param : mat_to_draw.get()->m_texture_parameters)
+									{
+										if (texture_param.m_texture.is_valid())
+										{
+											if (texture_param.m_texture.get_load_state() == e_asset_load_state::not_loaded)
+												textures_to_load.push_back(texture_param.m_texture);
+											
+											if (texture_param.m_texture.get_load_state() != e_asset_load_state::loaded)
+												all_texture_loaded = false;
+										}
+									}
+
+									if (all_texture_loaded)
+										impuls_private::draw_mesh(mesh.first, *mat_to_draw.get(), mvp);
+								}
+								else if (mat_to_draw.get_load_state() == e_asset_load_state::not_loaded)
+								{
+									materials_to_load.push_back(mat_to_draw);
+								}
+							}
 						}
 					}
 					else if (model.m_model.get_load_state() == e_asset_load_state::not_loaded)
@@ -223,5 +409,7 @@ void impuls::system_renderer::on_tick(world_context&& in_context, float in_time_
 
 	glfwMakeContextCurrent(nullptr);
 
+	assetsystem_state->load_batch(in_context, std::move(textures_to_load));
+	assetsystem_state->load_batch(in_context, std::move(materials_to_load));
 	assetsystem_state->load_batch(in_context, std::move(models_to_load));
 }

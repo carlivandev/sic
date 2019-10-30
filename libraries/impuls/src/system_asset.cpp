@@ -83,6 +83,9 @@ impuls::asset_header* impuls::state_assetsystem::create_asset_internal(const std
 	new_header->m_id = xg::newGuid();
 	new_header->m_name = in_asset_name;
 	new_header->m_asset_path = fmt::format("{0}/{1}.asset", in_asset_directory, in_asset_name);
+	new_header->m_load_state = e_asset_load_state::loaded;
+
+	m_id_to_header[m_asset_headers.back()->m_id] = m_asset_headers.back().get();
 
 	return new_header;
 }

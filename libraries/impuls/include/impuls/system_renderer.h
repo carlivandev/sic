@@ -10,11 +10,12 @@
 namespace impuls
 {
 	struct asset_model;
+	struct asset_material;
 
 	struct drawcall_model
 	{
-		std::shared_ptr<asset_model> legacy_model;
 		asset_ref<asset_model> m_model;
+		std::unordered_map<std::string, asset_ref<asset_material>> m_material_overrides;
 		glm::vec3 m_position = { 0.0f, 0.0f, 0.0f };
 	};
 

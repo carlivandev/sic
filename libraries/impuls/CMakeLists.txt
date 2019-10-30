@@ -51,7 +51,10 @@ add_headers(IMPULS_HEADERS
 	file_management.h
 	system_file.h
 	asset_management.h
-	asset_mesh.h
+	asset.h
+	asset_model.h
+	asset_material.h
+	asset_texture.h
 	asset_types.h
 	system_asset.h
 	system_window.h
@@ -78,7 +81,9 @@ add_sources(IMPULS_SOURCES
 	file_management.cpp
 	system_file.cpp
 	asset_management.cpp
-	asset_mesh.cpp
+	asset_model.cpp
+	asset_material.cpp
+	asset_texture.cpp
 	system_asset.cpp
 	system_window.cpp
 	system_input.cpp

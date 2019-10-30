@@ -1,7 +1,7 @@
 {
 	"asset_path": "content/models/crysis.asset",
-	"id": "8f7bed2b-b887-411a-a7e1-2265a033d51d",
-	"import_path": "content/models/crysis.fbx",
+	"id": "c8ae7873-15a4-485e-bc71-3ff06a8d2684",
+	"import_path": "",
 	"name": "crysis",
 	"type": "struct impuls::asset_model"
 }

@@ -3,6 +3,7 @@
 #include "impuls/world_context.h"
 
 #include <fstream>
+#include <filesystem>
 
 std::string impuls::file_management::load_file(const std::string& in_filepath, bool in_binary)
 {
@@ -20,6 +21,12 @@ std::string impuls::file_management::load_file(const std::string& in_filepath, b
 
 void impuls::file_management::save_file(const std::string& in_filepath, const std::string& in_filedata, bool in_binary)
 {
+	const std::filesystem::path path(in_filepath);
+	const std::filesystem::path dir_path(path.parent_path());
+
+	if (!std::filesystem::exists(dir_path))
+		std::filesystem::create_directory(dir_path);
+
 	std::ofstream outfile(in_filepath, in_binary ? std::ios_base::binary : std::ios_base::in);
 
 	outfile.write(in_filedata.c_str(), in_filedata.size());

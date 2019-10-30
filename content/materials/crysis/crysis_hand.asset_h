@@ -1,0 +1,7 @@
+{
+	"asset_path": "content/materials/crysis/crysis_hand.asset",
+	"id": "94304277-2b03-4e8e-89ef-93ef67d8f7a7",
+	"import_path": "",
+	"name": "crysis_hand",
+	"type": "struct impuls::asset_material"
+}

@@ -1,0 +1,7 @@
+{
+	"asset_path": "content/materials/crysis/crysis_helmet.asset",
+	"id": "08023489-da41-44b4-834a-b33f83d84bb6",
+	"import_path": "",
+	"name": "crysis_helmet",
+	"type": "struct impuls::asset_material"
+}

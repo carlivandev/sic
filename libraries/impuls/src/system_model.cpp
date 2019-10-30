@@ -31,41 +31,27 @@ void impuls::system_model::on_tick(world_context&& in_context, float in_time_del
 		{
 			for (component_model& model : in_context.each<component_model>())
 			{
-				if (!model.m_model_ref.is_valid())
+				if (!model.m_model.is_valid())
 					continue;
 
-				out_drawcalls.push_back(drawcall_model{ model.m_model, model.m_model_ref, model.m_transform->m_position });
+				out_drawcalls.push_back(drawcall_model{ model.m_model, model.m_material_overrides, model.m_transform->m_position });
 			}
 		}
 	);
 	
 }
 
-void impuls::component_model::set_material(std::shared_ptr<asset_material>& in_material, const char* in_material_slot)
+void impuls::component_model::set_material(asset_ref<asset_material> in_material, const char* in_material_slot)
 {
-	if (!m_model)
-		return;
-
-	const i32 mesh_idx = m_model->get_slot_index(in_material_slot);
-
-	if (mesh_idx == -1)
-		return;
-
-	if (m_material_overrides.size() <= mesh_idx)
-		m_material_overrides.resize((size_t)mesh_idx + 1);
-
-	m_material_overrides[mesh_idx] = in_material;
+	m_material_overrides[in_material_slot] = in_material;
 }
 
-std::shared_ptr<impuls::asset_material> impuls::component_model::get_material(i32 in_index) const
+impuls::asset_ref<impuls::asset_material> impuls::component_model::get_material_override(const char* in_material_slot) const
 {
-	if (!m_model)
-		return nullptr;
+	auto it = m_material_overrides.find(in_material_slot);
 
-	if (in_index < m_material_overrides.size() && m_material_overrides[in_index])
-	{
-		return m_material_overrides[in_index];
-	}
+	if (it == m_material_overrides.end())
+		return asset_ref <asset_material>();
 
-	return m_model->get_material(in_index);
+	return it->second;
 }
