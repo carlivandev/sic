@@ -14,6 +14,7 @@ void impuls::system_renderer_state_swapper::on_tick(world_context&& in_context, 
 	(
 		[](std::vector<drawcall_model>& in_read_models, std::vector<drawcall_model>& in_write_models)
 		{
+			in_write_models;
 			in_read_models.clear();
 		}
 	);

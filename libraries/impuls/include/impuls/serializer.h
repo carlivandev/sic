@@ -146,6 +146,6 @@ namespace impuls
 
 		memcpy_s(&out_deserialized[old_len], len, &in_stream.m_bytes[in_stream.m_offset], len);
 
-		in_stream.m_offset += len;
+		in_stream.m_offset += static_cast<ui32>(len);
 	}
 }

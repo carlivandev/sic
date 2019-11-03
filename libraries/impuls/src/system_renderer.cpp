@@ -103,7 +103,7 @@ namespace impuls_private
 		glGetShaderiv(vertex_shader_id, GL_INFO_LOG_LENGTH, &info_log_length);
 		if (info_log_length > 0)
 		{
-			std::vector<char> VertexShaderErrorMessage(info_log_length + 1);
+			std::vector<char> VertexShaderErrorMessage(static_cast<size_t>(info_log_length) + 1);
 			glGetShaderInfoLog(vertex_shader_id, info_log_length, NULL, &VertexShaderErrorMessage[0]);
 			printf("%s\n", &VertexShaderErrorMessage[0]);
 		}
@@ -119,7 +119,7 @@ namespace impuls_private
 		glGetShaderiv(fragment_shader_id, GL_INFO_LOG_LENGTH, &info_log_length);
 		if (info_log_length > 0)
 		{
-			std::vector<char> fragment_shader_error_message(info_log_length + 1);
+			std::vector<char> fragment_shader_error_message(static_cast<size_t>(info_log_length) + 1);
 			glGetShaderInfoLog(fragment_shader_id, info_log_length, NULL, &fragment_shader_error_message[0]);
 			printf("%s\n", &fragment_shader_error_message[0]);
 		}
@@ -136,7 +136,7 @@ namespace impuls_private
 		glGetProgramiv(program_id, GL_INFO_LOG_LENGTH, &info_log_length);
 		if (info_log_length > 0)
 		{
-			std::vector<char> program_error_message(info_log_length + 1);
+			std::vector<char> program_error_message(static_cast<size_t>(info_log_length) + 1);
 			glGetProgramInfoLog(program_id, info_log_length, NULL, &program_error_message[0]);
 			printf("%s\n", &program_error_message[0]);
 		}
