@@ -33,6 +33,7 @@ endfunction()
 add_headers(IMPULS_HEADERS
 	bucket_allocator.h
 	bucket_allocator_view.h
+	leavable_queue.h
 	component.h
 	defines.h
 	event.h
@@ -81,6 +82,7 @@ add_sources(IMPULS_SOURCES
 	file_management.cpp
 	system_file.cpp
 	asset_management.cpp
+	asset.cpp
 	asset_model.cpp
 	asset_material.cpp
 	asset_texture.cpp
