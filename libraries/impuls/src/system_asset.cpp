@@ -76,6 +76,39 @@ void impuls::system_asset::on_tick(world_context&& in_context, float in_time_del
 	in_context;
 }
 
+void impuls::state_assetsystem::leave_unload_queue(const asset_header& in_header)
+{
+	m_unload_queue.leave_queue(in_header.m_unload_ticket);
+}
+
+void impuls::state_assetsystem::join_unload_queue(asset_header& in_out_header)
+{
+	if (m_unload_queue.is_queue_full())
+	{
+		asset_header* header = m_unload_queue.dequeue();
+
+		if (header->m_loaded_asset.get()->has_pre_unload())
+		{
+			std::scoped_lock post_load_lock(m_pre_unload_mutex);
+			header->m_load_state = e_asset_load_state::unloading;
+
+			std::unique_ptr<std::vector<asset_header*>>& pre_unload_assets = m_typename_to_pre_unload_headers[header->m_typename];
+
+			if (!pre_unload_assets)
+				pre_unload_assets = std::make_unique<std::vector<asset_header*>>();
+
+			pre_unload_assets->push_back(header);
+		}
+		else
+		{
+			header->m_load_state = e_asset_load_state::not_loaded;
+			header->m_loaded_asset.reset();
+		}
+	}
+
+	in_out_header.m_unload_ticket = m_unload_queue.enqueue(&in_out_header);
+}
+
 impuls::asset_header* impuls::state_assetsystem::create_asset_internal(const std::string& in_asset_name, const std::string& in_asset_directory, const std::string& in_typename)
 {
 	m_asset_headers.push_back(std::make_unique<asset_header>(*this));

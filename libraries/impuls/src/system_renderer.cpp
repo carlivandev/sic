@@ -274,6 +274,35 @@ void impuls::system_renderer::on_tick(world_context&& in_context, float in_time_
 		}
 	);
 
+	assetsystem_state->do_pre_unload<asset_texture>
+		(
+			[](asset_ref<asset_texture> && in_texture)
+			{
+				glDeleteTextures(1, &in_texture.get()->m_render_id);
+			}
+	);
+
+	assetsystem_state->do_pre_unload<asset_material>
+		(
+			[](asset_ref<asset_material> && in_material)
+			{
+				glDeleteProgram(in_material.get()->m_program_id);
+			}
+	);
+
+	assetsystem_state->do_pre_unload<asset_model>
+		(
+			[](asset_ref<asset_model> && in_model)
+			{
+				for (auto&& mesh : in_model.get()->m_meshes)
+				{
+					glDeleteVertexArrays(1, &mesh.first.m_vao);
+					glDeleteBuffers(1, &mesh.first.m_vbo);
+					glDeleteBuffers(1, &mesh.first.m_ebo);
+				}
+			}
+	);
+
 	state_renderer* renderer_state = in_context.get_state<state_renderer>();
 
 	if (!renderer_state)

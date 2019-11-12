@@ -51,7 +51,7 @@ namespace impuls
 						[header, this](std::string&& in_loaded_data)
 						{
 							load_asset_internal<t_type>(std::move(in_loaded_data), header->m_loaded_asset);
-							if (t_type::has_post_load())
+							if (header->m_loaded_asset.get()->has_post_load())
 							{
 								std::scoped_lock post_load_lock(m_post_load_mutex);
 
@@ -94,12 +94,32 @@ namespace impuls
 		}
 
 		template <typename t_asset_type>
+		inline void do_pre_unload(std::function<void(asset_ref<t_asset_type>&&)>&& in_callback)
+		{
+			std::scoped_lock pre_unload_lock(m_pre_unload_mutex);
+
+			std::unique_ptr<std::vector<asset_header*>>& pre_unload_assets = m_typename_to_pre_unload_headers[typeid(t_asset_type).name()];
+
+			if (!pre_unload_assets)
+				return;
+
+			for (asset_header* header : *pre_unload_assets.get())
+			{
+				in_callback(std::move(asset_ref<t_asset_type>(header)));
+				header->m_load_state = e_asset_load_state::not_loaded;
+				header->m_loaded_asset.reset();
+			}
+
+			pre_unload_assets->clear();
+		}
+
+		template <typename t_asset_type>
 		inline asset_ref<t_asset_type> create_asset(const std::string& in_asset_name, const std::string& in_asset_directory)
 		{
 			asset_header* new_header = create_asset_internal(in_asset_name, in_asset_directory, typeid(t_asset_type).name());
-			new_header->m_loaded_asset = std::unique_ptr<byte>(reinterpret_cast<byte*>(new t_asset_type()));
+			new_header->m_loaded_asset = std::unique_ptr<i_asset>(reinterpret_cast<i_asset*>(new t_asset_type()));
 
-			if (t_asset_type::has_post_load())
+			if (new_header->m_loaded_asset.get()->has_post_load())
 			{
 				std::scoped_lock post_load_lock(m_post_load_mutex);
 				new_header->m_load_state = e_asset_load_state::loading;
@@ -120,8 +140,6 @@ namespace impuls
 			return asset_ref<t_asset_type>(new_header);
 		}
 
-		asset_header* create_asset_internal(const std::string& in_asset_name, const std::string& in_asset_directory, const std::string& in_typename);
-
 		template <typename t_asset_type>
 		inline void save_asset(const asset_header& in_header)
 		{
@@ -129,11 +147,15 @@ namespace impuls
 			save_asset_internal<t_asset_type>(in_header.m_loaded_asset, in_header.m_asset_path);
 		}
 
-		void save_asset_header(const asset_header& in_header, const std::string& in_typename);
+		void leave_unload_queue(const asset_header& in_header);
+		void join_unload_queue(asset_header& in_out_header);
 
 	private:
+		asset_header* create_asset_internal(const std::string& in_asset_name, const std::string& in_asset_directory, const std::string& in_typename);
+		void save_asset_header(const asset_header& in_header, const std::string& in_typename);
+
 		template <typename t_asset_type>
-		inline void load_asset_internal(std::string&& in_asset_data, std::unique_ptr<byte>& out)
+		inline void load_asset_internal(std::string&& in_asset_data, std::unique_ptr<i_asset>& out)
 		{
 			if (in_asset_data.empty())
 			{
@@ -146,11 +168,11 @@ namespace impuls
 			deserialize_stream stream(std::move(in_asset_data));
 			new_asset->load(*this, stream);
 
-			out = std::move(std::unique_ptr<byte>(reinterpret_cast<byte*>(new_asset)));
+			out = std::move(std::unique_ptr<i_asset>(reinterpret_cast<i_asset*>(new_asset)));
 		}
 
 		template <typename t_asset_type>
-		inline void save_asset_internal(const std::unique_ptr<byte>& in_loaded_data, const std::string& in_asset_path)
+		inline void save_asset_internal(const std::unique_ptr<i_asset>& in_loaded_data, const std::string& in_asset_path)
 		{
 			const t_asset_type* asset = reinterpret_cast<const t_asset_type*>(in_loaded_data.get());
 
@@ -172,9 +194,11 @@ namespace impuls
 		std::vector<file_load_request> load_requests;
 
 		std::unordered_map<std::type_index, std::unique_ptr<std::vector<asset_header*>>> m_typeindex_to_post_load_assets;
+		std::unordered_map<std::string, std::unique_ptr<std::vector<asset_header*>>> m_typename_to_pre_unload_headers;
 
 		std::mutex m_mutex;
 		std::mutex m_post_load_mutex;
+		std::mutex m_pre_unload_mutex;
 	};
 
 	struct system_asset : i_system
