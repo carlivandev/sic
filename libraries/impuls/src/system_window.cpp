@@ -1,16 +1,15 @@
 #include "impuls/system_window.h"
 
-#include "impuls/asset_management.h"
 #include "impuls/asset_types.h"
 #include "impuls/event.h"
 #include "impuls/view.h"
+#include "impuls/gl_includes.h"
+#include "impuls/system_model.h"
+#include "impuls/transform.h"
+#include "impuls/logger.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
-#include "impuls/gl_includes.h"
-
-#include "impuls/system_model.h"
-#include "impuls/transform.h"
 
 namespace impuls_private
 {
@@ -18,7 +17,7 @@ namespace impuls_private
 
 	void glfw_error(int in_error_code, const char* in_message)
 	{
-		printf("glfw error[%i]: %s\n", in_error_code, in_message);
+		IMPULS_LOG_E(g_log_renderer, "glfw error[{0}]: {1}", in_error_code, in_message);
 	}
 
 	void window_resized(GLFWwindow* in_window, i32 in_width, i32 in_height)
@@ -58,7 +57,7 @@ void impuls::system_window::on_created(world_context&& in_context) const
 {
 	if (!glfwInit())
 	{
-		fprintf(stderr, "Failed to initialize GLFW\n");
+		IMPULS_LOG_E(g_log_renderer, "Failed to initialize GLFW");
 		return;
 	}
 
@@ -93,7 +92,7 @@ void impuls::system_window::on_created(world_context&& in_context) const
 
 			if (new_window_component.m_window == NULL)
 			{
-				fprintf(stderr, "Failed to open GLFW window. GPU not 3.3 compatible.\n");
+				IMPULS_LOG_E(g_log_renderer, "Failed to open GLFW window. GPU not 3.3 compatible.");
 				glfwTerminate();
 				return;
 			}
@@ -106,7 +105,7 @@ void impuls::system_window::on_created(world_context&& in_context) const
 			glfwMakeContextCurrent(new_window_component.m_window); // Initialize GLEW
 			glewExperimental = true; // Needed in core profile
 			if (glewInit() != GLEW_OK) {
-				fprintf(stderr, "Failed to initialize GLEW\n");
+				IMPULS_LOG_E(g_log_renderer, "Failed to initialize GLEW.");
 				return;
 			}
 

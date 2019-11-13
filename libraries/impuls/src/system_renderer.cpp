@@ -4,6 +4,7 @@
 #include "impuls/asset_types.h"
 #include "impuls/system_window.h"
 #include "impuls/view.h"
+#include "impuls/logger.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
@@ -50,17 +51,14 @@ namespace impuls_private
 			break;
 		}
 
-		glTexImage2D(GL_TEXTURE_2D, 0, gl_texture_format, out_texture.m_width, out_texture.m_height, 0, gl_texture_format, GL_UNSIGNED_BYTE, out_texture.m_texture_data);
+		glTexImage2D(GL_TEXTURE_2D, 0, gl_texture_format, out_texture.m_width, out_texture.m_height, 0, gl_texture_format, GL_UNSIGNED_BYTE, out_texture.m_texture_data.get());
 
 		glGenerateMipmap(GL_TEXTURE_2D);
 
 		glBindTexture(GL_TEXTURE_2D, 0);
 
 		if (out_texture.m_free_texture_data_after_setup)
-		{
-			stbi_image_free(out_texture.m_texture_data);
-			out_texture.m_texture_data = nullptr;
-		}
+			out_texture.m_texture_data.reset();
 
 		//end gpu texture setup
 	}
@@ -78,14 +76,14 @@ namespace impuls_private
 
 		if (vertex_shader_code.size() == 0)
 		{
-			printf("Impossible to open %s. Are you in the right directory ? Don't forget to read the FAQ !\n", vertex_file_path.c_str());
+			IMPULS_LOG_E(g_log_renderer, "Impossible to open {0}. Are you in the right directory?", vertex_file_path.c_str());
 			return;
 		}
 		const std::string fragment_shader_code = file_management::load_file(fragment_file_path, false);
 
 		if (fragment_shader_code.size() == 0)
 		{
-			printf("Impossible to open %s. Are you in the right directory ? Don't forget to read the FAQ !\n", fragment_file_path.c_str());
+			IMPULS_LOG_E(g_log_renderer, "Impossible to open {0}. Are you in the right directory?", fragment_file_path.c_str());
 			return;
 		}
 
@@ -93,7 +91,8 @@ namespace impuls_private
 		i32 info_log_length;
 
 		// Compile Vertex Shader
-		printf("Compiling shader : %s\n", vertex_file_path.c_str());
+		IMPULS_LOG(g_log_renderer, "Compiling shader : {0}", vertex_file_path.c_str());
+
 		const GLchar* vertex_source_ptr = vertex_shader_code.data();
 		glShaderSource(vertex_shader_id, 1, &vertex_source_ptr, NULL);
 		glCompileShader(vertex_shader_id);
@@ -103,13 +102,14 @@ namespace impuls_private
 		glGetShaderiv(vertex_shader_id, GL_INFO_LOG_LENGTH, &info_log_length);
 		if (info_log_length > 0)
 		{
-			std::vector<char> VertexShaderErrorMessage(static_cast<size_t>(info_log_length) + 1);
-			glGetShaderInfoLog(vertex_shader_id, info_log_length, NULL, &VertexShaderErrorMessage[0]);
-			printf("%s\n", &VertexShaderErrorMessage[0]);
+			std::vector<char> vertex_shader_error_message(static_cast<size_t>(info_log_length) + 1);
+			glGetShaderInfoLog(vertex_shader_id, info_log_length, NULL, &vertex_shader_error_message[0]);
+			IMPULS_LOG(g_log_renderer, &vertex_shader_error_message[0]);
 		}
 
 		// Compile Fragment Shader
-		printf("Compiling shader : %s\n", fragment_file_path.c_str());
+		IMPULS_LOG(g_log_renderer, "Compiling shader : {0}", fragment_file_path.c_str());
+
 		const GLchar* fragment_source_ptr = fragment_shader_code.data();
 		glShaderSource(fragment_shader_id, 1, &fragment_source_ptr, NULL);
 		glCompileShader(fragment_shader_id);
@@ -121,11 +121,11 @@ namespace impuls_private
 		{
 			std::vector<char> fragment_shader_error_message(static_cast<size_t>(info_log_length) + 1);
 			glGetShaderInfoLog(fragment_shader_id, info_log_length, NULL, &fragment_shader_error_message[0]);
-			printf("%s\n", &fragment_shader_error_message[0]);
+			IMPULS_LOG_E(g_log_renderer, &fragment_shader_error_message[0]);
 		}
 
 		// Link the program
-		printf("Linking program\n");
+		IMPULS_LOG(g_log_renderer, "Linking program");
 		GLuint program_id = glCreateProgram();
 		glAttachShader(program_id, vertex_shader_id);
 		glAttachShader(program_id, fragment_shader_id);
@@ -138,7 +138,7 @@ namespace impuls_private
 		{
 			std::vector<char> program_error_message(static_cast<size_t>(info_log_length) + 1);
 			glGetProgramInfoLog(program_id, info_log_length, NULL, &program_error_message[0]);
-			printf("%s\n", &program_error_message[0]);
+			IMPULS_LOG_E(g_log_renderer, &program_error_message[0]);
 		}
 
 		glDetachShader(program_id, vertex_shader_id);
@@ -279,6 +279,9 @@ void impuls::system_renderer::on_tick(world_context&& in_context, float in_time_
 			[](asset_ref<asset_texture> && in_texture)
 			{
 				glDeleteTextures(1, &in_texture.get()->m_render_id);
+
+				if (!in_texture.get()->m_free_texture_data_after_setup)
+					in_texture.get()->m_texture_data.reset();
 			}
 	);
 

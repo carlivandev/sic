@@ -47,11 +47,11 @@ add_headers(IMPULS_HEADERS
 	threadpool.h
 	type.h
 	type_index.h
+	logger.h
 	world.h
 	world_context.h
 	file_management.h
 	system_file.h
-	asset_management.h
 	asset.h
 	asset_model.h
 	asset_material.h
@@ -77,11 +77,11 @@ add_sources(IMPULS_SOURCES
 	scheduler.cpp
 	system.cpp
 	threadpool.cpp
+	logger.cpp
 	world.cpp
 	world_context.cpp
 	file_management.cpp
 	system_file.cpp
-	asset_management.cpp
 	asset.cpp
 	asset_model.cpp
 	asset_material.cpp

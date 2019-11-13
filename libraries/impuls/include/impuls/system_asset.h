@@ -5,6 +5,7 @@
 #include "impuls/file_management.h"
 #include "impuls/asset.h"
 #include "impuls/leavable_queue.h"
+#include "impuls/logger.h"
 
 #include "crossguid/guid.hpp"
 #include "fmt/format.h"
@@ -159,7 +160,7 @@ namespace impuls
 		{
 			if (in_asset_data.empty())
 			{
-				printf("failed to load material\n");
+				IMPULS_LOG_E(g_log_asset, "Failed to load material!");
 				return;
 			}
 

@@ -55,7 +55,7 @@ namespace impuls
 
 	private:
 		std::optional<e_window_input_mode> m_input_mode_to_set;
-		e_window_input_mode m_current_input_mode;
+		e_window_input_mode m_current_input_mode = e_window_input_mode::normal;
 
 		std::optional<glm::vec2> m_cursor_pos_to_set;
 		glm::vec2 m_cursor_pos;

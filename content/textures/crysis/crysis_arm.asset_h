@@ -1,7 +1,6 @@
 {
 	"asset_path": "content/textures/crysis/crysis_arm.asset",
-	"id": "43f813df-466e-45d8-99b0-944f9d99e690",
-	"import_path": "",
+	"id": "497a9b0e-d793-4be7-b0ae-0510a5d225a8",
 	"name": "crysis_arm",
 	"type": "struct impuls::asset_texture"
 }
