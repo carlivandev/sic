@@ -22,30 +22,10 @@ namespace impuls
 			return new_system;
 		}
 
-		template <typename t_component_type>
-		__forceinline constexpr t_component_type& create_component(i_object_base& in_object_to_attach_to)
-		{
-			constexpr bool is_valid_type = std::is_base_of<i_component_base, t_component_type>::value;
-
-			static_assert(is_valid_type, "can only create types that derive i_component_base");
-
-			return m_world->create_component<t_component_type>(in_object_to_attach_to);
-		}
-
-		template <typename t_component_type>
-		__forceinline constexpr void destroy_component(t_component_type& in_component_to_destroy)
-		{
-			constexpr bool is_valid_type = std::is_base_of<i_component_base, t_component_type>::value;
-
-			static_assert(is_valid_type, "can only destroy types that derive i_component_base");
-
-			return m_world->destroy_component<t_component_type>(in_component_to_destroy);
-		}
-
 		template <typename t_component>
-		__forceinline constexpr type_reg register_component_type(const char* in_unique_key, ui32 in_initial_capacity = 128, ui32 in_bucket_capacity = 64)
+		__forceinline constexpr type_reg register_component_type(const char* in_unique_key, ui32 in_initial_capacity = 128)
 		{
-			m_world->register_component_type<t_component>(in_initial_capacity, in_bucket_capacity);
+			m_world->register_component_type<t_component>(in_initial_capacity);
 
 			return std::move(register_typeinfo<t_component>(in_unique_key));
 		}
@@ -68,7 +48,7 @@ namespace impuls
 		}
 
 		template <typename t_object>
-		__forceinline constexpr t_object& create_object_instance()
+		__forceinline constexpr t_object& create_object()
 		{
 			static_assert(std::is_base_of<i_object_base, t_object>::value, "object must derive from struct i_object<>");
 
@@ -87,38 +67,37 @@ namespace impuls
 		}
 
 		template <typename t_object>
-		__forceinline constexpr void destroy_object_instance(t_object& in_object_instance_to_destroy)
+		__forceinline constexpr void destroy_object(t_object& in_object_to_destroy)
 		{
 			static_assert(std::is_base_of<i_object_base, t_object>::value, "object must derive from struct i_object<>");
 
-			const ui32 type_idx = type_index<i_object_base>::get<t_object>();
+			const ui32 type_idx = in_object_to_destroy.m_type_index;
 
 			assert((type_idx < m_world->m_objects.size() || m_world->m_objects[type_idx].get() != nullptr) && "type not registered");
 
 			auto* arch_to_destroy_from = reinterpret_cast<object_storage*>(m_world->m_objects[type_idx].get());
 
-			if (in_object_instance_to_destroy.m_parent)
+			if (in_object_to_destroy.m_parent)
 			{
-				for (i32 i = 0; i < in_object_instance_to_destroy.m_parent->m_children.size(); i++)
+				for (i32 i = 0; i < in_object_to_destroy.m_parent->m_children.size(); i++)
 				{
-					if (in_object_instance_to_destroy.m_parent->m_children[i] == &in_object_instance_to_destroy)
+					if (in_object_to_destroy.m_parent->m_children[i] == &in_object_to_destroy)
 					{
-						in_object_instance_to_destroy.m_parent->m_children[i] = in_object_instance_to_destroy.m_parent->m_children.back();
-						in_object_instance_to_destroy.m_parent->m_children.pop_back();
+						in_object_to_destroy.m_parent->m_children[i] = in_object_to_destroy.m_parent->m_children.back();
+						in_object_to_destroy.m_parent->m_children.pop_back();
 						break;
 					}
 				}
 			}
 
-			for (i32 i = 0; i < in_object_instance_to_destroy.m_children.size(); i++)
+			for (i32 i = 0; i < in_object_to_destroy.m_children.size(); i++)
 			{
-				i_object_base* child = in_object_instance_to_destroy.m_children[i];
+				i_object_base* child = in_object_to_destroy.m_children[i];
 
 				reinterpret_cast<object_storage*>(m_world->m_objects[child->m_type_index].get())->destroy_instance(*m_world, *child);
 			}
 
-			m_world->invoke<event_destroyed<t_object>>(in_object_instance_to_destroy);
-			arch_to_destroy_from->destroy_instance(*m_world, in_object_instance_to_destroy);
+			arch_to_destroy_from->destroy_instance(*m_world, in_object_to_destroy);
 		}
 
 		void add_child(i_object_base& in_parent, i_object_base& in_child);
@@ -257,47 +236,35 @@ namespace impuls
 		}
 
 		template <typename t_type>
-		__forceinline bucket_allocator_view<t_type> each()
+		__forceinline plf::colony<t_type>& components()
 		{
-			constexpr bool is_component = std::is_base_of<i_component_base, t_type>::value;
-			constexpr bool is_object = std::is_base_of<i_object_base, t_type>::value;
+			const ui32 type_idx = type_index<i_component_base>::get<t_type>();
+			component_storage<t_type>* storage = reinterpret_cast<component_storage<t_type>*>(m_world->m_component_storages[type_idx].get());
 
-			if constexpr (is_component)
-			{
-				const ui32 type_idx = type_index<i_component_base>::get<t_type>();
-				return std::move(bucket_allocator_view<t_type>(&m_world->m_component_storages[type_idx]->m_components));
-			}
-			else if constexpr (is_object)
-			{
-				const ui32 type_idx = type_index<i_object_base>::get<t_type>();
-				return std::move(bucket_allocator_view<t_type>(&m_world->m_objects[type_idx]->m_instances.m_byte_allocator));
-			}
-			else
-			{
-				static_assert(is_component || is_object, "can not get each of type");
-			}
+			return storage->m_components;
 		}
 
 		template <typename t_type>
-		__forceinline bucket_allocator_view<const t_type> each() const
+		__forceinline const plf::colony<t_type>& components() const
 		{
-			constexpr bool is_component = std::is_base_of<i_component_base, t_type>::value;
-			constexpr bool is_object = std::is_base_of<i_object_base, t_type>::value;
+			const ui32 type_idx = type_index<i_component_base>::get<t_type>();
+			const component_storage<t_type>* storage = reinterpret_cast<const component_storage<t_type>*>(m_world->m_component_storages[type_idx].get());
 
-			if constexpr (is_component)
-			{
-				const ui32 type_idx = type_index<i_component_base>::get<t_type>();
-				return std::move(bucket_allocator_view<const t_type>(&m_world->m_component_storages[type_idx]->m_components));
-			}
-			else if constexpr (is_object)
-			{
-				const ui32 type_idx = type_index<i_object_base>::get<t_type>();
-				return std::move(bucket_allocator_view<const t_type>(&m_world->m_objects[type_idx]->m_instances.m_byte_allocator));
-			}
-			else
-			{
-				static_assert(is_component || is_object, "can not get each of type");
-			}
+			return storage->m_components;
+		}
+
+		template <typename t_type>
+		__forceinline bucket_allocator_view<t_type> objects()
+		{
+			const ui32 type_idx = type_index<i_object_base>::get<t_type>();
+			return std::move(bucket_allocator_view<t_type>(&m_world->m_objects[type_idx]->m_instances.m_byte_allocator));
+		}
+
+		template <typename t_type>
+		__forceinline bucket_allocator_view<const t_type> objects() const
+		{
+			const ui32 type_idx = type_index<i_object_base>::get<t_type>();
+			return std::move(bucket_allocator_view<const t_type>(&m_world->m_objects[type_idx]->m_instances.m_byte_allocator));
 		}
 
 		template <typename t_state>

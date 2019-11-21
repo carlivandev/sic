@@ -63,11 +63,11 @@ void impuls::system_window::on_created(world_context&& in_context) const
 
 	glfwSetErrorCallback(&impuls_private::glfw_error);
 
-	in_context.register_component_type<component_window>("component_window", 4, 1);
+	in_context.register_component_type<component_window>("component_window", 4);
 	in_context.register_object<object_window>("window", 4, 1);
 
-	in_context.register_component_type<component_view>("component_view", 4, 1);
-	in_context.register_object<object_view>("view", 4, 1);
+	in_context.register_component_type<component_view>("component_view", 4);
+	in_context.register_object<object_view>("view", 4);
 
 	in_context.register_state<state_main_window>("state_main_window");
 
@@ -133,7 +133,7 @@ void impuls::system_window::on_tick(world_context&& in_context, float in_time_de
 	if (!main_window_state)
 		return;
 
-	for (component_view& component_view_it : in_context.each<component_view>())
+	for (component_view& component_view_it : in_context.components<component_view>())
 	{
 		if (!component_view_it.m_window_render_on)
 			continue;
@@ -217,7 +217,7 @@ void impuls::system_window::on_tick(world_context&& in_context, float in_time_de
 
 void impuls::system_window::on_end_simulation(world_context&& in_context) const
 {
-	for (component_view& component_view_it : in_context.each<component_view>())
+	for (component_view& component_view_it : in_context.components<component_view>())
 	{
 		if (!component_view_it.m_window_render_on)
 			continue;

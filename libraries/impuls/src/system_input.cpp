@@ -22,7 +22,7 @@ void impuls::system_input::on_tick(world_context&& in_context, float in_time_del
 	input_state->m_scroll_offset_x = 0.0f;
 	input_state->m_scroll_offset_y = 0.0f;
 
-	for (component_view& component_view_it : in_context.each<component_view>())
+	for (component_view& component_view_it : in_context.components<component_view>())
 	{
 		if (!component_view_it.m_window_render_on)
 			continue;

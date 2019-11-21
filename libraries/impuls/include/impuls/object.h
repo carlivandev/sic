@@ -7,7 +7,10 @@
 
 namespace impuls
 {
-	template <typename ...t_component>
+	/*
+		t_subtype = CRTP
+	*/
+	template <typename t_subtype, typename ...t_component>
 	struct i_object : public i_object_base
 	{
 		friend struct object_storage;
@@ -18,7 +21,8 @@ namespace impuls
 		{
 			if (type_index<i_component_base>::get<t_to_check_with>() == in_type_idx)
 			{
-				out_result = reinterpret_cast<byte*>(std::get<t_to_check_with*>(m_components));
+				auto& it = std::get<typename plf::colony<t_to_check_with>::iterator>(m_components);
+				out_result = reinterpret_cast<byte*>(&(*it));
 				return true;
 			}
 
@@ -30,7 +34,8 @@ namespace impuls
 		{
 			if (type_index<i_component_base>::get<t_to_check_with>() == in_type_idx)
 			{
-				out_result = reinterpret_cast<const byte*>(std::get<t_to_check_with*>(m_components));
+				auto& it = std::get<typename plf::colony<t_to_check_with>::iterator>(m_components);
+				out_result = reinterpret_cast<const byte*>(&(*it));
 				return true;
 			}
 
@@ -58,36 +63,35 @@ namespace impuls
 		template<typename t_to_get>
 		__forceinline constexpr t_to_get& get()
 		{
-			t_to_get* to_return = std::get<t_to_get*>(m_components);
-			assert(to_return && "should always be valid");
-			return *to_return;
+			auto& it = std::get<typename plf::colony<t_to_get>::iterator>(m_components);
+			return *it;
 		}
 
 		template<typename t_to_get>
 		__forceinline constexpr const t_to_get& get() const
 		{
-			const t_to_get* to_return = std::get<t_to_get*>(m_components);
-			assert(to_return && "should always be valid");
-			return *to_return;
+			const auto& it = std::get<typename plf::colony<t_to_get>::iterator>(m_components);
+			return *it;
 		}
 
 		template<typename t_to_create>
 		constexpr void create_component(world& in_world)
 		{
-			std::get<t_to_create*>(m_components) = &in_world.create_component<t_to_create>(*this);
+			std::get<typename plf::colony<t_to_create>::iterator>(m_components) = in_world.create_component<t_to_create>(*this);
 		}
 
 		template<typename t_to_invoke_on>
 		constexpr void invoke_post_creation_event(world& in_world)
 		{
-			in_world.invoke<event_post_created<t_to_invoke_on>>(*std::get<t_to_invoke_on*>(m_components));
+			in_world.invoke<event_post_created<t_to_invoke_on>>(*std::get<typename plf::colony<t_to_invoke_on>::iterator>(m_components));
 		}
 
 		template<typename t_to_destroy>
 		constexpr void destroy_component(world& in_world)
 		{
-			in_world.destroy_component(*std::get<t_to_destroy*>(m_components));
-			std::get<t_to_destroy*>(m_components) = nullptr;
+			auto& destroy_it = std::get<typename plf::colony<t_to_destroy>::iterator>(m_components);
+			in_world.destroy_component<t_to_destroy>(destroy_it);
+			destroy_it = typename plf::colony<t_to_destroy>::iterator();
 		}
 
 		private:
@@ -99,10 +103,13 @@ namespace impuls
 
 			void destroy_instance(world& in_world) override
 			{
+				static_assert(std::is_base_of_v<i_object_base, t_subtype>, "did you forget t_subtype?");
+				in_world.invoke<event_destroyed<t_subtype>>(*reinterpret_cast<t_subtype*>(this));
+
 				(destroy_component<t_component>(in_world), ...);
 			}
 
-			std::tuple<t_component*...> m_components;
+			std::tuple<typename plf::colony<t_component>::iterator...> m_components;
 	};
 
 	struct object_storage : public i_object_storage_base

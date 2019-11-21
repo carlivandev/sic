@@ -1,0 +1,6 @@
+{
+	"asset_path": "content/textures/crysis/tex_crysis_body.asset",
+	"id": "11bb2169-c237-4f19-b06f-95f7bc3cef09",
+	"name": "tex_crysis_body",
+	"type": "struct impuls::asset_texture"
+}

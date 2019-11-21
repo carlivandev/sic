@@ -15,8 +15,8 @@ namespace impuls
 		friend struct system_model;
 
 	public:
-		void set_material(asset_ref<asset_material> in_material, const char* in_material_slot);
-		asset_ref<asset_material> get_material_override(const char* in_material_slot) const;
+		void set_material(world_context in_context, asset_ref<asset_material> in_material, const std::string& in_material_slot);
+		asset_ref<asset_material> get_material_override(const std::string& in_material_slot) const;
 
 	public:
 		component_transform* m_transform = nullptr;
@@ -24,6 +24,7 @@ namespace impuls
 
 	protected:
 		std::unordered_map<std::string, asset_ref<asset_material>> m_material_overrides;
+		i32 m_render_object_id = -1;
 	};
 
 	struct system_model : i_system

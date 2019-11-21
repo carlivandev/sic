@@ -45,7 +45,7 @@ namespace impuls
 		void set_ticksteps();
 
 		template <typename t_component_type>
-		void register_component_type(ui32 in_initial_capacity = 128, ui32 in_bucket_capacity = 64);
+		void register_component_type(ui32 in_initial_capacity = 128);
 
 		template <typename t_system_type>
 		t_system_type& create_system();
@@ -54,10 +54,10 @@ namespace impuls
 		t_system_type& create_system_internal();
 
 		template <typename t_component_type>
-		t_component_type& create_component(i_object_base& in_object_to_attach_to);
+		typename plf::colony<t_component_type>::iterator create_component(i_object_base& in_object_to_attach_to);
 
 		template <typename t_component_type>
-		void destroy_component(t_component_type& in_component_to_destroy);
+		void destroy_component(typename plf::colony<t_component_type>::iterator in_component_to_destroy);
 
 		template <typename t_event_type, typename t_functor>
 		void listen(t_functor in_func);
@@ -67,12 +67,12 @@ namespace impuls
 
 		void refresh_time_delta();
 
-		std::unique_ptr<component_storage>& get_component_storage_at_index(i32 in_index);
+		std::unique_ptr<i_component_storage>& get_component_storage_at_index(i32 in_index);
 		std::unique_ptr<i_object_storage_base>& get_object_storage_at_index(i32 in_index);
 		std::unique_ptr<i_state>& get_state_at_index(i32 in_index);
 
 		std::vector<std::unique_ptr<i_system>> m_systems;
-		std::vector<std::unique_ptr<component_storage>> m_component_storages;
+		std::vector<std::unique_ptr<i_component_storage>> m_component_storages;
 		std::vector<std::unique_ptr<i_object_storage_base>> m_objects;
 		std::vector<std::unique_ptr<i_state>> m_states;
 
@@ -135,17 +135,19 @@ namespace impuls
 	}
 
 	template<typename t_component_type>
-	inline void world::register_component_type(ui32 in_initial_capacity, ui32 in_bucket_capacity)
+	inline void world::register_component_type(ui32 in_initial_capacity)
 	{
 		const ui32 type_idx = type_index<i_component_base>::get<t_component_type>();
 
 		while (type_idx >= m_component_storages.size())
-			m_component_storages.push_back(std::make_unique<component_storage>());
+			m_component_storages.push_back(nullptr);
 
-		if (m_component_storages[type_idx]->initialized())
-			return;
-
-		m_component_storages[type_idx]->initialize<t_component_type>(in_initial_capacity, in_bucket_capacity);
+		if (!m_component_storages[type_idx].get())
+		{
+			component_storage<t_component_type>* new_storage = new component_storage<t_component_type>();
+			new_storage->initialize(in_initial_capacity);
+			m_component_storages[type_idx] = std::unique_ptr<i_component_storage>(new_storage);
+		}
 	}
 
 	template<typename t_system_type>
@@ -172,27 +174,30 @@ namespace impuls
 	}
 
 	template<typename t_component_type>
-	inline t_component_type& world::create_component(i_object_base& in_object_to_attach_to)
+	inline typename plf::colony<t_component_type>::iterator world::create_component(i_object_base& in_object_to_attach_to)
 	{
 		const ui32 type_idx = type_index<i_component_base>::get<t_component_type>();
 
 		assert(type_idx < m_component_storages.size() && m_component_storages[type_idx]->initialized() && "component was not registered before use");
 
-		t_component_type& new_instance = m_component_storages[type_idx]->create_component<t_component_type>();
-		new_instance.m_owner = &in_object_to_attach_to;
+		auto storage = reinterpret_cast<component_storage<t_component_type>*>(m_component_storages[type_idx].get());
+		auto it = storage->create_component();
 
-		invoke<event_created<t_component_type>>(new_instance);
+		it->m_owner = &in_object_to_attach_to;
 
-		return new_instance;
+		invoke<event_created<t_component_type>>(*it);
+
+		return it;
 	}
 
 	template<typename t_component_type>
-	inline void world::destroy_component(t_component_type& in_component_to_destroy)
+	inline void world::destroy_component(typename plf::colony<t_component_type>::iterator in_component_to_destroy)
 	{
 		const ui32 type_idx = type_index<i_component_base>::get<t_component_type>();
-		invoke<event_destroyed<t_component_type>>(in_component_to_destroy);
+		invoke<event_destroyed<t_component_type>>(*in_component_to_destroy);
 
-		m_component_storages[type_idx]->destroy_component<t_component_type>(in_component_to_destroy);
+		auto storage = reinterpret_cast<component_storage<t_component_type>*>(m_component_storages[type_idx].get());
+		storage->destroy_component(in_component_to_destroy);
 	}
 
 	template<typename t_event_type, typename t_functor>

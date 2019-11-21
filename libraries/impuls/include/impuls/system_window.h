@@ -63,7 +63,7 @@ namespace impuls
 		glm::vec2 m_cursor_movement;
 	};
 
-	struct object_window : public i_object<component_window> {};
+	struct object_window : public i_object<object_window, component_window> {};
 
 	struct state_main_window : public i_state
 	{

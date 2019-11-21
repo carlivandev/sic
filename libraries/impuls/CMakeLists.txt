@@ -33,6 +33,7 @@ endfunction()
 add_headers(IMPULS_HEADERS
 	bucket_allocator.h
 	bucket_allocator_view.h
+	colony.h
 	leavable_queue.h
 	component.h
 	defines.h
@@ -117,12 +118,16 @@ set (EXTRA_LIBS ${EXTRA_LIBS} crossguid)
 add_subdirectory(libraries/nlohmann-json)
 set (EXTRA_LIBS ${EXTRA_LIBS} nlohmann_json)
 
+add_subdirectory(libraries/plf_colony)
+set (EXTRA_LIBS ${EXTRA_LIBS} plf_colony)
+
 include_directories(
 	libraries/stb
 	libraries/glew/include
 	libraries/glm-0.9.9.6
 	libraries/crossguid-master/include
-	libraries/nlohmann-json/include)
+	libraries/nlohmann-json/include
+	libraries/plf_colony/include)
 	
 add_library(impuls STATIC ${IMPULS_SOURCES} ${IMPULS_HEADERS} include/impuls)
 

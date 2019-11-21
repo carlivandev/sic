@@ -10,13 +10,13 @@
 
 void impuls::system_editor_view_controller::on_created(world_context&& in_context) const
 {
-	in_context.register_component_type<component_editor_view_controller>("evcd", 1, 1);
-	in_context.register_object<object_editor_view_controller>("evc", 1, 1);
+	in_context.register_component_type<component_editor_view_controller>("evcd", 1);
+	in_context.register_object<object_editor_view_controller>("evc", 1);
 }
 
 void impuls::system_editor_view_controller::on_begin_simulation(world_context&& in_context) const
 {
-	for (auto& evc : in_context.each<component_editor_view_controller>())
+	for (auto& evc : in_context.components<component_editor_view_controller>())
 	{
 		if (!evc.m_view_to_control)
 			continue;
@@ -42,7 +42,7 @@ void impuls::system_editor_view_controller::on_tick(world_context&& in_context, 
 	if (input_state->is_key_pressed(e_key::escape))
 		in_context.m_world->destroy();
 
-	for (auto& evc : in_context.each<component_editor_view_controller>())
+	for (auto& evc : in_context.components<component_editor_view_controller>())
 	{
 		if (!evc.m_view_to_control)
 			continue;

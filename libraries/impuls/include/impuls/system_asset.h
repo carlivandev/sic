@@ -186,13 +186,12 @@ namespace impuls
 			file_management::save_file(in_asset_path, stream.m_bytes);
 		}
 
-	public:
-		leavable_queue<asset_header*> m_unload_queue;
-
 	private:
 		std::vector<std::unique_ptr<asset_header>> m_asset_headers;
 		std::unordered_map<xg::Guid, asset_header*> m_id_to_header;
+
 		std::vector<file_load_request> load_requests;
+		leavable_queue<asset_header*> m_unload_queue;
 
 		std::unordered_map<std::type_index, std::unique_ptr<std::vector<asset_header*>>> m_typeindex_to_post_load_assets;
 		std::unordered_map<std::string, std::unique_ptr<std::vector<asset_header*>>> m_typename_to_pre_unload_headers;

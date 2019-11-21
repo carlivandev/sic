@@ -49,7 +49,7 @@ namespace impuls
 				system->on_begin_simulation(std::move(world_context(*this, *system.get())));
 		}
 
-		i32 most_parallel_possible = 0;
+		size_t most_parallel_possible = 0;
 		for (auto& system : m_systems)
 		{
 			if (system->m_subsystems.size() > most_parallel_possible)
@@ -58,7 +58,7 @@ namespace impuls
 
 		most_parallel_possible += m_async_ticksteps.size();
 
-		m_tickstep_threadpool.spawn(most_parallel_possible);
+		m_tickstep_threadpool.spawn(static_cast<ui16>(most_parallel_possible));
 
 		for (auto& async_tickstep : m_async_ticksteps)
 		{
@@ -156,7 +156,7 @@ namespace impuls
 		m_previous_frame_time_point = now;
 	}
 
-	std::unique_ptr<component_storage>& world::get_component_storage_at_index(i32 in_index)
+	std::unique_ptr<i_component_storage>& world::get_component_storage_at_index(i32 in_index)
 	{
 		return m_component_storages[in_index];
 	}

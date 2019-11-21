@@ -20,6 +20,6 @@ namespace impuls
 		float m_vertical_angle = 0.0f;
 	};
 
-	struct object_view : public i_object<component_view> {};
+	struct object_view : public i_object<object_view, component_view> {};
 
 }

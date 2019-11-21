@@ -315,7 +315,7 @@ void impuls::system_renderer::on_tick(world_context&& in_context, float in_time_
 	std::vector<asset_ref<asset_material>> materials_to_load;
 	std::vector<asset_ref<asset_model>> models_to_load;
 
-	for (component_view& component_view_it : in_context.each<component_view>())
+	for (component_view& component_view_it : in_context.components<component_view>())
 	{
 		if (!component_view_it.m_window_render_on)
 			continue;

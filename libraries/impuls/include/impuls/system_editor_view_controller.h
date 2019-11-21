@@ -20,7 +20,7 @@ namespace impuls
 		float m_speed_multiplier_incrementation = 0.25f;
 	};
 
-	struct object_editor_view_controller : public i_object<component_editor_view_controller> {};
+	struct object_editor_view_controller : public i_object<object_editor_view_controller, component_editor_view_controller> {};
 
 	struct system_editor_view_controller : i_system
 	{

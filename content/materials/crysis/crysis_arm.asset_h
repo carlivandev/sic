@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/materials/crysis/crysis_arm.asset",
-	"id": "8e2ace9d-b542-4cd9-b39d-3bd9ed314760",
+	"id": "f064cbf9-3df8-4076-816a-5543b3a9d9cf",
 	"name": "crysis_arm",
 	"type": "struct impuls::asset_material"
 }
