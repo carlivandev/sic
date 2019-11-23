@@ -35,6 +35,7 @@ add_headers(IMPULS_HEADERS
 	bucket_allocator_view.h
 	colony.h
 	leavable_queue.h
+	double_buffer.h
 	component.h
 	defines.h
 	event.h
@@ -68,7 +69,8 @@ add_headers(IMPULS_HEADERS
 	system_model.h
 	system_renderer.h
 	system_renderer_state_swapper.h
-	double_buffer.h
+	render_object_list.h
+	state_render_scene.h
 	transform.h
 	)
 
@@ -95,6 +97,7 @@ add_sources(IMPULS_SOURCES
 	system_model.cpp
 	system_renderer.cpp
 	system_renderer_state_swapper.cpp
+	state_render_scene.cpp
 	)
 
 add_subdirectory(libraries/fmt)
@@ -118,16 +121,12 @@ set (EXTRA_LIBS ${EXTRA_LIBS} crossguid)
 add_subdirectory(libraries/nlohmann-json)
 set (EXTRA_LIBS ${EXTRA_LIBS} nlohmann_json)
 
-add_subdirectory(libraries/plf_colony)
-set (EXTRA_LIBS ${EXTRA_LIBS} plf_colony)
-
 include_directories(
 	libraries/stb
 	libraries/glew/include
 	libraries/glm-0.9.9.6
 	libraries/crossguid-master/include
-	libraries/nlohmann-json/include
-	libraries/plf_colony/include)
+	libraries/nlohmann-json/include)
 	
 add_library(impuls STATIC ${IMPULS_SOURCES} ${IMPULS_HEADERS} include/impuls)
 

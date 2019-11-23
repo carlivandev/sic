@@ -24,12 +24,12 @@ namespace impuls
 			in_function(*m_buffer_write);
 		}
 
-		void swap(swap_function&& in_function)
+		void swap(swap_function&& in_pre_swap_function)
 		{
 			std::scoped_lock lock_swap(m_swap_mutex);
 			std::scoped_lock lock_write(m_write_mutex);
 
-			in_function(*m_buffer_read, *m_buffer_write);
+			in_pre_swap_function(*m_buffer_read, *m_buffer_write);
 
 			if (m_buffer_read == &m_buffer_0)
 			{
