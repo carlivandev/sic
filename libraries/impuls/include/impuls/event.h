@@ -4,10 +4,12 @@
 
 namespace impuls
 {
+	struct world_context;
+
 	struct i_event_base
 	{
 		virtual ~i_event_base() = default;
-		virtual void invoke(void* in_data) = 0;
+		virtual void invoke(world_context&& in_out_context, void* in_data) = 0;
 	};
 
 	template <typename t_data_to_send>
@@ -15,16 +17,16 @@ namespace impuls
 	{
 		typedef t_data_to_send argument_type;
 
-		void invoke(void* in_data) override
+		void invoke(world_context&& in_out_context, void* in_data) override
 		{
-			invoke(*reinterpret_cast<t_data_to_send*>(in_data));
+			invoke(std::move(in_out_context), *reinterpret_cast<t_data_to_send*>(in_data));
 		}
 
-		void invoke(t_data_to_send& in_data)
+		void invoke(world_context&& in_out_context, t_data_to_send& in_data)
 		{
 			for (i32 i = 0; i < m_listeners.size(); i++)
 			{
-				m_listeners[i](in_data);
+				m_listeners[i](in_out_context, in_data);
 			}
 		}
 
@@ -49,7 +51,7 @@ namespace impuls
 			m_listeners[in_listener_index] = nullptr;
 		}
 
-		std::vector<std::function<void(t_data_to_send&)>> m_listeners;
+		std::vector<std::function<void(world_context&, t_data_to_send&)>> m_listeners;
 	};
 
 	template <typename object_type>

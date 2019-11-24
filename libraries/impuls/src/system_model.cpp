@@ -11,9 +11,31 @@ void impuls::system_model::on_created(world_context&& in_context) const
 
 	in_context.listen<event_post_created<component_model>>
 	(
-		[](component_model& in_component)
+		[](world_context& in_out_context, component_model& in_out_component)
 		{
-			in_component.m_transform = in_component.owner().find<component_transform>();
+			in_out_component.m_transform = in_out_component.owner().find<component_transform>();
+			
+			in_out_component.m_render_object_id = in_out_context.get_state<state_render_scene>()->m_models.create_render_object
+			(
+				[
+					model = in_out_component.m_model,
+					material_overrides = in_out_component.m_material_overrides,
+					position = in_out_component.m_transform->m_position
+				](render_object_model& in_out_object)
+				{
+					in_out_object.m_model = model;
+					in_out_object.m_material_overrides = material_overrides;
+					in_out_object.m_position = position;
+				}
+			);
+		}
+	);
+
+	in_context.listen<event_destroyed<component_model>>
+	(
+		[](world_context& in_out_context, component_model& in_out_component)
+		{
+			in_out_context.get_state<state_render_scene>()->m_models.destroy_render_object(in_out_component.m_render_object_id);
 		}
 	);
 }
@@ -40,21 +62,11 @@ void impuls::system_model::on_tick(world_context&& in_context, float in_time_del
 			}
 		}
 	);
-	
 }
 
 void impuls::component_model::set_material(world_context in_context, asset_ref<asset_material> in_material, const std::string& in_material_slot)
 {
 	m_material_overrides[in_material_slot] = in_material;
-
-	//TODO: finish this
-	i32 id = in_context.get_state<state_render_scene>()->m_models.create_render_object
-	(
-		[in_material_slot, in_material](render_object_model & in_object)
-		{
-			in_object.m_material_overrides[in_material_slot] = in_material;
-		}
-	);
 
 	in_context.get_state<state_render_scene>()->m_models.update_render_object
 	(
@@ -64,10 +76,6 @@ void impuls::component_model::set_material(world_context in_context, asset_ref<a
 			in_object.m_material_overrides[in_material_slot] = in_material;
 		} 
 	);
-
-	in_context.get_state<state_render_scene>()->m_models.destroy_render_object(id);
-
-	in_context.get_state<state_render_scene>()->m_models.flush_updates();
 }
 
 impuls::asset_ref<impuls::asset_material> impuls::component_model::get_material_override(const std::string& in_material_slot) const

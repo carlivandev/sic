@@ -30,7 +30,7 @@ namespace impuls
 		}
 
 		template <typename t_type>
-		void load_batch(world_context in_context, const std::vector<asset_ref<t_type>>& in_batch_to_load)
+		void load_batch(world_context in_context, std::vector<asset_ref<t_type>>&& in_batch_to_load)
 		{
 			std::scoped_lock lock(m_mutex);
 			load_requests.reserve(in_batch_to_load.size());

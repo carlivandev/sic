@@ -73,7 +73,7 @@ void impuls::system_window::on_created(world_context&& in_context) const
 
 	in_context.listen<impuls::event_created<object_window>>
 	(
-		[](object_window& new_window)
+		[](world_context&, object_window& new_window)
 		{
 			constexpr i32 dimensions_x = 1600;
 			constexpr i32 dimensions_y = 800;

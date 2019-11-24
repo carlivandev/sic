@@ -5,6 +5,7 @@
 #include "impuls/system_window.h"
 #include "impuls/view.h"
 #include "impuls/logger.h"
+#include "impuls/state_render_scene.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
@@ -311,6 +312,13 @@ void impuls::system_renderer::on_tick(world_context&& in_context, float in_time_
 	if (!renderer_state)
 		return;
 
+	state_render_scene* scene_state = in_context.get_state<state_render_scene>();
+
+	if (!scene_state)
+		return;
+
+	scene_state->flush_updates();
+
 	std::vector<asset_ref<asset_texture>> textures_to_load;
 	std::vector<asset_ref<asset_material>> materials_to_load;
 	std::vector<asset_ref<asset_model>> models_to_load;
@@ -374,6 +382,9 @@ void impuls::system_renderer::on_tick(world_context&& in_context, float in_time_
 
 		glClearColor(0.0f, 0.0f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		//TODO: render this list and remove old drawcalls
+		scene_state->m_models.m_render_objects;
 
 		renderer_state->m_model_drawcalls.read
 		(

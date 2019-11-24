@@ -34,11 +34,12 @@ namespace impuls
 
 	struct state_render_scene : i_state
 	{
+		friend struct system_renderer;
+
 		render_object_list<render_object_model> m_models;
 		render_object_list<render_object_debug_shape> m_debug_shapes;
 
 	protected:
-		//TODO: call this from system_renderer
 		void flush_updates();
 	};
 }

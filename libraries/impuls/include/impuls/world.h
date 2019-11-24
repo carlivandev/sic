@@ -233,6 +233,6 @@ namespace impuls
 
 		t_event_type* world_event = reinterpret_cast<t_event_type*>(world_event_base.get());
 
-		world_event->invoke(event_data_to_send);
+		world_event->invoke(world_context(*this), event_data_to_send);
 	}
 }
