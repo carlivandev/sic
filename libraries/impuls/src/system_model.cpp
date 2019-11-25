@@ -1,6 +1,6 @@
 #include "impuls/system_model.h"
 
-#include "impuls/transform.h"
+#include "impuls/component_transform.h"
 #include "impuls/asset_types.h"
 #include "impuls/system_renderer.h"
 #include "impuls/state_render_scene.h"
@@ -13,14 +13,32 @@ void impuls::system_model::on_created(world_context&& in_context) const
 	(
 		[](world_context& in_out_context, component_model& in_out_component)
 		{
-			in_out_component.m_transform = in_out_component.owner().find<component_transform>();
-			
-			in_out_component.m_render_object_id = in_out_context.get_state<state_render_scene>()->m_models.create_render_object
+			component_transform* transform = in_out_component.owner().find<component_transform>();
+			assert(transform && "model component requires a transform attached!");
+
+			in_out_component.m_render_scene_state = in_out_context.get_state<state_render_scene>();
+
+			in_out_component.m_on_position_changed_handle.m_function =
+			[&in_out_component](const glm::vec3& in_pos)
+			{
+				in_out_component.m_render_scene_state->m_models.update_render_object
+				(
+					in_out_component.m_render_object_id,
+					[in_pos](render_object_model& in_object)
+					{
+						in_object.m_position = in_pos;
+					}
+				);
+			};
+
+			transform->m_on_position_changed.bind(in_out_component.m_on_position_changed_handle);
+
+			in_out_component.m_render_object_id = in_out_component.m_render_scene_state->m_models.create_render_object
 			(
 				[
 					model = in_out_component.m_model,
 					material_overrides = in_out_component.m_material_overrides,
-					position = in_out_component.m_transform->m_position
+					position = transform->get_position()
 				](render_object_model& in_out_object)
 				{
 					in_out_object.m_model = model;
@@ -33,42 +51,32 @@ void impuls::system_model::on_created(world_context&& in_context) const
 
 	in_context.listen<event_destroyed<component_model>>
 	(
-		[](world_context& in_out_context, component_model& in_out_component)
+		[](world_context&, component_model& in_out_component)
 		{
-			in_out_context.get_state<state_render_scene>()->m_models.destroy_render_object(in_out_component.m_render_object_id);
+			in_out_component.m_render_scene_state->m_models.destroy_render_object(in_out_component.m_render_object_id);
 		}
 	);
 }
 
-void impuls::system_model::on_tick(world_context&& in_context, float in_time_delta) const
+void impuls::component_model::set_model(const asset_ref<asset_model>& in_model)
 {
-	in_time_delta;
+	m_model = in_model;
 
-	state_renderer* renderer_state = in_context.get_state<state_renderer>();
-
-	if (!renderer_state)
-		return;
-
-	renderer_state->m_model_drawcalls.write
+	m_render_scene_state->m_models.update_render_object
 	(
-		[&in_context](std::vector<drawcall_model>& out_drawcalls)
+		m_render_object_id,
+		[in_model](render_object_model& in_object)
 		{
-			for (component_model& model : in_context.components<component_model>())
-			{
-				if (!model.m_model.is_valid())
-					continue;
-
-				out_drawcalls.push_back(drawcall_model{ model.m_model, model.m_material_overrides, model.m_transform->m_position });
-			}
-		}
+			in_object.m_model = in_model;
+		} 
 	);
 }
 
-void impuls::component_model::set_material(world_context in_context, asset_ref<asset_material> in_material, const std::string& in_material_slot)
+void impuls::component_model::set_material(asset_ref<asset_material> in_material, const std::string& in_material_slot)
 {
 	m_material_overrides[in_material_slot] = in_material;
 
-	in_context.get_state<state_render_scene>()->m_models.update_render_object
+	m_render_scene_state->m_models.update_render_object
 	(
 		m_render_object_id,
 		[in_material_slot, in_material](render_object_model& in_object)

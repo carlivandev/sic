@@ -39,6 +39,7 @@ add_headers(IMPULS_HEADERS
 	component.h
 	defines.h
 	event.h
+	delegate.h
 	object.h
 	object_base.h
 	pch.h
@@ -71,7 +72,7 @@ add_headers(IMPULS_HEADERS
 	system_renderer_state_swapper.h
 	render_object_list.h
 	state_render_scene.h
-	transform.h
+	component_transform.h
 	)
 
 add_sources(IMPULS_SOURCES
@@ -98,6 +99,7 @@ add_sources(IMPULS_SOURCES
 	system_renderer.cpp
 	system_renderer_state_swapper.cpp
 	state_render_scene.cpp
+	component_transform.cpp
 	)
 
 add_subdirectory(libraries/fmt)

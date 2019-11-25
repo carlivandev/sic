@@ -38,6 +38,7 @@ namespace impuls
 		std::mutex m_render_object_update_lock;
 
 		double_buffer<std::vector<render_object_update>> m_render_object_data_updates;
+		size_t m_current_create_id = 0;
 	};
 
 	template<typename t_render_object_type>
@@ -49,7 +50,7 @@ namespace impuls
 
 		if (m_render_objects_free_indices.empty())
 		{
-			new_idx = m_render_objects.size();
+			new_idx = m_current_create_id++;
 		}
 		else
 		{
@@ -71,6 +72,8 @@ namespace impuls
 	template<typename t_render_object_type>
 	inline void render_object_list<t_render_object_type>::destroy_render_object(i32 in_id)
 	{
+		assert(in_id != -1 && "Invalid object ID!");
+
 		std::scoped_lock lock(m_render_object_update_lock);
 
 		m_render_objects_free_indices.push_back(in_id);
@@ -86,6 +89,8 @@ namespace impuls
 	template<typename t_render_object_type>
 	inline void render_object_list<t_render_object_type>::update_render_object(i32 in_object_id, typename render_object_update::callback&& in_update_callback)
 	{
+		assert(in_object_id != -1 && "Invalid object ID!");
+
 		m_render_object_data_updates.write
 		(
 			[in_object_id, &in_update_callback](std::vector<render_object_update>& in_out_updates)
@@ -109,9 +114,14 @@ namespace impuls
 					if (update.m_type == e_render_object_update_type::create)
 					{
 						if (m_render_objects.size() >= update.m_render_object_id)
-							m_render_objects.resize(update.m_render_object_id + 1);
+						{
+							m_render_objects.emplace_back();
+							assert(m_render_objects.size() - 1 == update.m_render_object_id && "When adding an object to end of array it should always match with the ID!");
+						}
 						else
+						{
 							new (&m_render_objects[update.m_render_object_id]) t_render_object_type();
+						}
 					}
 					else if (update.m_type == e_render_object_update_type::destroy)
 					{
@@ -132,5 +142,7 @@ namespace impuls
 				in_out_read.clear();
 			}
 		);
+
+		m_current_create_id = m_render_objects.size();
 	}
 }

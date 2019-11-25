@@ -35,6 +35,7 @@ namespace impuls
 	struct state_render_scene : i_state
 	{
 		friend struct system_renderer;
+		friend struct system_renderer_state_swapper;
 
 		render_object_list<render_object_model> m_models;
 		render_object_list<render_object_debug_shape> m_debug_shapes;

@@ -5,7 +5,7 @@
 #include "impuls/view.h"
 #include "impuls/gl_includes.h"
 #include "impuls/system_model.h"
-#include "impuls/transform.h"
+#include "impuls/component_transform.h"
 #include "impuls/logger.h"
 
 #include "glm/gtc/matrix_transform.hpp"

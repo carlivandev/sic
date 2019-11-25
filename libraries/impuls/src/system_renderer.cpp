@@ -1,11 +1,13 @@
 #include "impuls/system_renderer.h"
-#include "impuls/transform.h"
+#include "impuls/component_transform.h"
 
 #include "impuls/asset_types.h"
 #include "impuls/system_window.h"
 #include "impuls/view.h"
 #include "impuls/logger.h"
 #include "impuls/state_render_scene.h"
+#include "impuls/file_management.h"
+#include "impuls/system_asset.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
@@ -231,7 +233,7 @@ namespace impuls_private
 
 void impuls::system_renderer::on_created(world_context&& in_context) const
 {
-	in_context.register_state<state_renderer>("renderer_state");
+	in_context.register_state<state_render_scene>("state_render_scene");
 }
 
 void impuls::system_renderer::on_tick(world_context&& in_context, float in_time_delta) const
@@ -307,17 +309,10 @@ void impuls::system_renderer::on_tick(world_context&& in_context, float in_time_
 			}
 	);
 
-	state_renderer* renderer_state = in_context.get_state<state_renderer>();
-
-	if (!renderer_state)
-		return;
-
 	state_render_scene* scene_state = in_context.get_state<state_render_scene>();
 
 	if (!scene_state)
 		return;
-
-	scene_state->flush_updates();
 
 	std::vector<asset_ref<asset_texture>> textures_to_load;
 	std::vector<asset_ref<asset_material>> materials_to_load;
@@ -382,70 +377,64 @@ void impuls::system_renderer::on_tick(world_context&& in_context, float in_time_
 
 		glClearColor(0.0f, 0.0f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		
+		for (const render_object_model& model : scene_state->m_models.m_render_objects)
+		{
+			if (!model.m_model.is_valid())
+				continue;
 
-		//TODO: render this list and remove old drawcalls
-		scene_state->m_models.m_render_objects;
-
-		renderer_state->m_model_drawcalls.read
-		(
-			[&textures_to_load, &materials_to_load, &models_to_load, &proj_mat, &view_mat](const std::vector<drawcall_model> & models)
+			if (model.m_model.get_load_state() == e_asset_load_state::loaded)
 			{
-				for (const drawcall_model& model : models)
+				asset_model* model_asset = model.m_model.get();
+
+				const glm::mat4 model_mat = glm::mat4(
+					1.0f, 0.0f, 0.0f, 0.0f,
+					0.0f, 1.0f, 0.0f, 0.0f,
+					0.0f, 0.0f, 1.0f, 0.0f,
+					model.m_position.x, model.m_position.y, model.m_position.z, 1.0);
+
+				const glm::mat4 mvp = proj_mat * view_mat * model_mat;
+
+				const ui64 mesh_count = model_asset->m_meshes.size();
+
+				for (i32 mesh_idx = 0; mesh_idx < mesh_count; mesh_idx++)
 				{
-					if (model.m_model.get_load_state() == e_asset_load_state::loaded)
+					auto& mesh = model_asset->m_meshes[mesh_idx];
+
+					auto material_override_it = model.m_material_overrides.find(mesh.first.material_slot);
+
+					const asset_ref<asset_material>& mat_to_draw = material_override_it != model.m_material_overrides.end() ? material_override_it->second : model_asset->get_material(mesh_idx);
+					if (mat_to_draw.is_valid())
 					{
-						asset_model* model_asset = model.m_model.get();
-
-						const glm::mat4 model_mat = glm::mat4(
-							1.0f, 0.0f, 0.0f, 0.0f,
-							0.0f, 1.0f, 0.0f, 0.0f,
-							0.0f, 0.0f, 1.0f, 0.0f,
-							model.m_position.x, model.m_position.y, model.m_position.z, 1.0);
-
-						const glm::mat4 mvp = proj_mat * view_mat * model_mat;
-
-						const ui64 mesh_count = model_asset->m_meshes.size();
-
-						for (i32 mesh_idx = 0; mesh_idx < mesh_count; mesh_idx++)
+						if (mat_to_draw.get_load_state() == e_asset_load_state::loaded)
 						{
-							auto& mesh = model_asset->m_meshes[mesh_idx];
+							bool all_texture_loaded = true;
 
-							auto material_override_it = model.m_material_overrides.find(mesh.first.material_slot);
-
-							const asset_ref<asset_material> mat_to_draw = material_override_it != model.m_material_overrides.end() ? material_override_it->second : model_asset->get_material(mesh_idx);
-							if (mat_to_draw.is_valid())
+							for (asset_material::texture_parameter& texture_param : mat_to_draw.get()->m_texture_parameters)
 							{
-								if (mat_to_draw.get_load_state() == e_asset_load_state::loaded)
+								if (texture_param.m_texture.is_valid())
 								{
-									bool all_texture_loaded = true;
+									if (texture_param.m_texture.get_load_state() == e_asset_load_state::not_loaded)
+										textures_to_load.push_back(texture_param.m_texture);
 
-									for (asset_material::texture_parameter& texture_param : mat_to_draw.get()->m_texture_parameters)
-									{
-										if (texture_param.m_texture.is_valid())
-										{
-											if (texture_param.m_texture.get_load_state() == e_asset_load_state::not_loaded)
-												textures_to_load.push_back(texture_param.m_texture);
-											
-											if (texture_param.m_texture.get_load_state() != e_asset_load_state::loaded)
-												all_texture_loaded = false;
-										}
-									}
-
-									if (all_texture_loaded)
-										impuls_private::draw_mesh(mesh.first, *mat_to_draw.get(), mvp);
-								}
-								else if (mat_to_draw.get_load_state() == e_asset_load_state::not_loaded)
-								{
-									materials_to_load.push_back(mat_to_draw);
+									if (texture_param.m_texture.get_load_state() != e_asset_load_state::loaded)
+										all_texture_loaded = false;
 								}
 							}
+
+							if (all_texture_loaded)
+								impuls_private::draw_mesh(mesh.first, *mat_to_draw.get(), mvp);
+						}
+						else if (mat_to_draw.get_load_state() == e_asset_load_state::not_loaded)
+						{
+							materials_to_load.push_back(mat_to_draw);
 						}
 					}
-					else if (model.m_model.get_load_state() == e_asset_load_state::not_loaded)
-						models_to_load.push_back(model.m_model);
 				}
 			}
-		);
+			else if (model.m_model.get_load_state() == e_asset_load_state::not_loaded)
+				models_to_load.push_back(model.m_model);
+		}
 
 		glfwSwapBuffers(render_window.m_window);
 	}
