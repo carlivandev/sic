@@ -84,29 +84,15 @@ void impuls::state_assetsystem::leave_unload_queue(const asset_header& in_header
 void impuls::state_assetsystem::join_unload_queue(asset_header& in_out_header)
 {
 	if (m_unload_queue.is_queue_full())
-	{
-		asset_header* header = m_unload_queue.dequeue();
-
-		if (header->m_loaded_asset.get()->has_pre_unload())
-		{
-			std::scoped_lock post_load_lock(m_pre_unload_mutex);
-			header->m_load_state = e_asset_load_state::unloading;
-
-			std::unique_ptr<std::vector<asset_header*>>& pre_unload_assets = m_typename_to_pre_unload_headers[header->m_typename];
-
-			if (!pre_unload_assets)
-				pre_unload_assets = std::make_unique<std::vector<asset_header*>>();
-
-			pre_unload_assets->push_back(header);
-		}
-		else
-		{
-			header->m_load_state = e_asset_load_state::not_loaded;
-			header->m_loaded_asset.reset();
-		}
-	}
+		unload_next_asset();
 
 	in_out_header.m_unload_ticket = m_unload_queue.enqueue(&in_out_header);
+}
+
+void impuls::state_assetsystem::force_unload_unreferenced_assets()
+{
+	while (!m_unload_queue.is_queue_empty())
+		unload_next_asset();
 }
 
 impuls::asset_header* impuls::state_assetsystem::create_asset_internal(const std::string& in_asset_name, const std::string& in_asset_directory, const std::string& in_typename)
@@ -135,4 +121,27 @@ void impuls::state_assetsystem::save_asset_header(const asset_header& in_header,
 	header_json["asset_path"] = in_header.m_asset_path;
 
 	file_management::save_file(fmt::format("{0}_h", in_header.m_asset_path), header_json.dump(1, '\t'));
+}
+
+void impuls::state_assetsystem::unload_next_asset()
+{
+	asset_header* header = m_unload_queue.dequeue();
+
+	if (header->m_loaded_asset.get()->has_pre_unload())
+	{
+		std::scoped_lock post_load_lock(m_pre_unload_mutex);
+		header->m_load_state = e_asset_load_state::unloading;
+
+		std::unique_ptr<std::vector<asset_header*>>& pre_unload_assets = m_typename_to_pre_unload_headers[header->m_typename];
+
+		if (!pre_unload_assets)
+			pre_unload_assets = std::make_unique<std::vector<asset_header*>>();
+
+		pre_unload_assets->push_back(header);
+	}
+	else
+	{
+		header->m_load_state = e_asset_load_state::not_loaded;
+		header->m_loaded_asset.reset();
+	}
 }

@@ -151,6 +151,8 @@ namespace impuls
 		void leave_unload_queue(const asset_header& in_header);
 		void join_unload_queue(asset_header& in_out_header);
 
+		void force_unload_unreferenced_assets();
+
 	private:
 		asset_header* create_asset_internal(const std::string& in_asset_name, const std::string& in_asset_directory, const std::string& in_typename);
 		void save_asset_header(const asset_header& in_header, const std::string& in_typename);
@@ -187,6 +189,8 @@ namespace impuls
 		}
 
 	private:
+		void unload_next_asset();
+
 		std::vector<std::unique_ptr<asset_header>> m_asset_headers;
 		std::unordered_map<xg::Guid, asset_header*> m_id_to_header;
 
