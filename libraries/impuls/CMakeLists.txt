@@ -31,6 +31,7 @@ function(add_sources VAR)
 endfunction()
 
 add_headers(IMPULS_HEADERS
+	type_restrictions.h
 	bucket_allocator.h
 	bucket_allocator_view.h
 	colony.h

@@ -1,4 +1,6 @@
 #pragma once
+#include "impuls/type_restrictions.h"
+
 #include <vector>
 #include <functional>
 #include <mutex>
@@ -6,7 +8,7 @@
 namespace impuls
 {
 	template <typename ...t_args>
-	struct delegate
+	struct delegate : i_noncopyable
 	{
 		struct handle
 		{
@@ -15,6 +17,15 @@ namespace impuls
 			std::function<void(t_args...)> m_function;
 
 			handle() = default;
+			
+			~handle()
+			{
+				if (m_delegate)
+				{
+					m_delegate->unbind(*this);
+					m_delegate = nullptr;
+				}
+			}
 
 			handle(const handle& in_other)
 			{
@@ -35,6 +46,17 @@ namespace impuls
 				m_function = std::move(in_other.m_function);
 			}
 
+			handle& operator=(handle&& in_other)
+			{
+				if (in_other.m_delegate)
+				{
+					in_other.m_delegate->bind(*this);
+					in_other.m_delegate->unbind(in_other);
+				}
+
+				m_function = std::move(in_other.m_function);
+			}
+
 			handle& operator=(const handle& in_other)
 			{
 				if (in_other.m_delegate)
@@ -43,26 +65,22 @@ namespace impuls
 				m_function = in_other.m_function;
 			}
 
-			~handle()
-			{
-				if (m_delegate)
-				{
-					m_delegate->unbind(*this);
-					m_delegate = nullptr;
-				}
-			}
-
 		private:
 			delegate<t_args...>* m_delegate = nullptr;
 		};
 
 		delegate() = default;
-		delegate(const delegate& in_other)
+		delegate(delegate&& in_other) noexcept
 		{
-			assert(in_other.m_handles.empty() && "copying delegate with valid handles is not accepted!");
+			m_handles = std::move(in_other.m_handles);
+			for (handle* it : m_handles)
+			{
+				if (it)
+					it->m_delegate = this;
+			}
 		}
 
-		delegate(delegate&& in_other)
+		delegate& operator=(delegate&& in_other) noexcept
 		{
 			m_handles = std::move(in_other.m_handles);
 			for (handle* it : m_handles)

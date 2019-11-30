@@ -43,6 +43,7 @@ namespace impuls
 					continue;
 
 				header->m_load_state = e_asset_load_state::loading;
+				header->increment_reference_count();
 
 				load_requests.push_back
 				(
@@ -65,7 +66,9 @@ namespace impuls
 							}
 							else
 							{
+								IMPULS_LOG(g_log_asset, "Loaded asset: \"{0}\"", header->m_name.c_str());
 								header->m_load_state = e_asset_load_state::loaded;
+								header->decrement_reference_count();
 							}
 						}
 					)
@@ -76,7 +79,7 @@ namespace impuls
 		}
 
 		template <typename t_asset_type>
-		inline void do_post_load(std::function<void(asset_ref<t_asset_type>&&)>&& in_callback)
+		inline void do_post_load(std::function<void(t_asset_type&)>&& in_callback)
 		{
 			std::scoped_lock post_load_lock(m_post_load_mutex);
 
@@ -87,15 +90,18 @@ namespace impuls
 
 			for (asset_header* header : *post_load_assets.get())
 			{
-				in_callback(std::move(asset_ref<t_asset_type>(header)));
+				IMPULS_LOG(g_log_asset, "Loaded asset: \"{0}\"", header->m_name.c_str());
+
+				in_callback(*reinterpret_cast<t_asset_type*>(header->m_loaded_asset.get()));
 				header->m_load_state = e_asset_load_state::loaded;
+				header->decrement_reference_count();
 			}
 
 			post_load_assets->clear();
 		}
 
 		template <typename t_asset_type>
-		inline void do_pre_unload(std::function<void(asset_ref<t_asset_type>&&)>&& in_callback)
+		inline void do_pre_unload(std::function<void(t_asset_type&)>&& in_callback)
 		{
 			std::scoped_lock pre_unload_lock(m_pre_unload_mutex);
 
@@ -106,7 +112,9 @@ namespace impuls
 
 			for (asset_header* header : *pre_unload_assets.get())
 			{
-				in_callback(std::move(asset_ref<t_asset_type>(header)));
+				IMPULS_LOG(g_log_asset, "unloaded asset: \"{0}\"", header->m_name.c_str());
+
+				in_callback(*reinterpret_cast<t_asset_type*>(header->m_loaded_asset.get()));
 				header->m_load_state = e_asset_load_state::not_loaded;
 				header->m_loaded_asset.reset();
 			}
@@ -119,6 +127,10 @@ namespace impuls
 		{
 			asset_header* new_header = create_asset_internal(in_asset_name, in_asset_directory, typeid(t_asset_type).name());
 			new_header->m_loaded_asset = std::unique_ptr<i_asset>(reinterpret_cast<i_asset*>(new t_asset_type()));
+
+			new_header->increment_reference_count();
+
+			IMPULS_LOG(g_log_asset, "Created asset: \"{0}\"", new_header->m_name.c_str());
 
 			if (new_header->m_loaded_asset.get()->has_post_load())
 			{
@@ -134,9 +146,9 @@ namespace impuls
 			}
 			else
 			{
+				IMPULS_LOG(g_log_asset, "Loaded asset: \"{0}\"", new_header->m_name.c_str());
 				new_header->m_load_state = e_asset_load_state::loaded;
 			}
-			
 
 			return asset_ref<t_asset_type>(new_header);
 		}

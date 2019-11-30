@@ -1,4 +1,6 @@
 #pragma once
+#include "impuls/type_restrictions.h"
+
 #include "bucket_allocator.h"
 #include "type_index.h"
 
@@ -7,7 +9,7 @@ namespace impuls
 	struct world;
 	struct i_component_base;
 
-	struct i_object_base
+	struct i_object_base : i_noncopyable
 	{
 		friend struct world_context;
 		friend struct i_system;

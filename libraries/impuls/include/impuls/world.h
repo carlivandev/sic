@@ -54,10 +54,10 @@ namespace impuls
 		t_system_type& create_system_internal();
 
 		template <typename t_component_type>
-		typename plf::colony<t_component_type>::iterator create_component(i_object_base& in_object_to_attach_to);
+		typename t_component_type& create_component(i_object_base& in_object_to_attach_to);
 
 		template <typename t_component_type>
-		void destroy_component(typename plf::colony<t_component_type>::iterator in_component_to_destroy);
+		void destroy_component(t_component_type& in_component_to_destroy);
 
 		template <typename t_event_type, typename t_functor>
 		void listen(t_functor in_func);
@@ -174,29 +174,29 @@ namespace impuls
 	}
 
 	template<typename t_component_type>
-	inline typename plf::colony<t_component_type>::iterator world::create_component(i_object_base& in_object_to_attach_to)
+	inline typename t_component_type& world::create_component(i_object_base& in_object_to_attach_to)
 	{
 		const ui32 type_idx = type_index<i_component_base>::get<t_component_type>();
 
 		assert(type_idx < m_component_storages.size() && m_component_storages[type_idx]->initialized() && "component was not registered before use");
 
-		auto storage = reinterpret_cast<component_storage<t_component_type>*>(m_component_storages[type_idx].get());
-		auto it = storage->create_component();
+		component_storage<t_component_type>* storage = reinterpret_cast<component_storage<t_component_type>*>(m_component_storages[type_idx].get());
+		auto& comp = storage->create_component();
 
-		it->m_owner = &in_object_to_attach_to;
+		comp.m_owner = &in_object_to_attach_to;
 
-		invoke<event_created<t_component_type>>(*it);
+		invoke<event_created<t_component_type>>(comp);
 
-		return it;
+		return comp;
 	}
 
 	template<typename t_component_type>
-	inline void world::destroy_component(typename plf::colony<t_component_type>::iterator in_component_to_destroy)
+	inline void world::destroy_component(t_component_type& in_component_to_destroy)
 	{
 		const ui32 type_idx = type_index<i_component_base>::get<t_component_type>();
-		invoke<event_destroyed<t_component_type>>(*in_component_to_destroy);
+		invoke<event_destroyed<t_component_type>>(in_component_to_destroy);
 
-		auto storage = reinterpret_cast<component_storage<t_component_type>*>(m_component_storages[type_idx].get());
+		component_storage<t_component_type>* storage = reinterpret_cast<component_storage<t_component_type>*>(m_component_storages[type_idx].get());
 		storage->destroy_component(in_component_to_destroy);
 	}
 

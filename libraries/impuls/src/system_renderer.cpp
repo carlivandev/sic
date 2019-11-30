@@ -251,56 +251,56 @@ void impuls::system_renderer::on_tick(world_context&& in_context, float in_time_
 	
 	assetsystem_state->do_post_load<asset_texture>
 		(
-			[](asset_ref<asset_texture>&& in_texture)
+			[](asset_texture& in_texture)
 			{
 				//do opengl load
-				impuls_private::init_texture(*in_texture.get());
+				impuls_private::init_texture(in_texture);
 			}
 	);
 
 	assetsystem_state->do_post_load<asset_material>
 		(
-			[](asset_ref<asset_material>&& in_material)
+			[](asset_material& in_material)
 			{
 				//do opengl load
-				impuls_private::init_material(*in_material.get());
+				impuls_private::init_material(in_material);
 			}
 	);
 
 	assetsystem_state->do_post_load<asset_model>
 	(
-		[](asset_ref<asset_model>&& in_model)
+		[](asset_model& in_model)
 		{
 			//do opengl load
-			for (auto&& mesh : in_model.get()->m_meshes)
+			for (auto&& mesh : in_model.m_meshes)
 				impuls_private::init_mesh(mesh.first);
 		}
 	);
 
 	assetsystem_state->do_pre_unload<asset_texture>
 		(
-			[](asset_ref<asset_texture> && in_texture)
+			[](asset_texture& in_texture)
 			{
-				glDeleteTextures(1, &in_texture.get()->m_render_id);
+				glDeleteTextures(1, &in_texture.m_render_id);
 
-				if (!in_texture.get()->m_free_texture_data_after_setup)
-					in_texture.get()->m_texture_data.reset();
+				if (!in_texture.m_free_texture_data_after_setup)
+					in_texture.m_texture_data.reset();
 			}
 	);
 
 	assetsystem_state->do_pre_unload<asset_material>
 		(
-			[](asset_ref<asset_material> && in_material)
+			[](asset_material& in_material)
 			{
-				glDeleteProgram(in_material.get()->m_program_id);
+				glDeleteProgram(in_material.m_program_id);
 			}
 	);
 
 	assetsystem_state->do_pre_unload<asset_model>
 		(
-			[](asset_ref<asset_model> && in_model)
+			[](asset_model& in_model)
 			{
-				for (auto&& mesh : in_model.get()->m_meshes)
+				for (auto&& mesh : in_model.m_meshes)
 				{
 					glDeleteVertexArrays(1, &mesh.first.m_vao);
 					glDeleteBuffers(1, &mesh.first.m_vbo);

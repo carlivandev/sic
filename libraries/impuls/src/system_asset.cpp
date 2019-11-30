@@ -141,6 +141,8 @@ void impuls::state_assetsystem::unload_next_asset()
 	}
 	else
 	{
+		IMPULS_LOG(g_log_asset, "unloaded asset: \"{0}\"", header->m_name.c_str());
+
 		header->m_load_state = e_asset_load_state::not_loaded;
 		header->m_loaded_asset.reset();
 	}

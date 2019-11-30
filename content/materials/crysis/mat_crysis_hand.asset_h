@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/materials/crysis/mat_crysis_hand.asset",
-	"id": "7f9dac8c-1592-450d-bf4a-385310fd898f",
+	"id": "ecd9cbbe-74db-41fb-8f62-a246cf6cb0fb",
 	"name": "mat_crysis_hand",
 	"type": "struct impuls::asset_material"
 }

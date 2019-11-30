@@ -21,8 +21,8 @@ namespace impuls
 		{
 			if (type_index<i_component_base>::get<t_to_check_with>() == in_type_idx)
 			{
-				auto& it = std::get<typename plf::colony<t_to_check_with>::iterator>(m_components);
-				out_result = reinterpret_cast<byte*>(&(*it));
+				auto it = std::get<t_to_check_with*>(m_components);
+				out_result = reinterpret_cast<byte*>(it);
 				return true;
 			}
 
@@ -34,7 +34,7 @@ namespace impuls
 		{
 			if (type_index<i_component_base>::get<t_to_check_with>() == in_type_idx)
 			{
-				auto& it = std::get<typename plf::colony<t_to_check_with>::iterator>(m_components);
+				auto it = std::get<t_to_check_with*>(m_components);
 				out_result = reinterpret_cast<const byte*>(&(*it));
 				return true;
 			}
@@ -63,35 +63,35 @@ namespace impuls
 		template<typename t_to_get>
 		__forceinline constexpr t_to_get& get()
 		{
-			auto& it = std::get<typename plf::colony<t_to_get>::iterator>(m_components);
+			auto it = std::get<t_to_get*>(m_components);
 			return *it;
 		}
 
 		template<typename t_to_get>
 		__forceinline constexpr const t_to_get& get() const
 		{
-			const auto& it = std::get<typename plf::colony<t_to_get>::iterator>(m_components);
+			const auto it = std::get<t_to_get*>(m_components);
 			return *it;
 		}
 
 		template<typename t_to_create>
 		constexpr void create_component(world& in_world)
 		{
-			std::get<typename plf::colony<t_to_create>::iterator>(m_components) = in_world.create_component<t_to_create>(*this);
+			std::get<t_to_create*>(m_components) = &in_world.create_component<t_to_create>(*this);
 		}
 
 		template<typename t_to_invoke_on>
 		constexpr void invoke_post_creation_event(world& in_world)
 		{
-			in_world.invoke<event_post_created<t_to_invoke_on>>(*std::get<typename plf::colony<t_to_invoke_on>::iterator>(m_components));
+			in_world.invoke<event_post_created<t_to_invoke_on>>(*std::get<t_to_invoke_on*>(m_components));
 		}
 
 		template<typename t_to_destroy>
 		constexpr void destroy_component(world& in_world)
 		{
-			auto& destroy_it = std::get<typename plf::colony<t_to_destroy>::iterator>(m_components);
-			in_world.destroy_component<t_to_destroy>(destroy_it);
-			destroy_it = typename plf::colony<t_to_destroy>::iterator();
+			auto& destroy_it = std::get<t_to_destroy*>(m_components);
+			in_world.destroy_component<t_to_destroy>(*destroy_it);
+			destroy_it = nullptr;
 		}
 
 		private:
@@ -109,7 +109,7 @@ namespace impuls
 				(destroy_component<t_component>(in_world), ...);
 			}
 
-			std::tuple<typename plf::colony<t_component>::iterator...> m_components;
+			std::tuple<t_component*...> m_components;
 	};
 
 	struct object_storage : public i_object_storage_base
