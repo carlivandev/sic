@@ -52,8 +52,8 @@ add_headers(IMPULS_HEADERS
 	type.h
 	type_index.h
 	logger.h
-	world.h
-	world_context.h
+	engine.h
+	engine_context.h
 	file_management.h
 	system_file.h
 	asset.h
@@ -83,8 +83,8 @@ add_sources(IMPULS_SOURCES
 	system.cpp
 	threadpool.cpp
 	logger.cpp
-	world.cpp
-	world_context.cpp
+	engine.cpp
+	engine_context.cpp
 	file_management.cpp
 	system_file.cpp
 	asset.cpp

@@ -25,13 +25,13 @@ void impuls::state_filesystem::request_save(std::vector<file_save_request>&& in_
 	std::move(in_requests.begin(), in_requests.end(), std::back_inserter(m_save_requests));
 }
 
-void impuls::system_file::on_created(world_context&& in_context) const
+void impuls::system_file::on_created(engine_context&& in_context) const
 {
 	in_context.register_state<state_filesystem>("state_filesystem");
 	in_context.get_state<state_filesystem>()->m_worker_pool.spawn(4);
 }
 
-void impuls::system_file::on_tick(world_context&& in_context, float in_time_delta) const
+void impuls::system_file::on_tick(engine_context&& in_context, float in_time_delta) const
 {
 	in_time_delta;
 
@@ -85,7 +85,7 @@ void impuls::system_file::on_tick(world_context&& in_context, float in_time_delt
 	file_state->m_load_requests.clear();
 }
 
-void impuls::system_file::on_end_simulation(world_context&& in_context) const
+void impuls::system_file::on_end_simulation(engine_context&& in_context) const
 {
 	state_filesystem* file_state = in_context.get_state<state_filesystem>();
 

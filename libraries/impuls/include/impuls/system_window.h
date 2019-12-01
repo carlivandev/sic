@@ -1,6 +1,6 @@
 #pragma once
 #include "system.h"
-#include "world_context.h"
+#include "engine_context.h"
 #include "input.h"
 
 #include "gl_includes.h"
@@ -73,12 +73,12 @@ namespace impuls
 	struct system_window : i_system
 	{
 		//create window, create window state
-		virtual void on_created(world_context&& in_context) const override;
+		virtual void on_created(engine_context&& in_context) const override;
 
 		//poll window events
-		virtual void on_tick(world_context&& in_context, float in_time_delta) const override;
+		virtual void on_tick(engine_context&& in_context, float in_time_delta) const override;
 
 		//cleanup
-		virtual void on_end_simulation(world_context&& in_context) const override;
+		virtual void on_end_simulation(engine_context&& in_context) const override;
 	};
 }

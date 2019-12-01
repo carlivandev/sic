@@ -1,6 +1,6 @@
 #pragma once
 #include "impuls/system.h"
-#include "impuls/world_context.h"
+#include "impuls/engine_context.h"
 #include "impuls/system_file.h"
 #include "impuls/file_management.h"
 #include "impuls/asset.h"
@@ -30,7 +30,7 @@ namespace impuls
 		}
 
 		template <typename t_type>
-		void load_batch(world_context in_context, std::vector<asset_ref<t_type>>&& in_batch_to_load)
+		void load_batch(engine_context in_context, std::vector<asset_ref<t_type>>&& in_batch_to_load)
 		{
 			std::scoped_lock lock(m_mutex);
 			load_requests.reserve(in_batch_to_load.size());
@@ -66,7 +66,7 @@ namespace impuls
 							}
 							else
 							{
-								IMPULS_LOG(g_log_asset, "Loaded asset: \"{0}\"", header->m_name.c_str());
+								IMPULS_LOG(g_log_asset_verbose, "Loaded asset: \"{0}\"", header->m_name.c_str());
 								header->m_load_state = e_asset_load_state::loaded;
 								header->decrement_reference_count();
 							}
@@ -90,7 +90,7 @@ namespace impuls
 
 			for (asset_header* header : *post_load_assets.get())
 			{
-				IMPULS_LOG(g_log_asset, "Loaded asset: \"{0}\"", header->m_name.c_str());
+				IMPULS_LOG(g_log_asset_verbose, "Loaded asset: \"{0}\"", header->m_name.c_str());
 
 				in_callback(*reinterpret_cast<t_asset_type*>(header->m_loaded_asset.get()));
 				header->m_load_state = e_asset_load_state::loaded;
@@ -112,7 +112,7 @@ namespace impuls
 
 			for (asset_header* header : *pre_unload_assets.get())
 			{
-				IMPULS_LOG(g_log_asset, "unloaded asset: \"{0}\"", header->m_name.c_str());
+				IMPULS_LOG(g_log_asset_verbose, "unloaded asset: \"{0}\"", header->m_name.c_str());
 
 				in_callback(*reinterpret_cast<t_asset_type*>(header->m_loaded_asset.get()));
 				header->m_load_state = e_asset_load_state::not_loaded;
@@ -130,7 +130,7 @@ namespace impuls
 
 			new_header->increment_reference_count();
 
-			IMPULS_LOG(g_log_asset, "Created asset: \"{0}\"", new_header->m_name.c_str());
+			IMPULS_LOG(g_log_asset_verbose, "Created asset: \"{0}\"", new_header->m_name.c_str());
 
 			if (new_header->m_loaded_asset.get()->has_post_load())
 			{
@@ -146,7 +146,7 @@ namespace impuls
 			}
 			else
 			{
-				IMPULS_LOG(g_log_asset, "Loaded asset: \"{0}\"", new_header->m_name.c_str());
+				IMPULS_LOG(g_log_asset_verbose, "Loaded asset: \"{0}\"", new_header->m_name.c_str());
 				new_header->m_load_state = e_asset_load_state::loaded;
 			}
 
@@ -174,7 +174,7 @@ namespace impuls
 		{
 			if (in_asset_data.empty())
 			{
-				IMPULS_LOG_E(g_log_asset, "Failed to load material!");
+				IMPULS_LOG_E(g_log_asset_verbose, "Failed to load material!");
 				return;
 			}
 
@@ -219,7 +219,7 @@ namespace impuls
 
 	struct system_asset : i_system
 	{
-		virtual void on_created(world_context&& in_context) const override;
-		virtual void on_tick(world_context&& in_context, float in_time_delta) const override;
+		virtual void on_created(engine_context&& in_context) const override;
+		virtual void on_tick(engine_context&& in_context, float in_time_delta) const override;
 	};
 }

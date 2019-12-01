@@ -7,37 +7,37 @@
 
 namespace impuls
 {
-	struct world_context;
-	struct world;
+	struct engine_context;
+	struct engine;
 	struct i_component_base;
 	struct i_object_base;
 
 	struct i_system
 	{
-		friend world_context;
-		friend world;
+		friend engine_context;
+		friend engine;
 
 		/*
-			happens right after a system has been created in a world
+			happens right after a system has been created in a engine
 			useful for creating subsystems
 		*/
-		virtual void on_created(world_context&& in_context) const { in_context; }
+		virtual void on_created(engine_context&& in_context) const { in_context; }
 
 		/*
-			happens after world has finished setting up
+			happens after engine has finished setting up
 		*/
-		virtual void on_begin_simulation(world_context&& in_context) const { in_context; }
+		virtual void on_begin_simulation(engine_context&& in_context) const { in_context; }
 
 		/*
-			happens after world has called on_begin_simulation
+			happens after engine has called on_begin_simulation
 			called every frame
 		*/
-		virtual void on_tick(world_context&& in_context, float in_time_delta) const { in_context; in_time_delta; }
+		virtual void on_tick(engine_context&& in_context, float in_time_delta) const { in_context; in_time_delta; }
 
 		/*
-			happens when world is destroyed
+			happens when engine is destroyed
 		*/
-		virtual void on_end_simulation(world_context&& in_context) const { in_context; }
+		virtual void on_end_simulation(engine_context&& in_context) const { in_context; }
 
 		//unsafe cast, see try_cast for safe version
 		template <typename t_to_type, typename t_from_type>
@@ -100,7 +100,7 @@ namespace impuls
 		const std::string& name() const { return m_name; }
 
 	protected:
-		void execute_tick(world_context&& in_context, float in_time_delta) const;
+		void execute_tick(engine_context&& in_context, float in_time_delta) const;
 
 		std::string m_name;
 		bool m_enabled = true;

@@ -1,6 +1,6 @@
 #pragma once
 #include "impuls/system.h"
-#include "impuls/world_context.h"
+#include "impuls/engine_context.h"
 #include "impuls/system_asset.h"
 #include "impuls/component_transform.h"
 
@@ -32,6 +32,6 @@ namespace impuls
 
 	struct system_model : i_system
 	{
-		virtual void on_created(world_context&& in_context) const override;
+		virtual void on_created(engine_context&& in_context) const override;
 	};
 }

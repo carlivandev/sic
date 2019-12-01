@@ -79,14 +79,14 @@ namespace impuls_private
 
 		if (vertex_shader_code.size() == 0)
 		{
-			IMPULS_LOG_E(g_log_renderer, "Impossible to open {0}. Are you in the right directory?", vertex_file_path.c_str());
+			IMPULS_LOG_E(g_log_renderer_verbose, "Impossible to open {0}. Are you in the right directory?", vertex_file_path.c_str());
 			return;
 		}
 		const std::string fragment_shader_code = file_management::load_file(fragment_file_path, false);
 
 		if (fragment_shader_code.size() == 0)
 		{
-			IMPULS_LOG_E(g_log_renderer, "Impossible to open {0}. Are you in the right directory?", fragment_file_path.c_str());
+			IMPULS_LOG_E(g_log_renderer_verbose, "Impossible to open {0}. Are you in the right directory?", fragment_file_path.c_str());
 			return;
 		}
 
@@ -94,7 +94,7 @@ namespace impuls_private
 		i32 info_log_length;
 
 		// Compile Vertex Shader
-		IMPULS_LOG(g_log_renderer, "Compiling shader : {0}", vertex_file_path.c_str());
+		IMPULS_LOG(g_log_renderer_verbose, "Compiling shader : {0}", vertex_file_path.c_str());
 
 		const GLchar* vertex_source_ptr = vertex_shader_code.data();
 		glShaderSource(vertex_shader_id, 1, &vertex_source_ptr, NULL);
@@ -107,11 +107,11 @@ namespace impuls_private
 		{
 			std::vector<char> vertex_shader_error_message(static_cast<size_t>(info_log_length) + 1);
 			glGetShaderInfoLog(vertex_shader_id, info_log_length, NULL, &vertex_shader_error_message[0]);
-			IMPULS_LOG(g_log_renderer, &vertex_shader_error_message[0]);
+			IMPULS_LOG(g_log_renderer_verbose, &vertex_shader_error_message[0]);
 		}
 
 		// Compile Fragment Shader
-		IMPULS_LOG(g_log_renderer, "Compiling shader : {0}", fragment_file_path.c_str());
+		IMPULS_LOG(g_log_renderer_verbose, "Compiling shader : {0}", fragment_file_path.c_str());
 
 		const GLchar* fragment_source_ptr = fragment_shader_code.data();
 		glShaderSource(fragment_shader_id, 1, &fragment_source_ptr, NULL);
@@ -124,11 +124,11 @@ namespace impuls_private
 		{
 			std::vector<char> fragment_shader_error_message(static_cast<size_t>(info_log_length) + 1);
 			glGetShaderInfoLog(fragment_shader_id, info_log_length, NULL, &fragment_shader_error_message[0]);
-			IMPULS_LOG_E(g_log_renderer, &fragment_shader_error_message[0]);
+			IMPULS_LOG_E(g_log_renderer_verbose, &fragment_shader_error_message[0]);
 		}
 
 		// Link the program
-		IMPULS_LOG(g_log_renderer, "Linking program");
+		IMPULS_LOG(g_log_renderer_verbose, "Linking program");
 		GLuint program_id = glCreateProgram();
 		glAttachShader(program_id, vertex_shader_id);
 		glAttachShader(program_id, fragment_shader_id);
@@ -141,7 +141,7 @@ namespace impuls_private
 		{
 			std::vector<char> program_error_message(static_cast<size_t>(info_log_length) + 1);
 			glGetProgramInfoLog(program_id, info_log_length, NULL, &program_error_message[0]);
-			IMPULS_LOG_E(g_log_renderer, &program_error_message[0]);
+			IMPULS_LOG_E(g_log_renderer_verbose, &program_error_message[0]);
 		}
 
 		glDetachShader(program_id, vertex_shader_id);
@@ -231,12 +231,12 @@ namespace impuls_private
 	}
 }
 
-void impuls::system_renderer::on_created(world_context&& in_context) const
+void impuls::system_renderer::on_created(engine_context&& in_context) const
 {
 	in_context.register_state<state_render_scene>("state_render_scene");
 }
 
-void impuls::system_renderer::on_tick(world_context&& in_context, float in_time_delta) const
+void impuls::system_renderer::on_tick(engine_context&& in_context, float in_time_delta) const
 {
 	in_time_delta;
 
@@ -366,7 +366,7 @@ void impuls::system_renderer::on_tick(world_context&& in_context, float in_time_
 		);
 
 		// ortho camera :
-		//glm::mat4 Projection = glm::ortho(-10.0f,10.0f,-10.0f,10.0f,0.0f,100.0f); // In world coordinates
+		//glm::mat4 Projection = glm::ortho(-10.0f,10.0f,-10.0f,10.0f,0.0f,100.0f); // In engine coordinates
 
 		const glm::mat4x4 view_mat = glm::lookAt
 		(

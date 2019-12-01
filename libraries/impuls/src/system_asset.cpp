@@ -26,7 +26,7 @@ namespace impuls_private
 	}
 }
 
-void impuls::system_asset::on_created(world_context&& in_context) const
+void impuls::system_asset::on_created(engine_context&& in_context) const
 {
 	in_context.register_state<state_assetsystem>("assetsystem");
 
@@ -70,7 +70,7 @@ void impuls::system_asset::on_created(world_context&& in_context) const
 	}
 }
 
-void impuls::system_asset::on_tick(world_context&& in_context, float in_time_delta) const
+void impuls::system_asset::on_tick(engine_context&& in_context, float in_time_delta) const
 {
 	in_time_delta;
 	in_context;

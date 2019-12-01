@@ -53,7 +53,7 @@ namespace impuls_private
 	}
 }
 
-void impuls::system_window::on_created(world_context&& in_context) const
+void impuls::system_window::on_created(engine_context&& in_context) const
 {
 	if (!glfwInit())
 	{
@@ -73,7 +73,7 @@ void impuls::system_window::on_created(world_context&& in_context) const
 
 	in_context.listen<impuls::event_created<object_window>>
 	(
-		[](world_context&, object_window& new_window)
+		[](engine_context&, object_window& new_window)
 		{
 			constexpr i32 dimensions_x = 1600;
 			constexpr i32 dimensions_y = 800;
@@ -124,7 +124,7 @@ void impuls::system_window::on_created(world_context&& in_context) const
 	);
 }
 
-void impuls::system_window::on_tick(world_context&& in_context, float in_time_delta) const
+void impuls::system_window::on_tick(engine_context&& in_context, float in_time_delta) const
 {
 	in_time_delta;
 
@@ -206,7 +206,7 @@ void impuls::system_window::on_tick(world_context&& in_context, float in_time_de
 		if (glfwWindowShouldClose(render_window.m_window) != 0)
 		{
 			if (main_window_state->m_window == component_view_it.m_window_render_on)
-				in_context.m_world->destroy();
+				in_context.m_engine->destroy();
 			else
 				glfwDestroyWindow(render_window.m_window);
 		}
@@ -215,7 +215,7 @@ void impuls::system_window::on_tick(world_context&& in_context, float in_time_de
 	glfwMakeContextCurrent(nullptr);
 }
 
-void impuls::system_window::on_end_simulation(world_context&& in_context) const
+void impuls::system_window::on_end_simulation(engine_context&& in_context) const
 {
 	for (component_view& component_view_it : in_context.components<component_view>())
 	{

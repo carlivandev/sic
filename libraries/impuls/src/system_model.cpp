@@ -5,13 +5,13 @@
 #include "impuls/system_renderer.h"
 #include "impuls/state_render_scene.h"
 
-void impuls::system_model::on_created(world_context&& in_context) const
+void impuls::system_model::on_created(engine_context&& in_context) const
 {
 	in_context.register_component_type<component_model>("model_component");
 
 	in_context.listen<event_post_created<component_model>>
 	(
-		[](world_context& in_out_context, component_model& in_out_component)
+		[](engine_context& in_out_context, component_model& in_out_component)
 		{
 			component_transform* transform = in_out_component.owner().find<component_transform>();
 			assert(transform && "model component requires a transform attached!");
@@ -51,7 +51,7 @@ void impuls::system_model::on_created(world_context&& in_context) const
 
 	in_context.listen<event_destroyed<component_model>>
 	(
-		[](world_context&, component_model& in_out_component)
+		[](engine_context&, component_model& in_out_component)
 		{
 			in_out_component.m_render_scene_state->m_models.destroy_render_object(in_out_component.m_render_object_id);
 		}

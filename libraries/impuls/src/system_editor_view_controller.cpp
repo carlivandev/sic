@@ -1,6 +1,5 @@
 #include "impuls/system_editor_view_controller.h"
 
-#include "impuls/world_context.h"
 #include "impuls/gl_includes.h"
 #include "impuls/system_window.h"
 #include "impuls/view.h"
@@ -8,13 +7,13 @@
 #include "glm/gtc/matrix_transform.hpp"
 
 
-void impuls::system_editor_view_controller::on_created(world_context&& in_context) const
+void impuls::system_editor_view_controller::on_created(engine_context&& in_context) const
 {
 	in_context.register_component_type<component_editor_view_controller>("evcd", 1);
 	in_context.register_object<object_editor_view_controller>("evc", 1);
 }
 
-void impuls::system_editor_view_controller::on_begin_simulation(world_context&& in_context) const
+void impuls::system_editor_view_controller::on_begin_simulation(engine_context&& in_context) const
 {
 	for (auto& evc : in_context.components<component_editor_view_controller>())
 	{
@@ -32,7 +31,7 @@ void impuls::system_editor_view_controller::on_begin_simulation(world_context&& 
 	}
 }
 
-void impuls::system_editor_view_controller::on_tick(world_context&& in_context, float in_time_delta) const
+void impuls::system_editor_view_controller::on_tick(engine_context&& in_context, float in_time_delta) const
 {
 	state_input* input_state = in_context.get_state<state_input>();
 
@@ -40,7 +39,7 @@ void impuls::system_editor_view_controller::on_tick(world_context&& in_context, 
 		return;
 
 	if (input_state->is_key_pressed(e_key::escape))
-		in_context.m_world->destroy();
+		in_context.m_engine->destroy();
 
 	for (auto& evc : in_context.components<component_editor_view_controller>())
 	{

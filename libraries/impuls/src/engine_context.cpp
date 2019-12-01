@@ -1,8 +1,8 @@
 #include "impuls/pch.h"
-#include "impuls/world_context.h"
+#include "impuls/engine_context.h"
 #include "impuls/object_base.h"
 
-void impuls::world_context::add_child(i_object_base& in_parent, i_object_base& in_child)
+void impuls::engine_context::add_child(i_object_base& in_parent, i_object_base& in_child)
 {
 	for (i_object_base* child : in_parent.m_children)
 	{
@@ -28,7 +28,7 @@ void impuls::world_context::add_child(i_object_base& in_parent, i_object_base& i
 	in_child.m_parent = &in_parent;
 }
 
-void impuls::world_context::unchild(i_object_base& in_child)
+void impuls::engine_context::unchild(i_object_base& in_child)
 {
 	if (in_child.m_parent)
 	{

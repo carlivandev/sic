@@ -18,12 +18,12 @@
 
 namespace impuls
 {
-	//worldwide state data
+	//enginewide state data
 	struct i_state
 	{
 	};
 
-	struct world
+	struct engine
 	{
 		template <typename ...t_systems>
 		friend struct tickstep_async;
@@ -76,7 +76,7 @@ namespace impuls
 		std::vector<std::unique_ptr<i_object_storage_base>> m_objects;
 		std::vector<std::unique_ptr<i_state>> m_states;
 
-		std::vector<std::unique_ptr<i_event_base>> m_world_events;
+		std::vector<std::unique_ptr<i_event_base>> m_engine_events;
 
 		std::vector<typeinfo*> m_typeinfos;
 		std::vector<typeinfo*> m_component_typeinfos;
@@ -100,14 +100,14 @@ namespace impuls
 	struct tickstep_async
 	{
 		template <typename t_system>
-		static void add_to_tickstep(world& in_world)
+		static void add_to_tickstep(engine& in_engine)
 		{
-			in_world.m_async_ticksteps.push_back(&in_world.create_system<t_system>());
+			in_engine.m_async_ticksteps.push_back(&in_engine.create_system<t_system>());
 		}
 
-		static void add_tickstep(world& in_world)
+		static void add_tickstep(engine& in_engine)
 		{
-			(add_to_tickstep<t_systems>(in_world), ...);
+			(add_to_tickstep<t_systems>(in_engine), ...);
 		}
 	};
 
@@ -116,26 +116,26 @@ namespace impuls
 	struct tickstep_synced
 	{
 		template <typename t_system>
-		static void add_to_tickstep(world& in_world, std::vector<i_system*>& out_tickstep)
+		static void add_to_tickstep(engine& in_engine, std::vector<i_system*>& out_tickstep)
 		{
-			out_tickstep.push_back(&in_world.create_system<t_system>());
+			out_tickstep.push_back(&in_engine.create_system<t_system>());
 		}
 
-		static void add_tickstep(world& in_world)
+		static void add_tickstep(engine& in_engine)
 		{
-			auto& tickstep = in_world.m_synced_ticksteps.emplace_back();
-			(add_to_tickstep<t_systems>(in_world, tickstep), ...);
+			auto& tickstep = in_engine.m_synced_ticksteps.emplace_back();
+			(add_to_tickstep<t_systems>(in_engine, tickstep), ...);
 		}
 	};
 
 	template<typename ...t_steps>
-	inline void world::set_ticksteps()
+	inline void engine::set_ticksteps()
 	{
 		(t_steps::add_tickstep(*this), ...);
 	}
 
 	template<typename t_component_type>
-	inline void world::register_component_type(ui32 in_initial_capacity)
+	inline void engine::register_component_type(ui32 in_initial_capacity)
 	{
 		const ui32 type_idx = type_index<i_component_base>::get<t_component_type>();
 
@@ -151,7 +151,7 @@ namespace impuls
 	}
 
 	template<typename t_system_type>
-	inline t_system_type& world::create_system()
+	inline t_system_type& engine::create_system()
 	{
 		t_system_type& sys = create_system_internal<t_system_type>();
 
@@ -159,7 +159,7 @@ namespace impuls
 	}
 
 	template<typename t_system_type>
-	inline t_system_type& world::create_system_internal()
+	inline t_system_type& engine::create_system_internal()
 	{
 		static_assert(std::is_base_of<i_system, t_system_type>::value, "system_type must derive from struct i_system");
 
@@ -168,13 +168,13 @@ namespace impuls
 		m_systems.push_back(std::move(std::make_unique<t_system_type>()));
 		
 		m_systems.back()->m_name = typeid(t_system_type).name();
-		m_systems.back()->on_created(std::move(world_context(*this, *m_systems.back().get())));
+		m_systems.back()->on_created(std::move(engine_context(*this, *m_systems.back().get())));
 		
 		return *reinterpret_cast<t_system_type*>(m_systems[new_system_idx].get());
 	}
 
 	template<typename t_component_type>
-	inline typename t_component_type& world::create_component(i_object_base& in_object_to_attach_to)
+	inline typename t_component_type& engine::create_component(i_object_base& in_object_to_attach_to)
 	{
 		const ui32 type_idx = type_index<i_component_base>::get<t_component_type>();
 
@@ -191,7 +191,7 @@ namespace impuls
 	}
 
 	template<typename t_component_type>
-	inline void world::destroy_component(t_component_type& in_component_to_destroy)
+	inline void engine::destroy_component(t_component_type& in_component_to_destroy)
 	{
 		const ui32 type_idx = type_index<i_component_base>::get<t_component_type>();
 		invoke<event_destroyed<t_component_type>>(in_component_to_destroy);
@@ -201,38 +201,38 @@ namespace impuls
 	}
 
 	template<typename t_event_type, typename t_functor>
-	inline void world::listen(t_functor in_func)
+	inline void engine::listen(t_functor in_func)
 	{
 		const ui32 type_idx = type_index<i_event_base>::get<t_event_type>();
 
-		while (type_idx >= m_world_events.size())
-			m_world_events.emplace_back();
+		while (type_idx >= m_engine_events.size())
+			m_engine_events.emplace_back();
 
-		auto& world_event_base = m_world_events[type_idx];
+		auto& engine_event_base = m_engine_events[type_idx];
 
-		if (!world_event_base)
-			world_event_base = std::make_unique<t_event_type>();
+		if (!engine_event_base)
+			engine_event_base = std::make_unique<t_event_type>();
 
-		t_event_type* world_event = reinterpret_cast<t_event_type*>(world_event_base.get());
+		t_event_type* engine_event = reinterpret_cast<t_event_type*>(engine_event_base.get());
 
-		world_event->m_listeners.push_back(in_func);
+		engine_event->m_listeners.push_back(in_func);
 	}
 
 	template<typename t_event_type, typename event_data>
-	inline void world::invoke(event_data& event_data_to_send)
+	inline void engine::invoke(event_data& event_data_to_send)
 	{
 		const ui32 type_idx = type_index<i_event_base>::get<t_event_type>();
 
-		if (type_idx >= m_world_events.size())
+		if (type_idx >= m_engine_events.size())
 			return;
 
-		auto& world_event_base = m_world_events[type_idx];
+		auto& engine_event_base = m_engine_events[type_idx];
 
-		if (!world_event_base)
+		if (!engine_event_base)
 			return;
 
-		t_event_type* world_event = reinterpret_cast<t_event_type*>(world_event_base.get());
+		t_event_type* engine_event = reinterpret_cast<t_event_type*>(engine_event_base.get());
 
-		world_event->invoke(world_context(*this), event_data_to_send);
+		engine_event->invoke(engine_context(*this), event_data_to_send);
 	}
 }

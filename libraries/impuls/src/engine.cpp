@@ -1,11 +1,11 @@
 #include "impuls/pch.h"
-#include "impuls/world.h"
+#include "impuls/engine.h"
 #include "impuls/object.h"
-#include "impuls/world_context.h"
+#include "impuls/engine_context.h"
 
 namespace impuls
 {
-	void world::initialize()
+	void engine::initialize()
 	{
 		assert(!m_initialized && "");
 
@@ -15,7 +15,7 @@ namespace impuls
 		refresh_time_delta();
 	}
 
-	void world::simulate()
+	void engine::simulate()
 	{
 		refresh_time_delta();
 
@@ -41,12 +41,12 @@ namespace impuls
 		}
 	}
 
-	void world::begin_simulation()
+	void engine::begin_simulation()
 	{
 		for (auto& system : m_systems)
 		{
 			if (!m_is_destroyed)
-				system->on_begin_simulation(std::move(world_context(*this, *system.get())));
+				system->on_begin_simulation(std::move(engine_context(*this, *system.get())));
 		}
 
 		size_t most_parallel_possible = 0;
@@ -69,7 +69,7 @@ namespace impuls
 					while (!m_tickstep_threadpool.is_shutting_down())
 					{
 						//todo: add time delta support on async systems
-						async_tickstep->execute_tick(world_context(*this, *async_tickstep), 0.0f);
+						async_tickstep->execute_tick(engine_context(*this, *async_tickstep), 0.0f);
 					}
 				}
 			);
@@ -78,7 +78,7 @@ namespace impuls
 		m_begun_simulation = true;
 	}
 
-	void world::tick()
+	void engine::tick()
 	{
 		std::vector<threadpool::closure> tasks_to_run;
 		tasks_to_run.reserve(8);
@@ -97,7 +97,7 @@ namespace impuls
 					(
 						[this, system_to_tick]()
 						{
-							system_to_tick->execute_tick(world_context(*this, *system_to_tick), m_time_delta);
+							system_to_tick->execute_tick(engine_context(*this, *system_to_tick), m_time_delta);
 							system_to_tick->m_finished_tick = true;
 						}
 					);
@@ -105,7 +105,7 @@ namespace impuls
 					system_to_tick->m_finished_tick = false;
 				}
 
-				synced_tickstep[0]->execute_tick(world_context(*this, *synced_tickstep[0]), m_time_delta);
+				synced_tickstep[0]->execute_tick(engine_context(*this, *synced_tickstep[0]), m_time_delta);
 				synced_tickstep[0]->m_finished_tick = true;
 			}
 
@@ -132,23 +132,23 @@ namespace impuls
 		for (auto& system : m_systems)
 		{
 			if (!m_is_destroyed)
-				system->execute_tick(std::move(world_context(*this, *system.get())), m_time_delta);
+				system->execute_tick(std::move(engine_context(*this, *system.get())), m_time_delta);
 		}
 		*/
 	}
 
-	void world::end_simulation()
+	void engine::end_simulation()
 	{
 		m_tickstep_threadpool.shutdown();
 
 		for (auto& system : m_systems)
 		{
 			if (!m_is_destroyed)
-				system->on_end_simulation(std::move(world_context(*this, *system.get())));
+				system->on_end_simulation(std::move(engine_context(*this, *system.get())));
 		}
 	}
 
-	void world::refresh_time_delta()
+	void engine::refresh_time_delta()
 	{
 		const auto now = std::chrono::high_resolution_clock::now();
 		const auto dif = now - m_previous_frame_time_point;
@@ -156,12 +156,12 @@ namespace impuls
 		m_previous_frame_time_point = now;
 	}
 
-	std::unique_ptr<i_component_storage>& world::get_component_storage_at_index(i32 in_index)
+	std::unique_ptr<i_component_storage>& engine::get_component_storage_at_index(i32 in_index)
 	{
 		return m_component_storages[in_index];
 	}
 
-	std::unique_ptr<i_object_storage_base>& world::get_object_storage_at_index(i32 in_index)
+	std::unique_ptr<i_object_storage_base>& engine::get_object_storage_at_index(i32 in_index)
 	{
 		while (in_index >= m_objects.size())
 			m_objects.push_back(nullptr);
@@ -169,7 +169,7 @@ namespace impuls
 		return m_objects[in_index];
 	}
 
-	std::unique_ptr<i_state>& world::get_state_at_index(i32 in_index)
+	std::unique_ptr<i_state>& engine::get_state_at_index(i32 in_index)
 	{
 		while (in_index >= m_states.size())
 			m_states.push_back(nullptr);

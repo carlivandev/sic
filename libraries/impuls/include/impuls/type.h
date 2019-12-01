@@ -7,8 +7,6 @@
 
 namespace impuls
 {
-	struct world_context;
-
 	struct property
 	{
 		template <typename t_data_type, typename t_owner>

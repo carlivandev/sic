@@ -11,7 +11,7 @@ namespace impuls
 
 	struct i_component_base : public i_noncopyable
 	{
-		friend struct world;
+		friend struct engine;
 
 		template <typename t_component_type>
 		friend struct component_storage;
@@ -36,8 +36,6 @@ namespace impuls
 
 	struct i_component : i_component_base
 	{
-		friend struct world_context;
-
 		i_component() = default;
 		virtual ~i_component() = default;
 
