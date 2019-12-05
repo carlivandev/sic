@@ -25,30 +25,29 @@ namespace impuls
 		if (!m_initialized)
 			return;
 
-		if (!m_begun_simulation)
+		if (!m_has_setup_async_ticksteps)
 		{
-			begin_simulation();
-			m_begun_simulation = true;
+			setup_async_ticksteps();
+			m_has_setup_async_ticksteps = true;
 		}
 
-		if (m_begun_simulation)
+		if (!m_finished_setup)
 		{
-			if (!is_destroyed())
-				tick();
+			m_finished_setup = true;
 
-			if (is_destroyed())
-				end_simulation();
+			//first level always reserved for engine
+			create_level();
 		}
+
+		if (!is_destroyed())
+			tick();
+
+		if (is_destroyed())
+			on_destroyed();
 	}
 
-	void engine::begin_simulation()
+	void engine::setup_async_ticksteps()
 	{
-		for (auto& system : m_systems)
-		{
-			if (!m_is_destroyed)
-				system->on_begin_simulation(std::move(engine_context(*this, *system.get())));
-		}
-
 		size_t most_parallel_possible = 0;
 		for (auto& system : m_systems)
 		{
@@ -68,14 +67,19 @@ namespace impuls
 				{
 					while (!m_tickstep_threadpool.is_shutting_down())
 					{
+						//cant change levels list while in the middle of a tick
+						std::scoped_lock levels_lock(m_levels_mutex);
+
 						//todo: add time delta support on async systems
-						async_tickstep->execute_tick(engine_context(*this, *async_tickstep), 0.0f);
+
+						for (auto& level : m_levels)
+							async_tickstep->execute_tick(level_context(*this, *level.get()), 0.0f);
+
+						async_tickstep->execute_engine_tick(engine_context(*this), 0.0f);
 					}
 				}
 			);
 		}
-
-		m_begun_simulation = true;
 	}
 
 	void engine::tick()
@@ -97,7 +101,10 @@ namespace impuls
 					(
 						[this, system_to_tick]()
 						{
-							system_to_tick->execute_tick(engine_context(*this, *system_to_tick), m_time_delta);
+							for (auto& level : m_levels)
+								system_to_tick->execute_tick(level_context(*this, *level.get()), m_time_delta);
+
+							system_to_tick->execute_engine_tick(engine_context(*this), m_time_delta);
 							system_to_tick->m_finished_tick = true;
 						}
 					);
@@ -105,7 +112,10 @@ namespace impuls
 					system_to_tick->m_finished_tick = false;
 				}
 
-				synced_tickstep[0]->execute_tick(engine_context(*this, *synced_tickstep[0]), m_time_delta);
+				for (auto& level : m_levels)
+					synced_tickstep[0]->execute_tick(level_context(*this, *level.get()), m_time_delta);
+
+				synced_tickstep[0]->execute_engine_tick(engine_context(*this), m_time_delta);
 				synced_tickstep[0]->m_finished_tick = true;
 			}
 
@@ -127,24 +137,55 @@ namespace impuls
 			}
 
 		}
-
-		/*
-		for (auto& system : m_systems)
-		{
-			if (!m_is_destroyed)
-				system->execute_tick(std::move(engine_context(*this, *system.get())), m_time_delta);
-		}
-		*/
 	}
 
-	void engine::end_simulation()
+	void engine::on_destroyed()
 	{
 		m_tickstep_threadpool.shutdown();
 
+		while (!m_levels.empty())
+			destroy_level(*m_levels.back().get());
+	}
+
+	level& engine::create_level()
+	{
+		std::scoped_lock levels_lock(m_levels_mutex);
+
+		assert(m_finished_setup && "Can't create a level before system has finished setup!");
+
+		m_levels.push_back(std::make_unique<level>(*this));
+
+		level& new_level = *m_levels.back().get();
+
+		for (auto&& registration_callback : m_registration_callbacks)
+			registration_callback(new_level);
+
 		for (auto& system : m_systems)
 		{
 			if (!m_is_destroyed)
-				system->on_end_simulation(std::move(engine_context(*this, *system.get())));
+				system->on_begin_simulation(level_context(*this, new_level));
+		}
+
+		return new_level;
+	}
+
+	void engine::destroy_level(level& inout_level)
+	{
+		std::scoped_lock levels_lock(m_levels_mutex);
+
+		for (size_t i = 0; i < m_levels.size(); i++)
+		{
+			if (m_levels[i].get() != &inout_level)
+				continue;
+
+			for (auto& system : m_systems)
+			{
+				if (!m_is_destroyed)
+					system->on_end_simulation(level_context(*this, inout_level));
+			}
+
+			m_levels.erase(m_levels.begin() + i);
+			break;
 		}
 	}
 
@@ -154,19 +195,6 @@ namespace impuls
 		const auto dif = now - m_previous_frame_time_point;
 		m_time_delta = std::chrono::duration<float, std::milli>(dif).count() * 0.001f;
 		m_previous_frame_time_point = now;
-	}
-
-	std::unique_ptr<i_component_storage>& engine::get_component_storage_at_index(i32 in_index)
-	{
-		return m_component_storages[in_index];
-	}
-
-	std::unique_ptr<i_object_storage_base>& engine::get_object_storage_at_index(i32 in_index)
-	{
-		while (in_index >= m_objects.size())
-			m_objects.push_back(nullptr);
-
-		return m_objects[in_index];
 	}
 
 	std::unique_ptr<i_state>& engine::get_state_at_index(i32 in_index)

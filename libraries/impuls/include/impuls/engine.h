@@ -18,6 +18,8 @@
 
 namespace impuls
 {
+	struct level;
+
 	//enginewide state data
 	struct i_state
 	{
@@ -34,9 +36,9 @@ namespace impuls
 		void initialize();
 
 		void simulate();
-		void begin_simulation();
+		void setup_async_ticksteps();
 		void tick();
-		void end_simulation();
+		void on_destroyed();
 
 		void destroy() { m_is_destroyed = true; }
 		bool is_destroyed() const { return m_is_destroyed; }
@@ -45,7 +47,13 @@ namespace impuls
 		void set_ticksteps();
 
 		template <typename t_component_type>
-		void register_component_type(ui32 in_initial_capacity = 128);
+		constexpr type_reg register_component_type(const char* in_unique_key, ui32 in_initial_capacity = 128);
+
+		template <typename t_object>
+		constexpr type_reg register_object(const char* in_unique_key, ui32 in_initial_capacity = 128, ui32 in_bucket_capacity = 64);
+
+		template <typename t_type_to_register>
+		constexpr type_reg register_typeinfo(const char* in_unique_key);
 
 		template <typename t_system_type>
 		t_system_type& create_system();
@@ -59,6 +67,15 @@ namespace impuls
 		template <typename t_component_type>
 		void destroy_component(t_component_type& in_component_to_destroy);
 
+		template <typename t_state>
+		t_state* get_state();
+
+		template <typename t_type>
+		constexpr typeinfo* get_typeinfo();
+
+		level& create_level();
+		void destroy_level(level& inout_level);
+
 		template <typename t_event_type, typename t_functor>
 		void listen(t_functor in_func);
 
@@ -67,14 +84,11 @@ namespace impuls
 
 		void refresh_time_delta();
 
-		std::unique_ptr<i_component_storage>& get_component_storage_at_index(i32 in_index);
-		std::unique_ptr<i_object_storage_base>& get_object_storage_at_index(i32 in_index);
 		std::unique_ptr<i_state>& get_state_at_index(i32 in_index);
 
 		std::vector<std::unique_ptr<i_system>> m_systems;
-		std::vector<std::unique_ptr<i_component_storage>> m_component_storages;
-		std::vector<std::unique_ptr<i_object_storage_base>> m_objects;
 		std::vector<std::unique_ptr<i_state>> m_states;
+		std::vector<std::unique_ptr<level>> m_levels;
 
 		std::vector<std::unique_ptr<i_event_base>> m_engine_events;
 
@@ -93,7 +107,13 @@ namespace impuls
 
 		bool m_is_destroyed = true;
 		bool m_initialized = false;
-		bool m_begun_simulation = false;
+		bool m_has_setup_async_ticksteps = false;
+		bool m_finished_setup = false;
+
+		std::mutex m_levels_mutex;
+
+		//callbacks to run whenever a new level is created
+		std::vector<std::function<void(level&)>> m_registration_callbacks;
 	};
 
 	template <typename ...t_systems>
@@ -135,19 +155,106 @@ namespace impuls
 	}
 
 	template<typename t_component_type>
-	inline void engine::register_component_type(ui32 in_initial_capacity)
+	inline constexpr type_reg engine::register_component_type(const char* in_unique_key, ui32 in_initial_capacity)
 	{
-		const ui32 type_idx = type_index<i_component_base>::get<t_component_type>();
+		m_registration_callbacks.push_back
+		(
+			[in_initial_capacity](level& inout_level)
+			{
+				const ui32 type_idx = type_index<i_component_base>::get<t_component_type>();
 
-		while (type_idx >= m_component_storages.size())
-			m_component_storages.push_back(nullptr);
+				while (type_idx >= inout_level.m_component_storages.size())
+					inout_level.m_component_storages.push_back(nullptr);
 
-		if (!m_component_storages[type_idx].get())
+				component_storage<t_component_type>* new_storage = new component_storage<t_component_type>();
+				new_storage->initialize(in_initial_capacity);
+				inout_level.m_component_storages[type_idx] = std::unique_ptr<i_component_storage>(new_storage);
+			}
+		);
+
+		return register_typeinfo<t_component_type>(in_unique_key);
+	}
+
+	template<typename t_object>
+	inline constexpr type_reg engine::register_object(const char* in_unique_key, ui32 in_initial_capacity, ui32 in_bucket_capacity)
+	{
+		static_assert(std::is_base_of<i_object_base, t_object>::value, "object must derive from struct i_object<>");
+
+		m_registration_callbacks.push_back
+		(
+			[in_initial_capacity, in_bucket_capacity](level & inout_level)
+			{
+				const ui32 type_idx = type_index<i_object_base>::get<t_object>();
+
+				while (type_idx >= inout_level.m_objects.size())
+					inout_level.m_objects.push_back(nullptr);
+
+				auto & new_object_storage = inout_level.get_object_storage_at_index(type_idx);
+
+				assert(new_object_storage.get() == nullptr && "object is already registered");
+
+				new_object_storage = std::make_unique<object_storage>();
+				reinterpret_cast<object_storage*>(new_object_storage.get())->initialize_with_typesize(in_initial_capacity, in_bucket_capacity, sizeof(t_object));
+
+			}
+		);
+
+		return register_typeinfo<t_object>(in_unique_key);
+	}
+
+	template<typename t_type_to_register>
+	inline constexpr type_reg engine::register_typeinfo(const char* in_unique_key)
+	{
+		const char* type_name = typeid(t_type_to_register).name();
+
+		assert(m_typename_to_typeinfo_lut.find(type_name) == m_typename_to_typeinfo_lut.end() && "typeinfo already registered!");
+
+		auto & new_typeinfo = m_typename_to_typeinfo_lut[type_name] = std::make_unique<typeinfo>();
+		new_typeinfo->m_name = type_name;
+		new_typeinfo->m_unique_key = in_unique_key;
+
+		constexpr bool is_component = std::is_base_of<i_component_base, t_type_to_register>::value;
+		constexpr bool is_object = std::is_base_of<i_object_base, t_type_to_register>::value;
+		constexpr bool is_state = std::is_base_of<i_state, t_type_to_register>::value;
+
+		if constexpr (is_component)
 		{
-			component_storage<t_component_type>* new_storage = new component_storage<t_component_type>();
-			new_storage->initialize(in_initial_capacity);
-			m_component_storages[type_idx] = std::unique_ptr<i_component_storage>(new_storage);
+			const ui32 type_idx = type_index<i_component_base>::get<t_type_to_register>();
+
+			while (type_idx >= m_component_typeinfos.size())
+				m_component_typeinfos.push_back(nullptr);
+
+			m_component_typeinfos[type_idx] = new_typeinfo.get();
 		}
+		else if constexpr (is_object)
+		{
+			const ui32 type_idx = type_index<i_object_base>::get<t_type_to_register>();
+
+			while (type_idx >= m_object_typeinfos.size())
+				m_object_typeinfos.push_back(nullptr);
+
+			m_object_typeinfos[type_idx] = new_typeinfo.get();
+		}
+		else if constexpr (is_state)
+		{
+			const ui32 type_idx = type_index<i_state>::get<t_type_to_register>();
+
+			while (type_idx >= m_state_typeinfos.size())
+				m_state_typeinfos.push_back(nullptr);
+
+			m_state_typeinfos[type_idx] = new_typeinfo.get();
+		}
+		else
+		{
+			const i32 type_idx = type_index<typeinfo>::get<t_type_to_register>();
+
+			while (type_idx >= m_typeinfos.size())
+				m_typeinfos.push_back(nullptr);
+
+			m_typeinfos[type_idx] = new_typeinfo.get();
+		}
+
+		return type_reg(new_typeinfo.get());
 	}
 
 	template<typename t_system_type>
@@ -168,7 +275,7 @@ namespace impuls
 		m_systems.push_back(std::move(std::make_unique<t_system_type>()));
 		
 		m_systems.back()->m_name = typeid(t_system_type).name();
-		m_systems.back()->on_created(std::move(engine_context(*this, *m_systems.back().get())));
+		m_systems.back()->on_created(std::move(engine_context(*this)));
 		
 		return *reinterpret_cast<t_system_type*>(m_systems[new_system_idx].get());
 	}
@@ -198,6 +305,57 @@ namespace impuls
 
 		component_storage<t_component_type>* storage = reinterpret_cast<component_storage<t_component_type>*>(m_component_storages[type_idx].get());
 		storage->destroy_component(in_component_to_destroy);
+	}
+
+	template<typename t_state>
+	inline t_state* engine::get_state()
+	{
+		constexpr bool is_valid_type = std::is_base_of<i_state, t_state>::value;
+
+		static_assert(is_valid_type, "can only get types that derive i_state");
+
+		const i32 type_idx = type_index<i_state>::get<t_state>();
+
+		assert((type_idx < m_states.size() && m_states[type_idx].get() != nullptr) && "state not registered");
+
+		return reinterpret_cast<t_state*>(m_states[type_idx].get());
+	}
+
+	template<typename t_type>
+	inline constexpr typeinfo* engine::get_typeinfo()
+	{
+		constexpr bool is_component = std::is_base_of<i_component_base, t_type>::value;
+		constexpr bool is_object = std::is_base_of<i_object_base, t_type>::value;
+		constexpr bool is_state = std::is_base_of<i_state, t_type>::value;
+
+		if constexpr (is_component)
+		{
+			const ui32 type_idx = type_index<i_component_base>::get<t_type>();
+			assert(type_idx < m_engine.m_component_typeinfos.size() && m_engine.m_component_typeinfos[type_idx] != nullptr && "typeinfo not registered!");
+
+			return m_engine.m_component_typeinfos[type_idx];
+		}
+		else if constexpr (is_object)
+		{
+			const ui32 type_idx = type_index<i_object_base>::get<t_type>();
+			assert(type_idx < m_engine.m_object_typeinfos.size() && m_engine.m_object_typeinfos[type_idx] != nullptr && "typeinfo not registered!");
+
+			return m_engine.m_object_typeinfos[type_idx];
+		}
+		else if constexpr (is_state)
+		{
+			const ui32 type_idx = type_index<i_state>::get<t_type>();
+			assert(type_idx < m_engine.m_states.size() && m_engine.m_states[type_idx] != nullptr && "typeinfo not registered!");
+
+			return m_engine.m_states[type_idx];
+		}
+		else
+		{
+			const ui32 type_idx = type_index<typeinfo>::get<t_type>();
+			assert(type_idx < m_engine.m_typeinfos.size() && m_engine.m_typeinfos[type_idx] != nullptr && "typeinfo not registered!");
+
+			return m_engine.m_typeinfos[type_idx];
+		}
 	}
 
 	template<typename t_event_type, typename t_functor>

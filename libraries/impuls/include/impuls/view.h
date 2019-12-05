@@ -1,7 +1,9 @@
 #pragma once
-#include "component.h"
+#include "impuls/component.h"
 
-#include "gl_includes.h"
+#include "impuls/gl_includes.h"
+#include "impuls/object.h"
+
 #include "glm/vec3.hpp"
 
 namespace impuls

@@ -26,7 +26,7 @@ namespace impuls_private
 	}
 }
 
-void impuls::system_asset::on_created(engine_context&& in_context) const
+void impuls::system_asset::on_created(engine_context&& in_context)
 {
 	in_context.register_state<state_assetsystem>("assetsystem");
 
@@ -68,12 +68,6 @@ void impuls::system_asset::on_created(engine_context&& in_context) const
 		assetsystem_state->m_asset_headers.push_back(std::move(new_header));
 		assetsystem_state->m_id_to_header[assetsystem_state->m_asset_headers.back()->m_id] = assetsystem_state->m_asset_headers.back().get();
 	}
-}
-
-void impuls::system_asset::on_tick(engine_context&& in_context, float in_time_delta) const
-{
-	in_time_delta;
-	in_context;
 }
 
 void impuls::state_assetsystem::leave_unload_queue(const asset_header& in_header)

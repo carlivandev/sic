@@ -12,6 +12,7 @@ namespace impuls
 	struct i_component_base : public i_noncopyable
 	{
 		friend struct engine;
+		friend struct level;
 
 		template <typename t_component_type>
 		friend struct component_storage;

@@ -1,6 +1,7 @@
 #pragma once
 #include "impuls/system.h"
 #include "impuls/engine_context.h"
+#include "impuls/level_context.h"
 #include "impuls/system_file.h"
 #include "impuls/file_management.h"
 #include "impuls/asset.h"
@@ -219,7 +220,6 @@ namespace impuls
 
 	struct system_asset : i_system
 	{
-		virtual void on_created(engine_context&& in_context) const override;
-		virtual void on_tick(engine_context&& in_context, float in_time_delta) const override;
+		virtual void on_created(engine_context&& in_context) override;
 	};
 }

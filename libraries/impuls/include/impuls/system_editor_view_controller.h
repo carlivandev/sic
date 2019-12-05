@@ -1,6 +1,7 @@
 #pragma once
-#include "system.h"
-#include "engine_context.h"
+#include "impuls/system.h"
+#include "impuls/engine_context.h"
+#include "impuls/object.h"
 #include "glm/vec2.hpp"
 
 namespace impuls
@@ -24,8 +25,8 @@ namespace impuls
 
 	struct system_editor_view_controller : i_system
 	{
-		virtual void on_created(engine_context&& in_context) const override;
-		virtual void on_begin_simulation(engine_context&& in_context) const override;
-		virtual void on_tick(engine_context&& in_context, float in_time_delta) const override;
+		virtual void on_created(engine_context&& in_context) override;
+		virtual void on_begin_simulation(level_context&& in_context) const override;
+		virtual void on_tick(level_context&& in_context, float in_time_delta) const override;
 	};
 }

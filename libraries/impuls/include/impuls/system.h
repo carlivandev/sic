@@ -8,6 +8,7 @@
 namespace impuls
 {
 	struct engine_context;
+	struct level_context;
 	struct engine;
 	struct i_component_base;
 	struct i_object_base;
@@ -21,23 +22,29 @@ namespace impuls
 			happens right after a system has been created in a engine
 			useful for creating subsystems
 		*/
-		virtual void on_created(engine_context&& in_context) const { in_context; }
+		virtual void on_created(engine_context&& in_context) { in_context; }
+
+		/*
+			happens after level has finished setting up
+		*/
+		virtual void on_begin_simulation(level_context&& in_context) const { in_context; }
+
+		/*
+			happens after level has called on_begin_simulation
+			called every frame for each root level
+		*/
+		virtual void on_tick(level_context&& in_context, float in_time_delta) const { in_context; in_time_delta; }
+
+		/*
+			happens when level is destroyed
+		*/
+		virtual void on_end_simulation(level_context&& in_context) const { in_context; }
 
 		/*
 			happens after engine has finished setting up
+			called every frame once
 		*/
-		virtual void on_begin_simulation(engine_context&& in_context) const { in_context; }
-
-		/*
-			happens after engine has called on_begin_simulation
-			called every frame
-		*/
-		virtual void on_tick(engine_context&& in_context, float in_time_delta) const { in_context; in_time_delta; }
-
-		/*
-			happens when engine is destroyed
-		*/
-		virtual void on_end_simulation(engine_context&& in_context) const { in_context; }
+		virtual void on_engine_tick(engine_context&& in_context, float in_time_delta) const { in_context; in_time_delta; }
 
 		//unsafe cast, see try_cast for safe version
 		template <typename t_to_type, typename t_from_type>
@@ -100,7 +107,8 @@ namespace impuls
 		const std::string& name() const { return m_name; }
 
 	protected:
-		void execute_tick(engine_context&& in_context, float in_time_delta) const;
+		void execute_tick(level_context&& in_context, float in_time_delta) const;
+		void execute_engine_tick(engine_context&& in_context, float in_time_delta) const;
 
 		std::string m_name;
 		bool m_enabled = true;

@@ -4,6 +4,7 @@
 #include "component.h"
 #include "object.h"
 #include "event.h"
+#include "level_context.h"
 
 namespace impuls
 {
@@ -75,38 +76,38 @@ namespace impuls
 		}
 
 		template<typename t_to_create>
-		constexpr void create_component(engine& in_engine)
+		constexpr void create_component(level_context& inout_level)
 		{
-			std::get<t_to_create*>(m_components) = &in_engine.create_component<t_to_create>(*this);
+			std::get<t_to_create*>(m_components) = &inout_level.m_level.create_component<t_to_create>(*this);
 		}
 
 		template<typename t_to_invoke_on>
-		constexpr void invoke_post_creation_event(engine& in_engine)
+		constexpr void invoke_post_creation_event(level_context& inout_level)
 		{
-			in_engine.invoke<event_post_created<t_to_invoke_on>>(*std::get<t_to_invoke_on*>(m_components));
+			inout_level.m_engine.invoke<event_post_created<t_to_invoke_on>>(*std::get<t_to_invoke_on*>(m_components));
 		}
 
 		template<typename t_to_destroy>
-		constexpr void destroy_component(engine& in_engine)
+		constexpr void destroy_component(level_context& inout_level)
 		{
 			auto& destroy_it = std::get<t_to_destroy*>(m_components);
-			in_engine.destroy_component<t_to_destroy>(*destroy_it);
+			inout_level.m_level.destroy_component<t_to_destroy>(*destroy_it);
 			destroy_it = nullptr;
 		}
 
 		private:
-			constexpr void make_instance(engine& in_engine)
+			constexpr void make_instance(level_context& inout_level)
 			{
-				(create_component<t_component>(in_engine), ...);
-				(invoke_post_creation_event<t_component>(in_engine), ...);
+				(create_component<t_component>(inout_level), ...);
+				(invoke_post_creation_event<t_component>(inout_level), ...);
 			}
 
-			void destroy_instance(engine& in_engine) override
+			void destroy_instance(level_context& inout_level) override
 			{
 				static_assert(std::is_base_of_v<i_object_base, t_subtype>, "did you forget t_subtype?");
-				in_engine.invoke<event_destroyed<t_subtype>>(*reinterpret_cast<t_subtype*>(this));
+				inout_level.m_engine.invoke<event_destroyed<t_subtype>>(*reinterpret_cast<t_subtype*>(this));
 
-				(destroy_component<t_component>(in_engine), ...);
+				(destroy_component<t_component>(inout_level), ...);
 			}
 
 			std::tuple<t_component*...> m_components;
@@ -120,7 +121,7 @@ namespace impuls
 		}
 
 		template <typename t_object>
-		constexpr t_object& make_instance(engine& in_engine)
+		constexpr t_object& make_instance(level_context& inout_level)
 		{
 			if (m_free_object_locations.empty())
 			{
@@ -128,7 +129,7 @@ namespace impuls
 				new_instance.m_type_index = type_index<i_object_base>::get<t_object>();
 				new (&new_instance.m_children) std::vector<i_object_base*>();
 
-				new_instance.make_instance(in_engine);
+				new_instance.make_instance(inout_level);
 
 				return new_instance;
 			}
@@ -140,14 +141,14 @@ namespace impuls
 			new_instance.m_type_index = type_index<i_object_base>::get<t_object>();
 			new (&new_instance.m_children) std::vector<i_object_base*>();
 
-			new_instance.make_instance(in_engine);
+			new_instance.make_instance(inout_level);
 
 			return new_instance;
 		}
 
-		void destroy_instance(engine& in_engine, i_object_base& in_object_to_destroy)
+		void destroy_instance(level_context& inout_level, i_object_base& in_object_to_destroy)
 		{
-			in_object_to_destroy.destroy_instance(in_engine);
+			in_object_to_destroy.destroy_instance(inout_level);
 
 			in_object_to_destroy.m_parent = nullptr;
 			in_object_to_destroy.m_children.~vector();

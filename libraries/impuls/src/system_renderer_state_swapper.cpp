@@ -3,7 +3,7 @@
 
 #include "impuls/state_render_scene.h"
 
-void impuls::system_renderer_state_swapper::on_tick(engine_context&& in_context, float in_time_delta) const
+void impuls::system_renderer_state_swapper::on_engine_tick(engine_context&& in_context, float in_time_delta) const
 {
 	in_time_delta;
 

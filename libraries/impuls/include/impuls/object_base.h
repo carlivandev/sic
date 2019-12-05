@@ -12,6 +12,7 @@ namespace impuls
 	struct i_object_base : i_noncopyable
 	{
 		friend struct engine_context;
+		friend struct level_context;
 		friend struct i_system;
 		friend struct object_storage;
 
@@ -35,7 +36,7 @@ namespace impuls
 		virtual const byte* find_internal(i32 in_type_idx) const = 0;
 
 		protected:
-			virtual void destroy_instance(engine& in_engine) = 0;
+			virtual void destroy_instance(level_context& inout_level) = 0;
 
 			std::vector<i_object_base*> m_children;
 			i_object_base* m_parent = nullptr;

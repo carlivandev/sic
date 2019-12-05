@@ -5,7 +5,7 @@
 #include "impuls/system_renderer.h"
 #include "impuls/state_render_scene.h"
 
-void impuls::system_model::on_created(engine_context&& in_context) const
+void impuls::system_model::on_created(engine_context&& in_context)
 {
 	in_context.register_component_type<component_model>("model_component");
 

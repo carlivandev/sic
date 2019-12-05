@@ -53,7 +53,7 @@ namespace impuls_private
 	}
 }
 
-void impuls::system_window::on_created(engine_context&& in_context) const
+void impuls::system_window::on_created(engine_context&& in_context)
 {
 	if (!glfwInit())
 	{
@@ -124,11 +124,11 @@ void impuls::system_window::on_created(engine_context&& in_context) const
 	);
 }
 
-void impuls::system_window::on_tick(engine_context&& in_context, float in_time_delta) const
+void impuls::system_window::on_tick(level_context&& in_context, float in_time_delta) const
 {
 	in_time_delta;
 
-	state_main_window* main_window_state = in_context.get_state<state_main_window>();
+	state_main_window* main_window_state = in_context.m_engine.get_state<state_main_window>();
 
 	if (!main_window_state)
 		return;
@@ -206,7 +206,7 @@ void impuls::system_window::on_tick(engine_context&& in_context, float in_time_d
 		if (glfwWindowShouldClose(render_window.m_window) != 0)
 		{
 			if (main_window_state->m_window == component_view_it.m_window_render_on)
-				in_context.m_engine->destroy();
+				in_context.m_engine.destroy();
 			else
 				glfwDestroyWindow(render_window.m_window);
 		}
@@ -215,7 +215,7 @@ void impuls::system_window::on_tick(engine_context&& in_context, float in_time_d
 	glfwMakeContextCurrent(nullptr);
 }
 
-void impuls::system_window::on_end_simulation(engine_context&& in_context) const
+void impuls::system_window::on_end_simulation(level_context&& in_context) const
 {
 	for (component_view& component_view_it : in_context.components<component_view>())
 	{
