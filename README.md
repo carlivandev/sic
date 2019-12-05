@@ -25,9 +25,12 @@ player& player_instance = context.create_object<player>();
 
 component iteration:
 ```cpp
-for (component_model& instance : context.each<component_model>())
-{
-	//gets the cached dependency pointer
-	instance.get<component_transform>();
-}
+context.for_each<component_model>
+(
+	[](component_model& instance)
+	{
+		//gets the cached dependency pointer
+		instance.get<component_transform>();
+	}
+);
 ```
