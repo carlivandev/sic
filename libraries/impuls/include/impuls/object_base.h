@@ -16,6 +16,11 @@ namespace impuls
 		friend struct i_system;
 		friend struct object_storage;
 
+		bool is_valid() const
+		{
+			return m_type_index != -1;
+		}
+
 		template <typename t_component>
 		constexpr t_component* find()
 		{
@@ -45,6 +50,6 @@ namespace impuls
 
 	struct i_object_storage_base
 	{
-
+		bucket_allocator m_instances;
 	};
 }

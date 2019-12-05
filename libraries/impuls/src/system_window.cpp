@@ -133,98 +133,103 @@ void impuls::system_window::on_tick(level_context&& in_context, float in_time_de
 	if (!main_window_state)
 		return;
 
-	for (component_view& component_view_it : in_context.components<component_view>())
-	{
-		if (!component_view_it.m_window_render_on)
-			continue;
-
-		component_window& render_window = component_view_it.m_window_render_on->get<component_window>();
-
-		impuls::i32 current_window_x, current_window_y;
-		glfwGetWindowSize(render_window.m_window, &current_window_x, &current_window_y);
-		
-		if (render_window.m_dimensions_x != current_window_x ||
-			render_window.m_dimensions_y != current_window_y)
+	in_context.for_each<component_view>
+	(
+		[&in_context, main_window_state](component_view& component_view_it)
 		{
-			//handle resize
-			glfwSetWindowSize(render_window.m_window, render_window.m_dimensions_x, render_window.m_dimensions_y);
-		}
+			if (!component_view_it.m_window_render_on)
+				return;
 
-		if (render_window.m_cursor_pos_to_set.has_value())
-		{
-			render_window.m_cursor_pos = render_window.m_cursor_pos_to_set.value();
-			glfwSetCursorPos(render_window.m_window, render_window.m_cursor_pos.x, render_window.m_cursor_pos.y);
+			component_window& render_window = component_view_it.m_window_render_on->get<component_window>();
 
-			render_window.m_cursor_pos_to_set.reset();
-		}
+			impuls::i32 current_window_x, current_window_y;
+			glfwGetWindowSize(render_window.m_window, &current_window_x, &current_window_y);
 
-		bool needs_cursor_reset = false;
-
-		if (render_window.m_input_mode_to_set.has_value())
-		{
-			if (render_window.m_current_input_mode != e_window_input_mode::disabled &&
-				render_window.m_input_mode_to_set.value() == e_window_input_mode::disabled)
-				needs_cursor_reset = true;
-
-			render_window.m_current_input_mode = render_window.m_input_mode_to_set.value();
-			render_window.m_input_mode_to_set.reset();
-
-			switch (render_window.m_current_input_mode)
+			if (render_window.m_dimensions_x != current_window_x ||
+				render_window.m_dimensions_y != current_window_y)
 			{
-			case e_window_input_mode::normal:
-				glfwSetInputMode(render_window.m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-				break;
-			case e_window_input_mode::disabled:
-				glfwSetInputMode(render_window.m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-				break;
-			case e_window_input_mode::hidden:
-				glfwSetInputMode(render_window.m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-				break;
-			default:
-				break;
+				//handle resize
+				glfwSetWindowSize(render_window.m_window, render_window.m_dimensions_x, render_window.m_dimensions_y);
+			}
+
+			if (render_window.m_cursor_pos_to_set.has_value())
+			{
+				render_window.m_cursor_pos = render_window.m_cursor_pos_to_set.value();
+				glfwSetCursorPos(render_window.m_window, render_window.m_cursor_pos.x, render_window.m_cursor_pos.y);
+
+				render_window.m_cursor_pos_to_set.reset();
+			}
+
+			bool needs_cursor_reset = false;
+
+			if (render_window.m_input_mode_to_set.has_value())
+			{
+				if (render_window.m_current_input_mode != e_window_input_mode::disabled &&
+					render_window.m_input_mode_to_set.value() == e_window_input_mode::disabled)
+					needs_cursor_reset = true;
+
+				render_window.m_current_input_mode = render_window.m_input_mode_to_set.value();
+				render_window.m_input_mode_to_set.reset();
+
+				switch (render_window.m_current_input_mode)
+				{
+				case e_window_input_mode::normal:
+					glfwSetInputMode(render_window.m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+					break;
+				case e_window_input_mode::disabled:
+					glfwSetInputMode(render_window.m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+					break;
+				case e_window_input_mode::hidden:
+					glfwSetInputMode(render_window.m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+					break;
+				default:
+					break;
+				}
+			}
+
+			glfwPollEvents();
+
+			double cursor_x, cursor_y;
+			glfwGetCursorPos(render_window.m_window, &cursor_x, &cursor_y);
+
+			if (needs_cursor_reset)
+			{
+				render_window.m_cursor_movement = { 0.0f, 0.0f };
+			}
+			else
+			{
+				render_window.m_cursor_movement.x = static_cast<float>(cursor_x) - render_window.m_cursor_pos.x;
+				render_window.m_cursor_movement.y = static_cast<float>(cursor_y) - render_window.m_cursor_pos.y;
+			}
+
+			render_window.m_cursor_pos.x = static_cast<float>(cursor_x);
+			render_window.m_cursor_pos.y = static_cast<float>(cursor_y);
+
+			if (glfwWindowShouldClose(render_window.m_window) != 0)
+			{
+				if (main_window_state->m_window == component_view_it.m_window_render_on)
+					in_context.m_engine.destroy();
+				else
+					glfwDestroyWindow(render_window.m_window);
 			}
 		}
-
-		glfwPollEvents();
-
-		double cursor_x, cursor_y;
-		glfwGetCursorPos(render_window.m_window, &cursor_x, &cursor_y);
-
-		if (needs_cursor_reset)
-		{
-			render_window.m_cursor_movement = { 0.0f, 0.0f };
-		}
-		else
-		{
-			render_window.m_cursor_movement.x = static_cast<float>(cursor_x) - render_window.m_cursor_pos.x;
-			render_window.m_cursor_movement.y = static_cast<float>(cursor_y) - render_window.m_cursor_pos.y;
-		}
-
-		render_window.m_cursor_pos.x = static_cast<float>(cursor_x);
-		render_window.m_cursor_pos.y = static_cast<float>(cursor_y);
-
-		if (glfwWindowShouldClose(render_window.m_window) != 0)
-		{
-			if (main_window_state->m_window == component_view_it.m_window_render_on)
-				in_context.m_engine.destroy();
-			else
-				glfwDestroyWindow(render_window.m_window);
-		}
-	}
-
+	);
 	glfwMakeContextCurrent(nullptr);
 }
 
 void impuls::system_window::on_end_simulation(level_context&& in_context) const
 {
-	for (component_view& component_view_it : in_context.components<component_view>())
-	{
-		if (!component_view_it.m_window_render_on)
-			continue;
+	in_context.for_each<component_view>
+	(
+		[&in_context](component_view& component_view_it)
+		{
+			if (!component_view_it.m_window_render_on)
+				return;
 
-		component_window& render_window = component_view_it.m_window_render_on->get<component_window>();
-		glfwDestroyWindow(render_window.m_window);
-	}
+			component_window& render_window = component_view_it.m_window_render_on->get<component_window>();
+			glfwDestroyWindow(render_window.m_window);
+		}
+	);
 
 	glfwTerminate();
 }

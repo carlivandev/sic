@@ -68,28 +68,16 @@ namespace impuls
 		void add_child(i_object_base& in_parent, i_object_base& in_child);
 		void unchild(i_object_base& in_child);
 
-		template <typename t_type>
-		__forceinline plf::colony<t_type>& components()
+		template<typename t_type>
+		__forceinline void for_each(std::function<void(t_type&)> in_func)
 		{
-			return m_level.components<t_type>();
+			m_level.for_each<t_type>(in_func);
 		}
 
-		template <typename t_type>
-		__forceinline const plf::colony<t_type>& components() const
+		template<typename t_type>
+		__forceinline void for_each(std::function<void(const t_type&)> in_func) const
 		{
-			return m_level.components<t_type>();
-		}
-
-		template <typename t_type>
-		__forceinline bucket_allocator_view<t_type> objects()
-		{
-			return m_level.objects<t_type>();
-		}
-
-		template <typename t_type>
-		__forceinline bucket_allocator_view<const t_type> objects() const
-		{
-			return m_level.objects<t_type>();
+			m_level.for_each<t_type>(in_func);
 		}
 
 		engine& m_engine;

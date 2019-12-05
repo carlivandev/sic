@@ -158,7 +158,6 @@ namespace impuls
 			in_object_to_destroy.m_type_index = -1;
 		}
 
-		bucket_allocator m_instances;
 		std::vector<byte*> m_free_object_locations;
 	};
 }
