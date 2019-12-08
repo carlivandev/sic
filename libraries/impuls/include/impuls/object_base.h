@@ -13,6 +13,7 @@ namespace impuls
 	{
 		friend struct engine_context;
 		friend struct level_context;
+		friend struct level;
 		friend struct i_system;
 		friend struct object_storage;
 
@@ -37,15 +38,49 @@ namespace impuls
 			return reinterpret_cast<const t_component*>(find_internal(type_idx));
 		}
 
+		void add_child(i_object_base& inout_child)
+		{
+			for (i_object_base* child : m_children)
+			{
+				if (child == &inout_child)
+					return;
+			}
+
+			inout_child.unchild();
+
+			m_children.push_back(&inout_child);
+
+			inout_child.m_parent = this;
+		}
+
+		void unchild()
+		{
+			if (m_parent)
+			{
+				for (size_t i = 0; i < m_parent->m_children.size(); i++)
+				{
+					if (m_parent->m_children[i] == this)
+					{
+						if (i + 1 < m_parent->m_children.size())
+							m_parent->m_children[i] = m_parent->m_children.back();
+
+						m_parent->m_children.pop_back();
+						break;
+					}
+				}
+
+				m_parent = nullptr;
+			}
+		}
+
+	protected:
 		virtual byte* find_internal(i32 in_type_idx) = 0;
 		virtual const byte* find_internal(i32 in_type_idx) const = 0;
+		virtual void destroy_instance(level_context& inout_level) = 0;
 
-		protected:
-			virtual void destroy_instance(level_context& inout_level) = 0;
-
-			std::vector<i_object_base*> m_children;
-			i_object_base* m_parent = nullptr;
-			i32 m_type_index = -1;
+		std::vector<i_object_base*> m_children;
+		i_object_base* m_parent = nullptr;
+		i32 m_type_index = -1;
 	};
 
 	struct i_object_storage_base

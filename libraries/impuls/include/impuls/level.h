@@ -13,6 +13,11 @@ namespace impuls
 	{
 		level(engine& in_engine) : m_engine(in_engine) {}
 
+		template <typename t_object>
+		constexpr t_object& create_object();
+
+		void destroy_object(i_object_base& in_object_to_destroy);
+
 		template <typename t_component_type>
 		typename t_component_type& create_component(i_object_base& in_object_to_attach_to);
 
@@ -34,6 +39,25 @@ namespace impuls
 		std::vector<std::unique_ptr<level>> m_sublevels;
 		engine& m_engine;
 	};
+
+	template <typename t_object>
+	inline constexpr t_object& level::create_object()
+	{
+		static_assert(std::is_base_of<i_object_base, t_object>::value, "object must derive from struct i_object<>");
+
+		const ui32 type_idx = type_index<i_object_base>::get<t_object>();
+
+		assert((type_idx < m_objects.size() || m_objects[type_idx].get() != nullptr) && "type not registered");
+
+		auto& arch_to_create_from = m_objects[type_idx];
+
+		level_context context(m_engine, *this);
+		t_object& new_instance = reinterpret_cast<object_storage*>(arch_to_create_from.get())->make_instance<t_object>(context);
+
+		m_engine.invoke<event_created<t_object>>(new_instance);
+
+		return new_instance;
+	}
 
 	template<typename t_component_type>
 	inline typename t_component_type& level::create_component(i_object_base& in_object_to_attach_to)
