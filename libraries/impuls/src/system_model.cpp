@@ -18,27 +18,27 @@ void impuls::system_model::on_created(engine_context&& in_context)
 
 			in_out_component.m_render_scene_state = in_out_context.get_state<state_render_scene>();
 
-			in_out_component.m_on_position_changed_handle.m_function =
-			[&in_out_component](const glm::vec3& in_pos)
+			in_out_component.m_on_updated_handle.m_function =
+			[&in_out_component](const component_transform& in_transform)
 			{
 				in_out_component.m_render_scene_state->m_models.update_render_object
 				(
 					in_out_component.m_render_object_id,
-					[in_pos](render_object_model& in_object)
+					[pos = in_transform.get_translation()](render_object_model& in_object)
 					{
-						in_object.m_position = in_pos;
+						in_object.m_position = pos;
 					}
 				);
 			};
 
-			transform->m_on_position_changed.bind(in_out_component.m_on_position_changed_handle);
+			transform->m_on_updated.bind(in_out_component.m_on_updated_handle);
 
 			in_out_component.m_render_object_id = in_out_component.m_render_scene_state->m_models.create_render_object
 			(
 				[
 					model = in_out_component.m_model,
 					material_overrides = in_out_component.m_material_overrides,
-					position = transform->get_position()
+					position = transform->get_translation()
 				](render_object_model& in_out_object)
 				{
 					in_out_object.m_model = model;

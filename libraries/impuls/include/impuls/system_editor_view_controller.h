@@ -13,12 +13,15 @@ namespace impuls
 		component_view* m_view_to_control = nullptr;
 
 		float m_speed = 3.0f; // 3 units / second
-		float m_mouse_speed = 0.05f;
+		float m_mouse_speed = 3.0f;
 
 		float m_speed_multiplier = 1.0f;
 		float m_speed_multiplier_max = 10.0f;
 		float m_speed_multiplier_min = 0.5f;
 		float m_speed_multiplier_incrementation = 0.25f;
+
+		float m_pitch = 0.0f;
+		float m_yaw = -90.0f;
 	};
 
 	struct object_editor_view_controller : public i_object<object_editor_view_controller, component_editor_view_controller> {};

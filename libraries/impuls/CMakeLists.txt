@@ -66,10 +66,11 @@ add_headers(IMPULS_HEADERS
 	system_asset.h
 	system_window.h
 	system_input.h
+	system_view.h
 	input.h
 	gl_includes.h
 	system_editor_view_controller.h
-	view.h
+	component_view.h
 	system_model.h
 	system_renderer.h
 	system_renderer_state_swapper.h
@@ -98,8 +99,10 @@ add_sources(IMPULS_SOURCES
 	system_asset.cpp
 	system_window.cpp
 	system_input.cpp
+	system_view.cpp
 	input.cpp
 	system_editor_view_controller.cpp
+	component_view.cpp
 	system_model.cpp
 	system_renderer.cpp
 	system_renderer_state_swapper.cpp

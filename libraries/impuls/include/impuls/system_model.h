@@ -27,7 +27,7 @@ namespace impuls
 		std::unordered_map<std::string, asset_ref<asset_material>> m_material_overrides;
 		i32 m_render_object_id = -1;
 
-		component_transform::on_position_changed::handle m_on_position_changed_handle;
+		component_transform::on_updated::handle m_on_updated_handle;
 	};
 
 	struct system_model : i_system

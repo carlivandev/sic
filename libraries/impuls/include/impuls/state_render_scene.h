@@ -3,13 +3,33 @@
 #include "impuls/render_object_list.h"
 
 #include "impuls/asset.h"
+#include "impuls/gl_includes.h"
 
+#include "glm/mat4x4.hpp"
+#include "glm/vec2.hpp"
 #include "glm/vec3.hpp"
 
 namespace impuls
 {
 	struct asset_model;
 	struct asset_material;
+	struct object_window;
+
+	struct render_object_view
+	{
+		GLFWwindow* m_window_render_on = nullptr;
+
+		glm::mat4x4 m_view_orientation;
+
+		//offset in percentage(0 - 1) based on window size, top-left
+		glm::vec2 m_viewport_offset = { 0.0f, 0.0f };
+		//size in percentage(0 - 1) based on window size, top-left
+		glm::vec2 m_viewport_size = { 1.0f, 1.0f };
+
+		GLuint m_framebuffer_id = 0;
+		GLuint m_texture_id = 0;
+		GLuint m_depth_texture_id = 0;
+	};
 
 	struct render_object_model
 	{
@@ -37,6 +57,7 @@ namespace impuls
 		friend struct system_renderer;
 		friend struct system_renderer_state_swapper;
 
+		render_object_list<render_object_view> m_views;
 		render_object_list<render_object_model> m_models;
 		render_object_list<render_object_debug_shape> m_debug_shapes;
 

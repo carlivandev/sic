@@ -38,10 +38,10 @@ namespace impuls
 		void simulate();
 		void setup_async_ticksteps();
 		void tick();
-		void on_destroyed();
+		void on_shutdown();
 
-		void destroy() { m_is_destroyed = true; }
-		bool is_destroyed() const { return m_is_destroyed; }
+		void shutdown() { m_is_shutting_down = true; }
+		bool is_shutting_down() const { return m_is_shutting_down; }
 
 		template <typename ...t_steps>
 		void set_ticksteps();
@@ -73,7 +73,7 @@ namespace impuls
 		template <typename t_type>
 		constexpr typeinfo* get_typeinfo();
 
-		level& create_level();
+		void create_level();
 		void destroy_level(level& inout_level);
 
 		template <typename t_event_type, typename t_functor>
@@ -83,12 +83,15 @@ namespace impuls
 		void invoke(event_data& event_data_to_send);
 
 		void refresh_time_delta();
+		void flush_level_streaming();
 
 		std::unique_ptr<i_state>& get_state_at_index(i32 in_index);
 
 		std::vector<std::unique_ptr<i_system>> m_systems;
 		std::vector<std::unique_ptr<i_state>> m_states;
 		std::vector<std::unique_ptr<level>> m_levels;
+		std::vector<std::unique_ptr<level>> m_levels_to_add;
+		std::vector<level*> m_levels_to_remove;
 
 		std::vector<std::unique_ptr<i_event_base>> m_engine_events;
 
@@ -105,7 +108,7 @@ namespace impuls
 		std::chrono::time_point<std::chrono::high_resolution_clock> m_previous_frame_time_point;
 		float m_time_delta = -1.0f;
 
-		bool m_is_destroyed = true;
+		bool m_is_shutting_down = true;
 		bool m_initialized = false;
 		bool m_has_setup_async_ticksteps = false;
 		bool m_finished_setup = false;

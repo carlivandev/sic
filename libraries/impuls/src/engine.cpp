@@ -10,7 +10,7 @@ namespace impuls
 		assert(!m_initialized && "");
 
 		m_initialized = true;
-		m_is_destroyed = false;
+		m_is_shutting_down = false;
 
 		refresh_time_delta();
 	}
@@ -19,7 +19,7 @@ namespace impuls
 	{
 		refresh_time_delta();
 
-		if (is_destroyed())
+		if (is_shutting_down())
 			return;
 
 		if (!m_initialized)
@@ -37,13 +37,14 @@ namespace impuls
 
 			//first level always reserved for engine
 			create_level();
+			flush_level_streaming();
 		}
 
-		if (!is_destroyed())
+		if (!is_shutting_down())
 			tick();
 
-		if (is_destroyed())
-			on_destroyed();
+		if (is_shutting_down())
+			on_shutdown();
 	}
 
 	void engine::setup_async_ticksteps()
@@ -65,6 +66,12 @@ namespace impuls
 			(
 				[this, async_tickstep]()
 				{
+					while (!m_finished_setup)
+					{
+						std::this_thread::sleep_for(std::chrono::milliseconds(1));
+						continue;
+					}
+
 					while (!m_tickstep_threadpool.is_shutting_down())
 					{
 						//cant change levels list while in the middle of a tick
@@ -137,9 +144,11 @@ namespace impuls
 			}
 
 		}
+
+		flush_level_streaming();
 	}
 
-	void engine::on_destroyed()
+	void engine::on_shutdown()
 	{
 		m_tickstep_threadpool.shutdown();
 
@@ -147,26 +156,18 @@ namespace impuls
 			destroy_level(*m_levels.back().get());
 	}
 
-	level& engine::create_level()
+	void engine::create_level()
 	{
 		std::scoped_lock levels_lock(m_levels_mutex);
 
 		assert(m_finished_setup && "Can't create a level before system has finished setup!");
 
-		m_levels.push_back(std::make_unique<level>(*this));
+		m_levels_to_add.push_back(std::make_unique<level>(*this));
 
-		level& new_level = *m_levels.back().get();
+		level& new_level = *m_levels_to_add.back().get();
 
 		for (auto&& registration_callback : m_registration_callbacks)
 			registration_callback(new_level);
-
-		for (auto& system : m_systems)
-		{
-			if (!m_is_destroyed)
-				system->on_begin_simulation(level_context(*this, new_level));
-		}
-
-		return new_level;
 	}
 
 	void engine::destroy_level(level& inout_level)
@@ -180,7 +181,7 @@ namespace impuls
 
 			for (auto& system : m_systems)
 			{
-				if (!m_is_destroyed)
+				if (!is_shutting_down())
 					system->on_end_simulation(level_context(*this, inout_level));
 			}
 
@@ -195,6 +196,39 @@ namespace impuls
 		const auto dif = now - m_previous_frame_time_point;
 		m_time_delta = std::chrono::duration<float, std::milli>(dif).count() * 0.001f;
 		m_previous_frame_time_point = now;
+	}
+
+	void engine::flush_level_streaming()
+	{
+		//first remove levels
+		for (level* level : m_levels_to_remove)
+		{
+			for (auto& system : m_systems)
+			{
+				if (!is_shutting_down())
+					system->on_end_simulation(level_context(*this, *level));
+			}
+
+			auto it = std::find_if(m_levels.begin(), m_levels.end(), [level](auto& other_level) {return level == other_level.get(); });
+			if (it != m_levels.end())
+				m_levels.erase(it);
+		}
+
+		m_levels_to_remove.clear();
+
+		//then add new levels
+		for (auto& level : m_levels_to_add)
+		{
+			m_levels.push_back(std::move(level));
+
+			for (auto& system : m_systems)
+			{
+				if (!is_shutting_down())
+					system->on_begin_simulation(level_context(*this, *m_levels.back().get()));
+			}
+		}
+
+		m_levels_to_add.clear();
 	}
 
 	std::unique_ptr<i_state>& engine::get_state_at_index(i32 in_index)

@@ -2,7 +2,7 @@
 
 #include "impuls/asset_types.h"
 #include "impuls/event.h"
-#include "impuls/view.h"
+#include "impuls/system_view.h"
 #include "impuls/gl_includes.h"
 #include "impuls/system_model.h"
 #include "impuls/component_transform.h"
@@ -63,11 +63,10 @@ void impuls::system_window::on_created(engine_context&& in_context)
 
 	glfwSetErrorCallback(&impuls_private::glfw_error);
 
+	in_context.create_subsystem<system_view>(*this);
+
 	in_context.register_component_type<component_window>("component_window", 4);
 	in_context.register_object<object_window>("window", 4, 1);
-
-	in_context.register_component_type<component_view>("component_view", 4);
-	in_context.register_object<object_view>("view", 4);
 
 	in_context.register_state<state_main_window>("state_main_window");
 
@@ -137,10 +136,10 @@ void impuls::system_window::on_tick(level_context&& in_context, float in_time_de
 	(
 		[&in_context, main_window_state](component_view& component_view_it)
 		{
-			if (!component_view_it.m_window_render_on)
+			if (!component_view_it.get_window())
 				return;
 
-			component_window& render_window = component_view_it.m_window_render_on->get<component_window>();
+			component_window& render_window = component_view_it.get_window()->get<component_window>();
 
 			impuls::i32 current_window_x, current_window_y;
 			glfwGetWindowSize(render_window.m_window, &current_window_x, &current_window_y);
@@ -207,8 +206,8 @@ void impuls::system_window::on_tick(level_context&& in_context, float in_time_de
 
 			if (glfwWindowShouldClose(render_window.m_window) != 0)
 			{
-				if (main_window_state->m_window == component_view_it.m_window_render_on)
-					in_context.m_engine.destroy();
+				if (main_window_state->m_window == component_view_it.get_window())
+					in_context.m_engine.shutdown();
 				else
 					glfwDestroyWindow(render_window.m_window);
 			}
@@ -223,10 +222,10 @@ void impuls::system_window::on_end_simulation(level_context&& in_context) const
 	(
 		[&in_context](component_view& component_view_it)
 		{
-			if (!component_view_it.m_window_render_on)
+			if (!component_view_it.get_window())
 				return;
 
-			component_window& render_window = component_view_it.m_window_render_on->get<component_window>();
+			component_window& render_window = component_view_it.get_window()->get<component_window>();
 			glfwDestroyWindow(render_window.m_window);
 		}
 	);

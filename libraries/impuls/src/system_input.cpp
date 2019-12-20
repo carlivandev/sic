@@ -1,7 +1,7 @@
 #include "impuls/system_input.h"
 
 #include "impuls/system_window.h"
-#include "impuls/view.h"
+#include "impuls/component_view.h"
 
 #include "impuls/gl_includes.h"
 
@@ -28,10 +28,10 @@ void impuls::system_input::on_engine_tick(engine_context&& in_context, float in_
 		(
 			[input_state](component_view& component_view_it)
 			{
-				if (!component_view_it.m_window_render_on)
+				if (!component_view_it.get_window())
 					return;
 
-				component_window& cur_window = component_view_it.m_window_render_on->get<component_window>();
+				component_window& cur_window = component_view_it.get_window()->get<component_window>();
 
 				if (!cur_window.m_is_focused)
 					return;
