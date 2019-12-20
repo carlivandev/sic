@@ -4,6 +4,7 @@
 #include "impuls/component_transform.h"
 #include "impuls/gl_includes.h"
 #include "impuls/object.h"
+#include "impuls/state_render_scene.h"
 
 #include "glm/vec3.hpp"
 
@@ -31,7 +32,7 @@ namespace impuls
 		//size in percentage(0 - 1) based on window size, top-left
 		glm::vec2 m_viewport_size = { 1.0f, 1.0f };
 
-		i32 m_render_object_id = -1;
+		update_list_id<render_object_view> m_render_object_id;
 		component_transform::on_updated::handle m_on_updated_handle;
 	};
 

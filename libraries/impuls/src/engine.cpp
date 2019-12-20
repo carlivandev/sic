@@ -25,10 +25,10 @@ namespace impuls
 		if (!m_initialized)
 			return;
 
-		if (!m_has_setup_async_ticksteps)
+		if (!m_has_prepared_threadpool)
 		{
-			setup_async_ticksteps();
-			m_has_setup_async_ticksteps = true;
+			prepare_threadpool();
+			m_has_prepared_threadpool = true;
 		}
 
 		if (!m_finished_setup)
@@ -47,24 +47,17 @@ namespace impuls
 			on_shutdown();
 	}
 
-	void engine::setup_async_ticksteps()
+	void engine::prepare_threadpool()
 	{
-		size_t most_parallel_possible = 0;
-		for (auto& system : m_systems)
+		const size_t most_parallel_possible = m_async_systems.size() + m_tick_systems.size() - 1;
+
+		m_system_ticker_threadpool.spawn(static_cast<ui16>(most_parallel_possible));
+
+		for (auto& async_system : m_async_systems)
 		{
-			if (system->m_subsystems.size() > most_parallel_possible)
-				most_parallel_possible = system->m_subsystems.size();
-		}
-
-		most_parallel_possible += m_async_ticksteps.size();
-
-		m_tickstep_threadpool.spawn(static_cast<ui16>(most_parallel_possible));
-
-		for (auto& async_tickstep : m_async_ticksteps)
-		{
-			m_tickstep_threadpool.emplace
+			m_system_ticker_threadpool.emplace
 			(
-				[this, async_tickstep]()
+				[this, async_system]()
 				{
 					while (!m_finished_setup)
 					{
@@ -72,7 +65,7 @@ namespace impuls
 						continue;
 					}
 
-					while (!m_tickstep_threadpool.is_shutting_down())
+					while (!m_system_ticker_threadpool.is_shutting_down())
 					{
 						//cant change levels list while in the middle of a tick
 						std::scoped_lock levels_lock(m_levels_mutex);
@@ -80,9 +73,9 @@ namespace impuls
 						//todo: add time delta support on async systems
 
 						for (auto& level : m_levels)
-							async_tickstep->execute_tick(level_context(*this, *level.get()), 0.0f);
+							async_system->execute_tick(level_context(*this, *level.get()), 0.0f);
 
-						async_tickstep->execute_engine_tick(engine_context(*this), 0.0f);
+						async_system->execute_engine_tick(engine_context(*this), 0.0f);
 					}
 				}
 			);
@@ -91,58 +84,68 @@ namespace impuls
 
 	void engine::tick()
 	{
-		std::vector<threadpool::closure> tasks_to_run;
-		tasks_to_run.reserve(8);
-
-		for (auto& synced_tickstep : m_synced_ticksteps)
+		for (auto& pre_tick_system : m_pre_tick_systems)
 		{
-			tasks_to_run.clear();
+			for (auto& level : m_levels)
+				pre_tick_system->execute_tick(level_context(*this, *level.get()), m_time_delta);
 
-			if (synced_tickstep.size())
+			pre_tick_system->execute_engine_tick(engine_context(*this), m_time_delta);
+		}
+
+		if (!m_tick_systems.empty())
+		{
+			std::vector<threadpool::closure> tasks_to_run;
+			tasks_to_run.reserve(m_tick_systems.size() - 1);
+
+			for (ui32 system_idx = 1; system_idx < m_tick_systems.size(); system_idx++)
 			{
-				for (ui32 system_idx = 1; system_idx < synced_tickstep.size(); system_idx++)
-				{
-					i_system* system_to_tick = synced_tickstep[system_idx];
+				i_system* system_to_tick = m_tick_systems[system_idx];
 
-					tasks_to_run.emplace_back
-					(
-						[this, system_to_tick]()
-						{
-							for (auto& level : m_levels)
-								system_to_tick->execute_tick(level_context(*this, *level.get()), m_time_delta);
+				tasks_to_run.emplace_back
+				(
+					[this, system_to_tick]()
+					{
+						for (auto& level : m_levels)
+							system_to_tick->execute_tick(level_context(*this, *level.get()), m_time_delta);
 
-							system_to_tick->execute_engine_tick(engine_context(*this), m_time_delta);
-							system_to_tick->m_finished_tick = true;
-						}
-					);
+						system_to_tick->execute_engine_tick(engine_context(*this), m_time_delta);
+						system_to_tick->m_finished_tick = true;
+					}
+				);
 
-					system_to_tick->m_finished_tick = false;
-				}
-
-				for (auto& level : m_levels)
-					synced_tickstep[0]->execute_tick(level_context(*this, *level.get()), m_time_delta);
-
-				synced_tickstep[0]->execute_engine_tick(engine_context(*this), m_time_delta);
-				synced_tickstep[0]->m_finished_tick = true;
+				system_to_tick->m_finished_tick = false;
 			}
 
 			if (!tasks_to_run.empty())
-				m_tickstep_threadpool.batch(std::move(tasks_to_run));
+				m_system_ticker_threadpool.batch(std::move(tasks_to_run));
 
-			//wait for all to finish
-			bool all_finished = false;
+			for (auto& level : m_levels)
+				m_tick_systems[0]->execute_tick(level_context(*this, *level.get()), m_time_delta);
 
-			while (!all_finished)
+			m_tick_systems[0]->execute_engine_tick(engine_context(*this), m_time_delta);
+			m_tick_systems[0]->m_finished_tick = true;
+		}
+
+		//wait for all to finish
+		bool all_finished = false;
+
+		while (!all_finished)
+		{
+			all_finished = true;
+
+			for (i_system* system_to_tick : m_tick_systems)
 			{
-				all_finished = true;
-
-				for (i_system* system_to_tick : synced_tickstep)
-				{
-					if (!system_to_tick->m_finished_tick)
-						all_finished = false;
-				}
+				if (!system_to_tick->m_finished_tick)
+					all_finished = false;
 			}
+		}
 
+		for (auto& post_tick_system : m_post_tick_systems)
+		{
+			for (auto& level : m_levels)
+				post_tick_system->execute_tick(level_context(*this, *level.get()), m_time_delta);
+
+			post_tick_system->execute_engine_tick(engine_context(*this), m_time_delta);
 		}
 
 		flush_level_streaming();
@@ -150,7 +153,7 @@ namespace impuls
 
 	void engine::on_shutdown()
 	{
-		m_tickstep_threadpool.shutdown();
+		m_system_ticker_threadpool.shutdown();
 
 		while (!m_levels.empty())
 			destroy_level(*m_levels.back().get());

@@ -19,7 +19,7 @@ void impuls::system_view::on_created(engine_context&& in_context)
 			in_out_component.m_on_updated_handle.m_function =
 			[&in_out_component](const component_transform& in_transform)
 			{
-				in_out_component.m_render_scene_state->m_views.update_render_object
+				in_out_component.m_render_scene_state->m_views.update_object
 				(
 					in_out_component.m_render_object_id,
 					[matrix = in_transform.get_matrix()]
@@ -32,7 +32,7 @@ void impuls::system_view::on_created(engine_context&& in_context)
 			
 			transform->m_on_updated.bind(in_out_component.m_on_updated_handle);
 
-			in_out_component.m_render_object_id = in_out_component.m_render_scene_state->m_views.create_render_object
+			in_out_component.m_render_object_id = in_out_component.m_render_scene_state->m_views.create_object
 			(
 				[
 					matrix = transform->get_matrix(),
@@ -53,7 +53,7 @@ void impuls::system_view::on_created(engine_context&& in_context)
 	(
 		[](engine_context&, component_view& in_out_component)
 		{
-			in_out_component.m_render_scene_state->m_views.destroy_render_object(in_out_component.m_render_object_id);
+			in_out_component.m_render_scene_state->m_views.destroy_object(in_out_component.m_render_object_id);
 		}
 	);
 }

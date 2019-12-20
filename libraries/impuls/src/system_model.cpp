@@ -21,7 +21,7 @@ void impuls::system_model::on_created(engine_context&& in_context)
 			in_out_component.m_on_updated_handle.m_function =
 			[&in_out_component](const component_transform& in_transform)
 			{
-				in_out_component.m_render_scene_state->m_models.update_render_object
+				in_out_component.m_render_scene_state->m_models.update_object
 				(
 					in_out_component.m_render_object_id,
 					[pos = in_transform.get_translation()](render_object_model& in_object)
@@ -33,7 +33,7 @@ void impuls::system_model::on_created(engine_context&& in_context)
 
 			transform->m_on_updated.bind(in_out_component.m_on_updated_handle);
 
-			in_out_component.m_render_object_id = in_out_component.m_render_scene_state->m_models.create_render_object
+			in_out_component.m_render_object_id = in_out_component.m_render_scene_state->m_models.create_object
 			(
 				[
 					model = in_out_component.m_model,
@@ -53,7 +53,7 @@ void impuls::system_model::on_created(engine_context&& in_context)
 	(
 		[](engine_context&, component_model& in_out_component)
 		{
-			in_out_component.m_render_scene_state->m_models.destroy_render_object(in_out_component.m_render_object_id);
+			in_out_component.m_render_scene_state->m_models.destroy_object(in_out_component.m_render_object_id);
 		}
 	);
 }
@@ -62,7 +62,7 @@ void impuls::component_model::set_model(const asset_ref<asset_model>& in_model)
 {
 	m_model = in_model;
 
-	m_render_scene_state->m_models.update_render_object
+	m_render_scene_state->m_models.update_object
 	(
 		m_render_object_id,
 		[in_model](render_object_model& in_object)
@@ -76,7 +76,7 @@ void impuls::component_model::set_material(asset_ref<asset_material> in_material
 {
 	m_material_overrides[in_material_slot] = in_material;
 
-	m_render_scene_state->m_models.update_render_object
+	m_render_scene_state->m_models.update_object
 	(
 		m_render_object_id,
 		[in_material_slot, in_material](render_object_model& in_object)

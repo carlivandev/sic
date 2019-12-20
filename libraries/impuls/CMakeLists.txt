@@ -74,7 +74,7 @@ add_headers(IMPULS_HEADERS
 	system_model.h
 	system_renderer.h
 	system_renderer_state_swapper.h
-	render_object_list.h
+	update_list.h
 	state_render_scene.h
 	component_transform.h
 	)

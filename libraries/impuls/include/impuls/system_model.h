@@ -3,6 +3,7 @@
 #include "impuls/engine_context.h"
 #include "impuls/system_asset.h"
 #include "impuls/component_transform.h"
+#include "impuls/state_render_scene.h"
 
 namespace impuls
 {
@@ -25,7 +26,7 @@ namespace impuls
 		asset_ref<asset_model> m_model;
 
 		std::unordered_map<std::string, asset_ref<asset_material>> m_material_overrides;
-		i32 m_render_object_id = -1;
+		update_list_id<render_object_model> m_render_object_id;
 
 		component_transform::on_updated::handle m_on_updated_handle;
 	};

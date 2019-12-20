@@ -1,6 +1,6 @@
 #pragma once
 #include "impuls/engine_context.h"
-#include "impuls/render_object_list.h"
+#include "impuls/update_list.h"
 
 #include "impuls/asset.h"
 #include "impuls/gl_includes.h"
@@ -57,9 +57,9 @@ namespace impuls
 		friend struct system_renderer;
 		friend struct system_renderer_state_swapper;
 
-		render_object_list<render_object_view> m_views;
-		render_object_list<render_object_model> m_models;
-		render_object_list<render_object_debug_shape> m_debug_shapes;
+		update_list<render_object_view> m_views;
+		update_list<render_object_model> m_models;
+		update_list<render_object_debug_shape> m_debug_shapes;
 
 	protected:
 		void flush_updates();

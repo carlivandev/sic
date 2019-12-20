@@ -318,119 +318,9 @@ void impuls::system_renderer::on_engine_tick(engine_context&& in_context, float 
 	std::vector<asset_ref<asset_material>> materials_to_load;
 	std::vector<asset_ref<asset_model>> models_to_load;
 
-	for (auto& level : in_context.m_engine.m_levels)
-	{
-		
-		/*
-		level->for_each<component_view>
-		(
-			[scene_state, &textures_to_load, &materials_to_load, &models_to_load](component_view& component_view_it)
-			{
-				if (!component_view_it.get_window())
-					return;
-
-				component_window& render_window = component_view_it.get_window()->get<component_window>();
-
-				impuls::i32 current_window_x, current_window_y;
-				glfwGetWindowSize(render_window.m_window, &current_window_x, &current_window_y);
-
-				if (current_window_x == 0 || current_window_y == 0)
-					return;
-
-				glfwMakeContextCurrent(render_window.m_window);
-
-				const float fov = 45.0f;
-				const float ratio = static_cast<float>(current_window_x) / static_cast<float>(current_window_y);
-				const float near_plane = 0.1f;
-				const float far_plane = 100.0f;
-
-				const glm::mat4x4 proj_mat = glm::perspective
-				(
-					glm::radians(fov),
-					ratio,
-					near_plane,
-					far_plane
-				);
-
-				// ortho camera :
-				//glm::mat4 Projection = glm::ortho(-10.0f,10.0f,-10.0f,10.0f,0.0f,100.0f); // In engine coordinates
-
-				component_transform* view_transform = component_view_it.owner().find<component_transform>();
-				const glm::mat4x4 view_mat = (view_transform->get_matrix());
-
-				glClearColor(0.0f, 0.0f, 0.1f, 1.0f);
-				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		
-				for (const render_object_model& model : scene_state->m_models.m_render_objects)
-				{
-					if (!model.m_model.is_valid())
-						continue;
-
-					if (model.m_model.get_load_state() == e_asset_load_state::loaded)
-					{
-						asset_model* model_asset = model.m_model.get();
-
-						const glm::mat4 model_mat = glm::mat4(
-							1.0f, 0.0f, 0.0f, 0.0f,
-							0.0f, 1.0f, 0.0f, 0.0f,
-							0.0f, 0.0f, 1.0f, 0.0f,
-							model.m_position.x, model.m_position.y, model.m_position.z, 1.0);
-
-						const glm::mat4 mvp = proj_mat * view_mat * model_mat;
-
-						const ui64 mesh_count = model_asset->m_meshes.size();
-
-						for (i32 mesh_idx = 0; mesh_idx < mesh_count; mesh_idx++)
-						{
-							auto& mesh = model_asset->m_meshes[mesh_idx];
-
-							auto material_override_it = model.m_material_overrides.find(mesh.first.material_slot);
-
-							const asset_ref<asset_material>& mat_to_draw = material_override_it != model.m_material_overrides.end() ? material_override_it->second : model_asset->get_material(mesh_idx);
-							if (mat_to_draw.is_valid())
-							{
-								if (mat_to_draw.get_load_state() == e_asset_load_state::loaded)
-								{
-									bool all_texture_loaded = true;
-
-									for (asset_material::texture_parameter& texture_param : mat_to_draw.get()->m_texture_parameters)
-									{
-										if (texture_param.m_texture.is_valid())
-										{
-											if (texture_param.m_texture.get_load_state() == e_asset_load_state::not_loaded)
-												textures_to_load.push_back(texture_param.m_texture);
-
-											if (texture_param.m_texture.get_load_state() != e_asset_load_state::loaded)
-												all_texture_loaded = false;
-										}
-									}
-
-									if (all_texture_loaded)
-										impuls_private::draw_mesh(mesh.first, *mat_to_draw.get(), mvp);
-								}
-								else if (mat_to_draw.get_load_state() == e_asset_load_state::not_loaded)
-								{
-									materials_to_load.push_back(mat_to_draw);
-								}
-							}
-						}
-					}
-					else if (model.m_model.get_load_state() == e_asset_load_state::not_loaded)
-						models_to_load.push_back(model.m_model);
-				}
-
-				glfwSwapBuffers(render_window.m_window);
-			}
-		);
-		
-		continue;
-		*/
-
-	}
-
 	std::unordered_map<GLFWwindow*, std::vector<const render_object_view*>> window_to_views_lut;
 
-	for (const render_object_view& view : scene_state->m_views.m_render_objects)
+	for (const render_object_view& view : scene_state->m_views.m_objects)
 	{
 		if (!view.m_window_render_on)
 			continue;
@@ -470,7 +360,7 @@ void impuls::system_renderer::on_engine_tick(engine_context&& in_context, float 
 
 			const glm::mat4x4 view_mat = glm::inverse(view->m_view_orientation);
 
-			for (const render_object_model& model : scene_state->m_models.m_render_objects)
+			for (const render_object_model& model : scene_state->m_models.m_objects)
 			{
 				if (!model.m_model.is_valid())
 					continue;

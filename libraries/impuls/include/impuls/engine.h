@@ -18,6 +18,14 @@
 
 namespace impuls
 {
+	enum class e_tickstep
+	{
+		async, //never synchronizes
+		pre_tick, //runs before tick, always on main thread
+		tick, //everything here runs in parallel, first added runs on main thread
+		post_tick //runs after tick, always on main thread
+	};
+
 	struct level;
 
 	//enginewide state data
@@ -36,15 +44,12 @@ namespace impuls
 		void initialize();
 
 		void simulate();
-		void setup_async_ticksteps();
+		void prepare_threadpool();
 		void tick();
 		void on_shutdown();
 
 		void shutdown() { m_is_shutting_down = true; }
 		bool is_shutting_down() const { return m_is_shutting_down; }
-
-		template <typename ...t_steps>
-		void set_ticksteps();
 
 		template <typename t_component_type>
 		constexpr type_reg register_component_type(const char* in_unique_key, ui32 in_initial_capacity = 128);
@@ -54,6 +59,9 @@ namespace impuls
 
 		template <typename t_type_to_register>
 		constexpr type_reg register_typeinfo(const char* in_unique_key);
+
+		template <typename t_system>
+		void add_system(e_tickstep in_tickstep);
 
 		template <typename t_system_type>
 		t_system_type& create_system();
@@ -101,16 +109,19 @@ namespace impuls
 		std::vector<typeinfo*> m_state_typeinfos;
 		std::unordered_map<std::string, std::unique_ptr<typeinfo>> m_typename_to_typeinfo_lut;
 
-		std::vector<i_system*> m_async_ticksteps;
-		std::vector<std::vector<i_system*>> m_synced_ticksteps;
-		threadpool m_tickstep_threadpool;
+		std::vector<i_system*> m_async_systems;
+		std::vector<i_system*> m_pre_tick_systems;
+		std::vector<i_system*> m_tick_systems;
+		std::vector<i_system*> m_post_tick_systems;
+
+		threadpool m_system_ticker_threadpool;
 
 		std::chrono::time_point<std::chrono::high_resolution_clock> m_previous_frame_time_point;
 		float m_time_delta = -1.0f;
 
 		bool m_is_shutting_down = true;
 		bool m_initialized = false;
-		bool m_has_setup_async_ticksteps = false;
+		bool m_has_prepared_threadpool = false;
 		bool m_finished_setup = false;
 
 		std::mutex m_levels_mutex;
@@ -118,44 +129,6 @@ namespace impuls
 		//callbacks to run whenever a new level is created
 		std::vector<std::function<void(level&)>> m_registration_callbacks;
 	};
-
-	template <typename ...t_systems>
-	struct tickstep_async
-	{
-		template <typename t_system>
-		static void add_to_tickstep(engine& in_engine)
-		{
-			in_engine.m_async_ticksteps.push_back(&in_engine.create_system<t_system>());
-		}
-
-		static void add_tickstep(engine& in_engine)
-		{
-			(add_to_tickstep<t_systems>(in_engine), ...);
-		}
-	};
-
-	//first system will always execute on main thread
-	template <typename ...t_systems>
-	struct tickstep_synced
-	{
-		template <typename t_system>
-		static void add_to_tickstep(engine& in_engine, std::vector<i_system*>& out_tickstep)
-		{
-			out_tickstep.push_back(&in_engine.create_system<t_system>());
-		}
-
-		static void add_tickstep(engine& in_engine)
-		{
-			auto& tickstep = in_engine.m_synced_ticksteps.emplace_back();
-			(add_to_tickstep<t_systems>(in_engine, tickstep), ...);
-		}
-	};
-
-	template<typename ...t_steps>
-	inline void engine::set_ticksteps()
-	{
-		(t_steps::add_tickstep(*this), ...);
-	}
 
 	template<typename t_component_type>
 	inline constexpr type_reg engine::register_component_type(const char* in_unique_key, ui32 in_initial_capacity)
@@ -258,6 +231,28 @@ namespace impuls
 		}
 
 		return type_reg(new_typeinfo.get());
+	}
+
+	template<typename t_system>
+	inline void engine::add_system(e_tickstep in_tickstep)
+	{
+		switch (in_tickstep)
+		{
+		case impuls::e_tickstep::async:
+			m_async_systems.push_back(&create_system<t_system>());
+			break;
+		case impuls::e_tickstep::pre_tick:
+			m_pre_tick_systems.push_back(&create_system<t_system>());
+			break;
+		case impuls::e_tickstep::tick:
+			m_tick_systems.push_back(&create_system<t_system>());
+			break;
+		case impuls::e_tickstep::post_tick:
+			m_post_tick_systems.push_back(&create_system<t_system>());
+			break;
+		default:
+			break;
+		}
 	}
 
 	template<typename t_system_type>
