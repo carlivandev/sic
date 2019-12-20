@@ -1,7 +1,7 @@
 #pragma once
 #include "system.h"
 
-namespace impuls
+namespace sic
 {
 	struct System_renderer : System
 	{

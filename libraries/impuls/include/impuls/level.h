@@ -7,7 +7,7 @@
 #include <vector>
 #include <memory>
 
-namespace impuls
+namespace sic
 {
 	struct Level
 	{

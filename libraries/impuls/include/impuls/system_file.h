@@ -10,7 +10,7 @@
 #include <vector>
 #include <functional>
 
-namespace impuls
+namespace sic
 {
 	typedef std::function<void(std::string&& in_filedata)> file_load_callback;
 	typedef std::function<void(const std::string& in_path)> file_save_callback;

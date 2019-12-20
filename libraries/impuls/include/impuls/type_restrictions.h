@@ -1,6 +1,6 @@
 #pragma once
 
-namespace impuls
+namespace sic
 {
 	struct Noncopyable
 	{

@@ -1,7 +1,7 @@
 #pragma once
 #include "engine.h"
 
-namespace impuls
+namespace sic
 {
 	struct Engine_context
 	{

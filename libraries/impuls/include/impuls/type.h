@@ -5,7 +5,7 @@
 #include <functional>
 #include <sstream>
 
-namespace impuls
+namespace sic
 {
 	struct Property
 	{
@@ -15,7 +15,7 @@ namespace impuls
 			assert(m_owner_typeindex == Type_index<>::get<t_owner>() && "type mismatch, owner type incorrect");
 			assert(m_data_typeindex == Type_index<>::get<t_data_type>() && "type mismatch, data type incorrect");
 
-			m_setter(*reinterpret_cast<impuls::byte*>(&in_owner), *reinterpret_cast<const impuls::byte*>(&in_to_set));
+			m_setter(*reinterpret_cast<sic::byte*>(&in_owner), *reinterpret_cast<const sic::byte*>(&in_to_set));
 		}
 
 		void set(byte& in_owner, const byte& in_to_set)
@@ -29,7 +29,7 @@ namespace impuls
 			assert(m_owner_typeindex == Type_index<>::get<t_owner>() && "type mismatch, owner type incorrect");
 			assert(m_data_typeindex == Type_index<>::get<t_data_type>() && "type mismatch, data type incorrect");
 
-			return *reinterpret_cast<t_data_type*>(&m_getter(*reinterpret_cast<impuls::byte*>(&in_owner)));
+			return *reinterpret_cast<t_data_type*>(&m_getter(*reinterpret_cast<sic::byte*>(&in_owner)));
 		}
 
 		byte& get(byte& in_owner)
@@ -40,7 +40,7 @@ namespace impuls
 		std::function<void(byte& in_to_set_on, const byte& in_data_to_set)> m_setter;
 		std::function<byte&(byte& in_to_get_from)> m_getter;
 		std::function<void(byte& in_to_serialize_from, std::vector<byte>& out_serialized_data)> m_serializer;
-		std::function<ui32(const impuls::byte& in_serialized_data_begin, byte& out_deserialized)> m_deserializer;
+		std::function<ui32(const sic::byte& in_serialized_data_begin, byte& out_deserialized)> m_deserializer;
 		i32 m_owner_typeindex = -1;
 		i32 m_data_typeindex = -1;
 	};
@@ -55,7 +55,7 @@ namespace impuls
 			for (auto prop : m_properties)
 			{
 				serialize(prop.first, serialized_data);
-				prop.second.m_serializer(*reinterpret_cast<impuls::byte*>(&in_owner), serialized_data);
+				prop.second.m_serializer(*reinterpret_cast<sic::byte*>(&in_owner), serialized_data);
 
 				serialized_data.push_back('\n');
 			}
@@ -78,7 +78,7 @@ namespace impuls
 // 				auto prop_it = m_properties.find(prop_key);
 // 
 // 				if (prop_it != m_properties.end())
-// 					prop_it->second.m_deserializer(line.data()[prop_byte_begin], *reinterpret_cast<impuls::byte*>(&out_owner));
+// 					prop_it->second.m_deserializer(line.data()[prop_byte_begin], *reinterpret_cast<sic::byte*>(&out_owner));
 // 			}
 
 			ui32 cur_idx = 0;
@@ -92,7 +92,7 @@ namespace impuls
 
 				if (prop_it != m_properties.end())
 				{
-					const ui32 end_idx = prop_it->second.m_deserializer(in_serialized_data.data()[prop_byte_begin], *reinterpret_cast<impuls::byte*>(&out_owner));
+					const ui32 end_idx = prop_it->second.m_deserializer(in_serialized_data.data()[prop_byte_begin], *reinterpret_cast<sic::byte*>(&out_owner));
 					cur_idx = prop_byte_begin + end_idx + 1;
 				}
 			}
@@ -120,7 +120,7 @@ namespace impuls
 		template <typename t_owner, typename t_data_type>
 		Type_reg& Property(const char* in_name, t_data_type t_owner::*in_ptr)
 		{
-			impuls::Property& new_prop = m_to_register->m_properties[in_name];
+			sic::Property& new_prop = m_to_register->m_properties[in_name];
 
 			new_prop.m_setter = [in_ptr](byte& in_to_set_on, const byte& in_data_to_set)
 			{
@@ -141,7 +141,7 @@ namespace impuls
 				serialize(as_t.*in_ptr, out_serialized_data);
 			};
 
-			new_prop.m_deserializer = [in_ptr](const impuls::byte& in_serialized_data_begin, byte& out_deserialized) -> ui32
+			new_prop.m_deserializer = [in_ptr](const sic::byte& in_serialized_data_begin, byte& out_deserialized) -> ui32
 			{
 				t_owner& as_t = *reinterpret_cast<t_owner*>(&out_deserialized);
 

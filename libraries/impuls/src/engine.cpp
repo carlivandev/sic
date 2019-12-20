@@ -3,7 +3,7 @@
 #include "impuls/object.h"
 #include "impuls/engine_context.h"
 
-namespace impuls
+namespace sic
 {
 	void Engine::initialize()
 	{

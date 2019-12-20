@@ -5,7 +5,7 @@
 #include <fstream>
 #include <filesystem>
 
-std::string impuls::File_management::load_file(const std::string& in_filepath, bool in_binary)
+std::string sic::File_management::load_file(const std::string& in_filepath, bool in_binary)
 {
 	std::ifstream infile(in_filepath, in_binary ? std::ios_base::binary : std::ios_base::in);
 
@@ -19,7 +19,7 @@ std::string impuls::File_management::load_file(const std::string& in_filepath, b
 	return str;
 }
 
-void impuls::File_management::save_file(const std::string& in_filepath, const std::string& in_filedata, bool in_binary)
+void sic::File_management::save_file(const std::string& in_filepath, const std::string& in_filedata, bool in_binary)
 {
 	const std::filesystem::path path(in_filepath);
 	const std::filesystem::path dir_path(path.parent_path());

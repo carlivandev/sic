@@ -3,7 +3,7 @@
 #include <unordered_map>
 #include <set>
 
-namespace impuls
+namespace sic
 {
 	struct i_system_base;
 

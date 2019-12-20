@@ -11,7 +11,7 @@
 
 struct GLFWwindow;
 
-namespace impuls
+namespace sic
 {
 	enum class e_window_input_mode
 	{

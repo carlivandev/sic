@@ -7,7 +7,7 @@
 
 namespace impuls_private
 {
-	using namespace impuls;
+	using namespace sic;
 
 	std::unique_ptr<Asset_header> parse_header(std::string&& in_header_data, State_assetsystem& in_assetsystem_state)
 	{
@@ -26,7 +26,7 @@ namespace impuls_private
 	}
 }
 
-void impuls::System_asset::on_created(Engine_context&& in_context)
+void sic::System_asset::on_created(Engine_context&& in_context)
 {
 	in_context.register_state<State_assetsystem>("assetsystem");
 
@@ -70,12 +70,12 @@ void impuls::System_asset::on_created(Engine_context&& in_context)
 	}
 }
 
-void impuls::State_assetsystem::leave_unload_queue(const Asset_header& in_header)
+void sic::State_assetsystem::leave_unload_queue(const Asset_header& in_header)
 {
 	m_unload_queue.leave_queue(in_header.m_unload_ticket);
 }
 
-void impuls::State_assetsystem::join_unload_queue(Asset_header& in_out_header)
+void sic::State_assetsystem::join_unload_queue(Asset_header& in_out_header)
 {
 	if (m_unload_queue.is_queue_full())
 		unload_next_asset();
@@ -83,13 +83,13 @@ void impuls::State_assetsystem::join_unload_queue(Asset_header& in_out_header)
 	in_out_header.m_unload_ticket = m_unload_queue.enqueue(&in_out_header);
 }
 
-void impuls::State_assetsystem::force_unload_unreferenced_assets()
+void sic::State_assetsystem::force_unload_unreferenced_assets()
 {
 	while (!m_unload_queue.is_queue_empty())
 		unload_next_asset();
 }
 
-impuls::Asset_header* impuls::State_assetsystem::create_asset_internal(const std::string& in_asset_name, const std::string& in_asset_directory, const std::string& in_typename)
+sic::Asset_header* sic::State_assetsystem::create_asset_internal(const std::string& in_asset_name, const std::string& in_asset_directory, const std::string& in_typename)
 {
 	m_asset_headers.push_back(std::make_unique<Asset_header>(*this));
 	Asset_header* new_header = m_asset_headers.back().get();
@@ -105,7 +105,7 @@ impuls::Asset_header* impuls::State_assetsystem::create_asset_internal(const std
 	return new_header;
 }
 
-void impuls::State_assetsystem::save_asset_header(const Asset_header& in_header, const std::string& in_typename)
+void sic::State_assetsystem::save_asset_header(const Asset_header& in_header, const std::string& in_typename)
 {
 	nlohmann::json header_json;
 
@@ -117,7 +117,7 @@ void impuls::State_assetsystem::save_asset_header(const Asset_header& in_header,
 	File_management::save_file(fmt::format("{0}_h", in_header.m_asset_path), header_json.dump(1, '\t'));
 }
 
-void impuls::State_assetsystem::unload_next_asset()
+void sic::State_assetsystem::unload_next_asset()
 {
 	Asset_header* header = m_unload_queue.dequeue();
 

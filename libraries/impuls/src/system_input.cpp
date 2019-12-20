@@ -5,12 +5,12 @@
 
 #include "impuls/gl_includes.h"
 
-void impuls::System_input::on_created(Engine_context&& in_context)
+void sic::System_input::on_created(Engine_context&& in_context)
 {
 	in_context.register_state<State_input>("input");
 }
 
-void impuls::System_input::on_engine_tick(Engine_context&& in_context, float in_time_delta) const
+void sic::System_input::on_engine_tick(Engine_context&& in_context, float in_time_delta) const
 {
 	in_time_delta;
 

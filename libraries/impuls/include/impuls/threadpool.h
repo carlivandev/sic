@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <functional>
 
-namespace impuls
+namespace sic
 {
 	class Threadpool
 	{

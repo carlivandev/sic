@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace impuls
+namespace sic
 {
 	struct Engine_context;
 	struct Level_context;

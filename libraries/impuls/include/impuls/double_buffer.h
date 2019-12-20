@@ -2,7 +2,7 @@
 #include <functional>
 #include <mutex>
 
-namespace impuls
+namespace sic
 {
 	template <typename t_buffer_type>
 	struct Double_buffer

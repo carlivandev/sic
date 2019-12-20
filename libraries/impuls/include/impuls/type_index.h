@@ -2,7 +2,7 @@
 #include "defines.h"
 #include <type_traits>
 
-namespace impuls
+namespace sic
 {
 	template <typename t_base = void>
 	struct Type_index

@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <map>
 
-namespace impuls
+namespace sic
 {
 	struct Serialize_stream
 	{

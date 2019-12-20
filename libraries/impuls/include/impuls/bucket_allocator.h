@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <vector>
 
-namespace impuls
+namespace sic
 {
 	struct Bucket_byte_allocator
 	{

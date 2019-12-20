@@ -2,7 +2,7 @@
 #include "impuls/level.h"
 #include "impuls/object.h"
 
-namespace impuls
+namespace sic
 {
 	void Level::destroy_object(Object_base& in_object_to_destroy)
 	{

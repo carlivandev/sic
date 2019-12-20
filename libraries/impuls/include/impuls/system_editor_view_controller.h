@@ -4,7 +4,7 @@
 #include "impuls/object.h"
 #include "glm/vec2.hpp"
 
-namespace impuls
+namespace sic
 {
 	struct Component_view;
 

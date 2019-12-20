@@ -5,7 +5,7 @@
 #include "impuls/system_renderer.h"
 #include "impuls/state_render_scene.h"
 
-void impuls::System_model::on_created(Engine_context&& in_context)
+void sic::System_model::on_created(Engine_context&& in_context)
 {
 	in_context.register_component_type<Component_model>("model_component");
 
@@ -58,7 +58,7 @@ void impuls::System_model::on_created(Engine_context&& in_context)
 	);
 }
 
-void impuls::Component_model::set_model(const Asset_ref<Asset_model>& in_model)
+void sic::Component_model::set_model(const Asset_ref<Asset_model>& in_model)
 {
 	m_model = in_model;
 
@@ -72,7 +72,7 @@ void impuls::Component_model::set_model(const Asset_ref<Asset_model>& in_model)
 	);
 }
 
-void impuls::Component_model::set_material(Asset_ref<Asset_material> in_material, const std::string& in_material_slot)
+void sic::Component_model::set_material(Asset_ref<Asset_material> in_material, const std::string& in_material_slot)
 {
 	m_material_overrides[in_material_slot] = in_material;
 
@@ -86,7 +86,7 @@ void impuls::Component_model::set_material(Asset_ref<Asset_material> in_material
 	);
 }
 
-impuls::Asset_ref<impuls::Asset_material> impuls::Component_model::get_material_override(const std::string& in_material_slot) const
+sic::Asset_ref<sic::Asset_material> sic::Component_model::get_material_override(const std::string& in_material_slot) const
 {
 	auto it = m_material_overrides.find(in_material_slot);
 

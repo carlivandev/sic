@@ -2,7 +2,7 @@
 #include "system.h"
 #include "engine_context.h"
 
-namespace impuls
+namespace sic
 {
 	struct System_renderer_state_swapper : System
 	{

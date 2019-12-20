@@ -17,7 +17,7 @@
 #include <vector>
 #include <typeindex>
 
-namespace impuls
+namespace sic
 {
 	struct State_assetsystem : State
 	{

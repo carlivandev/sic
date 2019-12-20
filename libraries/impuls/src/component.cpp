@@ -1,6 +1,6 @@
 #include "impuls/pch.h"
 #include "impuls/component.h"
 
-namespace impuls
+namespace sic
 {
 }

@@ -5,7 +5,7 @@
 #include <functional>
 #include <mutex>
 
-namespace impuls
+namespace sic
 {
 	template <typename ...t_args>
 	struct Delegate : Noncopyable

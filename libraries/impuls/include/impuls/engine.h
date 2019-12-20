@@ -16,7 +16,7 @@
 #include <chrono>
 #include <unordered_map>
 
-namespace impuls
+namespace sic
 {
 	enum class Tickstep
 	{
@@ -232,16 +232,16 @@ namespace impuls
 	{
 		switch (in_tickstep)
 		{
-		case impuls::Tickstep::async:
+		case sic::Tickstep::async:
 			m_async_systems.push_back(&create_system<t_system>());
 			break;
-		case impuls::Tickstep::pre_tick:
+		case sic::Tickstep::pre_tick:
 			m_pre_tick_systems.push_back(&create_system<t_system>());
 			break;
-		case impuls::Tickstep::tick:
+		case sic::Tickstep::tick:
 			m_tick_systems.push_back(&create_system<t_system>());
 			break;
-		case impuls::Tickstep::post_tick:
+		case sic::Tickstep::post_tick:
 			m_post_tick_systems.push_back(&create_system<t_system>());
 			break;
 		default:

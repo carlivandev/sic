@@ -6,7 +6,7 @@
 #include "event.h"
 #include "level_context.h"
 
-namespace impuls
+namespace sic
 {
 	/*
 		t_subtype = CRTP

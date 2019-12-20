@@ -4,7 +4,7 @@
 #include <vector>
 #include <mutex>
 
-namespace impuls
+namespace sic
 {
 	enum class List_update_type
 	{

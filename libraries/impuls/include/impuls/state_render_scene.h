@@ -9,7 +9,7 @@
 #include "glm/vec2.hpp"
 #include "glm/vec3.hpp"
 
-namespace impuls
+namespace sic
 {
 	struct Asset_model;
 	struct Asset_material;

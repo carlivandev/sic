@@ -2,12 +2,12 @@
 #include "impuls/threadpool.h"
 #include "impuls/thread_naming.h"
 
-impuls::Threadpool::~Threadpool()
+sic::Threadpool::~Threadpool()
 {
 	shutdown();
 }
 
-void impuls::Threadpool::spawn(ui16 in_worker_count)
+void sic::Threadpool::spawn(ui16 in_worker_count)
 {
 	assert(is_caller_owner());
 
@@ -66,7 +66,7 @@ void impuls::Threadpool::spawn(ui16 in_worker_count)
 	}
 }
 
-void impuls::Threadpool::shutdown()
+void sic::Threadpool::shutdown()
 {
 	assert(is_caller_owner());
 
@@ -86,7 +86,7 @@ void impuls::Threadpool::shutdown()
 }
 
 
-void impuls::Threadpool::emplace(closure&& in_closure)
+void sic::Threadpool::emplace(closure&& in_closure)
 {
 	if (num_workers() == 0)
 	{
@@ -101,7 +101,7 @@ void impuls::Threadpool::emplace(closure&& in_closure)
 	}
 }
 
-void impuls::Threadpool::batch(std::vector<closure>&& in_closures)
+void sic::Threadpool::batch(std::vector<closure>&& in_closures)
 {
 	if (num_workers() == 0)
 	{
@@ -125,22 +125,22 @@ void impuls::Threadpool::batch(std::vector<closure>&& in_closures)
 		m_worker_signal.notify_one();
 }
 
-bool impuls::Threadpool::is_caller_owner() const
+bool sic::Threadpool::is_caller_owner() const
 {
 	return std::this_thread::get_id() == m_owner;
 }
 
-impuls::ui16 impuls::Threadpool::num_workers() const
+sic::ui16 sic::Threadpool::num_workers() const
 {
 	return static_cast<ui16>(m_threads.size());
 }
 
-impuls::ui16 impuls::Threadpool::num_tasks() const
+sic::ui16 sic::Threadpool::num_tasks() const
 {
 	return static_cast<ui16>(m_tasks.size());
 }
 
-const char* impuls::Threadpool::thread_name(std::thread::id in_id) const
+const char* sic::Threadpool::thread_name(std::thread::id in_id) const
 {
 	auto it = m_thread_id_to_name.find(in_id);
 

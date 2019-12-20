@@ -3,7 +3,7 @@
 #include "impuls/bucket_allocator_view.h"
 #include "impuls/object.h"
 
-namespace impuls
+namespace sic
 {
 	struct Object_base;
 	

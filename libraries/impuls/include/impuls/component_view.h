@@ -8,7 +8,7 @@
 
 #include "glm/vec3.hpp"
 
-namespace impuls
+namespace sic
 {
 	struct State_render_scene;
 	struct Object_window;

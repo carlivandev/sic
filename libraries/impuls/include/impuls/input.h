@@ -4,10 +4,8 @@
 
 #include <array>
 
-namespace impuls
+namespace sic
 {
-	struct window;
-
 	enum class Key
 	{
 		unknown = GLFW_KEY_UNKNOWN,

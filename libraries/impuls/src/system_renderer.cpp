@@ -16,7 +16,7 @@
 
 namespace impuls_private
 {
-	using namespace impuls;
+	using namespace sic;
 
 	void init_texture(Asset_texture& out_texture)
 	{
@@ -231,12 +231,12 @@ namespace impuls_private
 	}
 }
 
-void impuls::System_renderer::on_created(Engine_context&& in_context)
+void sic::System_renderer::on_created(Engine_context&& in_context)
 {
 	in_context.register_state<State_render_scene>("state_render_scene");
 }
 
-void impuls::System_renderer::on_engine_tick(Engine_context&& in_context, float in_time_delta) const
+void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_time_delta) const
 {
 	in_time_delta;
 
@@ -335,7 +335,7 @@ void impuls::System_renderer::on_engine_tick(Engine_context&& in_context, float 
 		glClearColor(0.0f, 0.0f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		impuls::i32 current_window_x, current_window_y;
+		sic::i32 current_window_x, current_window_y;
 		glfwGetWindowSize(window_to_views_it.first, &current_window_x, &current_window_y);
 
 		if (current_window_x == 0 || current_window_y == 0)

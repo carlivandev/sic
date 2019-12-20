@@ -2,7 +2,7 @@
 
 #include <functional>
 
-namespace impuls
+namespace sic
 {
 	struct Engine_context;
 

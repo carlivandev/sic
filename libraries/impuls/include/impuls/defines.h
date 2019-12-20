@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace impuls
+namespace sic
 {
 	typedef char byte;
 	

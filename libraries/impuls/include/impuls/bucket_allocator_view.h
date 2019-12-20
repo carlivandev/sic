@@ -2,7 +2,7 @@
 #include <iterator>
 #include "bucket_allocator.h"
 
-namespace impuls
+namespace sic
 {
 	template <typename t_type>
 	struct Bucket_allocator_iterator : public std::iterator<std::input_iterator_tag, t_type>

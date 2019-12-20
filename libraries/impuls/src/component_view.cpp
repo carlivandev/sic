@@ -3,7 +3,7 @@
 #include "impuls/state_render_scene.h"
 #include "impuls/system_window.h"
 
-void impuls::Component_view::set_window(Object_window* in_window)
+void sic::Component_view::set_window(Object_window* in_window)
 {
 	m_window_render_on = in_window;
 
@@ -17,7 +17,7 @@ void impuls::Component_view::set_window(Object_window* in_window)
 	);
 }
 
-void impuls::Component_view::set_viewport_offset(const glm::vec2& in_viewport_offset)
+void sic::Component_view::set_viewport_offset(const glm::vec2& in_viewport_offset)
 {
 	m_viewport_offset = in_viewport_offset;
 
@@ -31,7 +31,7 @@ void impuls::Component_view::set_viewport_offset(const glm::vec2& in_viewport_of
 	);
 }
 
-void impuls::Component_view::set_viewport_size(const glm::vec2& in_viewport_size)
+void sic::Component_view::set_viewport_size(const glm::vec2& in_viewport_size)
 {
 	m_viewport_size = in_viewport_size;
 

@@ -4,7 +4,7 @@
 #include "bucket_allocator.h"
 #include "type_index.h"
 
-namespace impuls
+namespace sic
 {
 	struct Engine;
 	struct Component_base;

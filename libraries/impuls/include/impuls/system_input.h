@@ -3,7 +3,7 @@
 #include "engine_context.h"
 #include "input.h"
 
-namespace impuls
+namespace sic
 {
 	struct System_input : System
 	{

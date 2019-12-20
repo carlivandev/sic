@@ -8,13 +8,13 @@
 #include "glm/gtc/matrix_transform.hpp"
 
 
-void impuls::System_editor_view_controller::on_created(Engine_context&& in_context)
+void sic::System_editor_view_controller::on_created(Engine_context&& in_context)
 {
 	in_context.register_component_type<Component_editor_view_controller>("evcd", 1);
 	in_context.register_object<Object_editor_view_controller>("evc", 1);
 }
 
-void impuls::System_editor_view_controller::on_begin_simulation(Level_context&& in_context) const
+void sic::System_editor_view_controller::on_begin_simulation(Level_context&& in_context) const
 {
 	in_context.for_each<Component_editor_view_controller>
 	(
@@ -28,13 +28,13 @@ void impuls::System_editor_view_controller::on_begin_simulation(Level_context&& 
 
 			Component_window& wd = evc.m_view_to_control->get_window()->get<Component_window>();
 
-			impuls::i32 window_width, window_height;
+			sic::i32 window_width, window_height;
 			glfwGetWindowSize(wd.m_window, &window_width, &window_height);
 		}
 	);
 }
 
-void impuls::System_editor_view_controller::on_tick(Level_context&& in_context, float in_time_delta) const
+void sic::System_editor_view_controller::on_tick(Level_context&& in_context, float in_time_delta) const
 {
 	State_input* input_state = in_context.m_engine.get_state<State_input>();
 

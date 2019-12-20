@@ -4,7 +4,7 @@
 #include "impuls/type_restrictions.h"
 #include "impuls/colony.h"
 
-namespace impuls
+namespace sic
 {
 	struct Object_base;
 	struct Typeinfo;

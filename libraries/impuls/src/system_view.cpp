@@ -2,7 +2,7 @@
 
 #include "impuls/state_render_scene.h"
 
-void impuls::System_view::on_created(Engine_context&& in_context)
+void sic::System_view::on_created(Engine_context&& in_context)
 {
 	in_context.register_component_type<Component_view>("component_view", 4);
 	in_context.register_object<object_view>("view", 4);

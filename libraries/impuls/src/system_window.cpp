@@ -13,7 +13,7 @@
 
 namespace impuls_private
 {
-	using namespace impuls;
+	using namespace sic;
 
 	void glfw_error(int in_error_code, const char* in_message)
 	{
@@ -53,7 +53,7 @@ namespace impuls_private
 	}
 }
 
-void impuls::System_window::on_created(Engine_context&& in_context)
+void sic::System_window::on_created(Engine_context&& in_context)
 {
 	if (!glfwInit())
 	{
@@ -70,7 +70,7 @@ void impuls::System_window::on_created(Engine_context&& in_context)
 
 	in_context.register_state<State_main_window>("state_main_window");
 
-	in_context.listen<impuls::event_created<Object_window>>
+	in_context.listen<sic::event_created<Object_window>>
 	(
 		[](Engine_context&, Object_window& new_window)
 		{
@@ -123,7 +123,7 @@ void impuls::System_window::on_created(Engine_context&& in_context)
 	);
 }
 
-void impuls::System_window::on_tick(Level_context&& in_context, float in_time_delta) const
+void sic::System_window::on_tick(Level_context&& in_context, float in_time_delta) const
 {
 	in_time_delta;
 
@@ -141,7 +141,7 @@ void impuls::System_window::on_tick(Level_context&& in_context, float in_time_de
 
 			Component_window& render_window = component_view_it.get_window()->get<Component_window>();
 
-			impuls::i32 current_window_x, current_window_y;
+			sic::i32 current_window_x, current_window_y;
 			glfwGetWindowSize(render_window.m_window, &current_window_x, &current_window_y);
 
 			if (render_window.m_dimensions_x != current_window_x ||
@@ -216,7 +216,7 @@ void impuls::System_window::on_tick(Level_context&& in_context, float in_time_de
 	glfwMakeContextCurrent(nullptr);
 }
 
-void impuls::System_window::on_end_simulation(Level_context&& in_context) const
+void sic::System_window::on_end_simulation(Level_context&& in_context) const
 {
 	in_context.for_each<Component_view>
 	(

@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <functional>
 
-namespace impuls
+namespace sic
 {
 	namespace File_management
 	{

@@ -5,7 +5,7 @@
 #include "impuls/component_transform.h"
 #include "impuls/state_render_scene.h"
 
-namespace impuls
+namespace sic
 {
 	struct Asset_model;
 	struct Asset_material;

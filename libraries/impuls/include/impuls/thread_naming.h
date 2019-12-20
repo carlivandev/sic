@@ -6,7 +6,7 @@
 #ifdef _WIN32
 #include <windows.h>
 
-namespace impuls
+namespace sic
 {
 	const DWORD MS_VC_EXCEPTION = 0x406D1388;
 
@@ -54,7 +54,7 @@ namespace impuls
 
 #else
 
-namespace impuls
+namespace sic
 {
 
 	void set_thread_name(std::thread* thread, const char* threadName)
