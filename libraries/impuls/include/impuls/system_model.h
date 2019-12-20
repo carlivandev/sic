@@ -7,32 +7,32 @@
 
 namespace impuls
 {
-	struct asset_model;
-	struct asset_material;
-	struct state_render_scene;
+	struct Asset_model;
+	struct Asset_material;
+	struct State_render_scene;
 
-	struct component_model : public i_component
+	struct Component_model : public Component
 	{
-		friend struct system_model;
+		friend struct System_model;
 
 	public:
-		void set_model(const asset_ref<asset_model>& in_model);
+		void set_model(const Asset_ref<Asset_model>& in_model);
 
-		void set_material(asset_ref<asset_material> in_material, const std::string& in_material_slot);
-		asset_ref<asset_material> get_material_override(const std::string& in_material_slot) const;
+		void set_material(Asset_ref<Asset_material> in_material, const std::string& in_material_slot);
+		Asset_ref<Asset_material> get_material_override(const std::string& in_material_slot) const;
 
 	protected:
-		state_render_scene* m_render_scene_state = nullptr;
-		asset_ref<asset_model> m_model;
+		State_render_scene* m_render_scene_state = nullptr;
+		Asset_ref<Asset_model> m_model;
 
-		std::unordered_map<std::string, asset_ref<asset_material>> m_material_overrides;
-		update_list_id<render_object_model> m_render_object_id;
+		std::unordered_map<std::string, Asset_ref<Asset_material>> m_material_overrides;
+		Update_list_id<Render_object_model> m_render_object_id;
 
-		component_transform::on_updated::handle m_on_updated_handle;
+		Component_transform::on_updated::Handle m_on_updated_handle;
 	};
 
-	struct system_model : i_system
+	struct System_model : System
 	{
-		virtual void on_created(engine_context&& in_context) override;
+		virtual void on_created(Engine_context&& in_context) override;
 	};
 }

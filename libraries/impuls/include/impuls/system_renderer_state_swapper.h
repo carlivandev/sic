@@ -4,8 +4,8 @@
 
 namespace impuls
 {
-	struct system_renderer_state_swapper : i_system
+	struct System_renderer_state_swapper : System
 	{
-		virtual void on_engine_tick(engine_context&& in_context, float in_time_delta) const override;
+		virtual void on_engine_tick(Engine_context&& in_context, float in_time_delta) const override;
 	};
 }

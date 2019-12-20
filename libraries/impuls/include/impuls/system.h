@@ -7,44 +7,44 @@
 
 namespace impuls
 {
-	struct engine_context;
-	struct level_context;
-	struct engine;
-	struct i_component_base;
-	struct i_object_base;
+	struct Engine_context;
+	struct Level_context;
+	struct Engine;
+	struct Component_base;
+	struct Object_base;
 
-	struct i_system
+	struct System
 	{
-		friend engine_context;
-		friend engine;
+		friend Engine_context;
+		friend Engine;
 
 		/*
 			happens right after a system has been created in a engine
 			useful for creating subsystems
 		*/
-		virtual void on_created(engine_context&& in_context) { in_context; }
+		virtual void on_created(Engine_context&& in_context) { in_context; }
 
 		/*
 			happens after level has finished setting up
 		*/
-		virtual void on_begin_simulation(level_context&& in_context) const { in_context; }
+		virtual void on_begin_simulation(Level_context&& in_context) const { in_context; }
 
 		/*
 			happens after level has called on_begin_simulation
 			called every frame for each root level
 		*/
-		virtual void on_tick(level_context&& in_context, float in_time_delta) const { in_context; in_time_delta; }
+		virtual void on_tick(Level_context&& in_context, float in_time_delta) const { in_context; in_time_delta; }
 
 		/*
 			happens when level is destroyed
 		*/
-		virtual void on_end_simulation(level_context&& in_context) const { in_context; }
+		virtual void on_end_simulation(Level_context&& in_context) const { in_context; }
 
 		/*
 			happens after engine has finished setting up
 			called every frame once
 		*/
-		virtual void on_engine_tick(engine_context&& in_context, float in_time_delta) const { in_context; in_time_delta; }
+		virtual void on_engine_tick(Engine_context&& in_context, float in_time_delta) const { in_context; in_time_delta; }
 
 		//unsafe cast, see try_cast for safe version
 		template <typename t_to_type, typename t_from_type>
@@ -68,19 +68,19 @@ namespace impuls
 		template <typename t_type, typename t_base_type>
 		static __forceinline constexpr bool is_a(t_base_type& in_to_check)
 		{
-			constexpr bool is_component = std::is_base_of<i_component_base, t_base_type>::value;
-			constexpr bool is_object = std::is_base_of<i_object_base, t_base_type>::value;
+			constexpr bool is_component = std::is_base_of<Component_base, t_base_type>::value;
+			constexpr bool is_object = std::is_base_of<Object_base, t_base_type>::value;
 
 			if constexpr (is_component)
 			{
-				const i32 type_idx = type_index<i_component_base>::get<t_base_type>();
+				const i32 type_idx = Type_index<Component_base>::get<t_base_type>();
 
 				return type_idx == in_to_check.m_type_index;
 
 			}
 			else if constexpr (is_object)
 			{
-				const i32 type_idx = type_index<i_object_base>::get<t_type>();
+				const i32 type_idx = Type_index<Object_base>::get<t_type>();
 
 				return type_idx == in_to_check.m_type_index;
 			}
@@ -107,14 +107,14 @@ namespace impuls
 		const std::string& name() const { return m_name; }
 
 	protected:
-		void execute_tick(level_context&& in_context, float in_time_delta) const;
-		void execute_engine_tick(engine_context&& in_context, float in_time_delta) const;
+		void execute_tick(Level_context&& in_context, float in_time_delta) const;
+		void execute_engine_tick(Engine_context&& in_context, float in_time_delta) const;
 
 		std::string m_name;
 		bool m_enabled = true;
 
 	private:
-		std::vector<i_system*> m_subsystems;
+		std::vector<System*> m_subsystems;
 		bool m_finished_tick = false;
 	};
 }

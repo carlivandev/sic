@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/models/model_crysis.asset",
-	"id": "d02ed3bb-b667-43d4-baab-492cf482f069",
+	"id": "e66a103d-aad8-4e5c-b2e6-75d570fb2c17",
 	"name": "model_crysis",
-	"type": "struct impuls::asset_model"
+	"type": "struct impuls::Asset_model"
 }

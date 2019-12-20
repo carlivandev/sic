@@ -6,11 +6,11 @@
 
 namespace impuls
 {
-	struct component_view;
+	struct Component_view;
 
-	struct component_editor_view_controller : public i_component
+	struct Component_editor_view_controller : public Component
 	{
-		component_view* m_view_to_control = nullptr;
+		Component_view* m_view_to_control = nullptr;
 
 		float m_speed = 3.0f; // 3 units / second
 		float m_mouse_speed = 3.0f;
@@ -24,12 +24,12 @@ namespace impuls
 		float m_yaw = -90.0f;
 	};
 
-	struct object_editor_view_controller : public i_object<object_editor_view_controller, component_editor_view_controller> {};
+	struct Object_editor_view_controller : public Object<Object_editor_view_controller, Component_editor_view_controller> {};
 
-	struct system_editor_view_controller : i_system
+	struct System_editor_view_controller : System
 	{
-		virtual void on_created(engine_context&& in_context) override;
-		virtual void on_begin_simulation(level_context&& in_context) const override;
-		virtual void on_tick(level_context&& in_context, float in_time_delta) const override;
+		virtual void on_created(Engine_context&& in_context) override;
+		virtual void on_begin_simulation(Level_context&& in_context) const override;
+		virtual void on_tick(Level_context&& in_context, float in_time_delta) const override;
 	};
 }

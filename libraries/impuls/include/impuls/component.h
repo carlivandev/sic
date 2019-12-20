@@ -6,45 +6,45 @@
 
 namespace impuls
 {
-	struct i_object_base;
-	struct typeinfo;
+	struct Object_base;
+	struct Typeinfo;
 
-	struct i_component_base : public i_noncopyable
+	struct Component_base : public Noncopyable
 	{
-		friend struct engine;
-		friend struct level;
+		friend struct Engine;
+		friend struct Level;
 
 		template <typename t_component_type>
-		friend struct component_storage;
+		friend struct Component_storage;
 
-		i_component_base() = default;
-		virtual ~i_component_base() = default;
+		Component_base() = default;
+		virtual ~Component_base() = default;
 
-		i_component_base(i_component_base&&) noexcept = default;
-		i_component_base& operator=(i_component_base&&) noexcept = default;
+		Component_base(Component_base&&) noexcept = default;
+		Component_base& operator=(Component_base&&) noexcept = default;
 		
 		inline bool is_valid() const
 		{
 			return m_owner != nullptr;
 		}
 
-		inline i_object_base& owner() { return *m_owner; }
-		inline const i_object_base& owner() const { return *m_owner; }
+		inline Object_base& owner() { return *m_owner; }
+		inline const Object_base& owner() const { return *m_owner; }
 
 	private:
-		i_object_base* m_owner = nullptr;
+		Object_base* m_owner = nullptr;
 	};
 
-	struct i_component : i_component_base
+	struct Component : Component_base
 	{
-		i_component() = default;
-		virtual ~i_component() = default;
+		Component() = default;
+		virtual ~Component() = default;
 
-		i_component(i_component&&) noexcept = default;
-		i_component& operator=(i_component&&) noexcept = default;
+		Component(Component&&) noexcept = default;
+		Component& operator=(Component&&) noexcept = default;
 	};
 
-	struct i_component_storage
+	struct Component_storage_base
 	{
 		bool initialized() const { return m_component_type_size != 0; }
 
@@ -52,7 +52,7 @@ namespace impuls
 	};
 
 	template <typename t_component_type>
-	struct component_storage : i_component_storage
+	struct Component_storage : Component_storage_base
 	{
 		void initialize(ui32 in_initial_capacity);
 
@@ -63,22 +63,22 @@ namespace impuls
 	};
 
 	template<typename t_component_type>
-	inline void component_storage<t_component_type>::initialize(ui32 in_initial_capacity)
+	inline void Component_storage<t_component_type>::initialize(ui32 in_initial_capacity)
 	{
-		static_assert(std::is_base_of<i_component_base, t_component_type>::value, "t_component_type must derive from struct i_component_base");
+		static_assert(std::is_base_of<Component_base, t_component_type>::value, "t_component_type must derive from struct Component_base");
 
 		m_component_type_size = sizeof(t_component_type);
 		m_components.reserve(in_initial_capacity);
 	}
 
 	template<typename t_component_type>
-	inline t_component_type& component_storage<t_component_type>::create_component()
+	inline t_component_type& Component_storage<t_component_type>::create_component()
 	{
 		return (*m_components.emplace());
 	}
 
 	template<typename t_component_type>
-	inline void component_storage<t_component_type>::destroy_component(t_component_type& in_component_to_destroy)
+	inline void Component_storage<t_component_type>::destroy_component(t_component_type& in_component_to_destroy)
 	{
 		m_components.erase(m_components.get_iterator_from_pointer(&in_component_to_destroy));
 	}

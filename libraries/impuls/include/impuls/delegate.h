@@ -8,17 +8,17 @@
 namespace impuls
 {
 	template <typename ...t_args>
-	struct delegate : i_noncopyable
+	struct Delegate : Noncopyable
 	{
-		struct handle
+		struct Handle
 		{
-			friend delegate<t_args...>;
+			friend Delegate<t_args...>;
 
 			std::function<void(t_args...)> m_function;
 
-			handle() = default;
+			Handle() = default;
 			
-			~handle()
+			~Handle()
 			{
 				if (m_delegate)
 				{
@@ -27,7 +27,7 @@ namespace impuls
 				}
 			}
 
-			handle(const handle& in_other)
+			Handle(const Handle& in_other)
 			{
 				if (in_other.m_delegate)
 					in_other.m_delegate->bind(*this);
@@ -35,7 +35,7 @@ namespace impuls
 				m_function = in_other.m_function;
 			}
 
-			handle(handle&& in_other)
+			Handle(Handle&& in_other)
 			{
 				if (in_other.m_delegate)
 				{
@@ -46,7 +46,7 @@ namespace impuls
 				m_function = std::move(in_other.m_function);
 			}
 
-			handle& operator=(handle&& in_other)
+			Handle& operator=(Handle&& in_other)
 			{
 				if (in_other.m_delegate)
 				{
@@ -57,7 +57,7 @@ namespace impuls
 				m_function = std::move(in_other.m_function);
 			}
 
-			handle& operator=(const handle& in_other)
+			Handle& operator=(const Handle& in_other)
 			{
 				if (in_other.m_delegate)
 					in_other.m_delegate->bind(*this);
@@ -66,40 +66,40 @@ namespace impuls
 			}
 
 		private:
-			delegate<t_args...>* m_delegate = nullptr;
+			Delegate<t_args...>* m_delegate = nullptr;
 		};
 
-		delegate() = default;
-		delegate(delegate&& in_other) noexcept
+		Delegate() = default;
+		Delegate(Delegate&& in_other) noexcept
 		{
 			m_handles = std::move(in_other.m_handles);
-			for (handle* it : m_handles)
+			for (Handle* it : m_handles)
 			{
 				if (it)
 					it->m_delegate = this;
 			}
 		}
 
-		delegate& operator=(delegate&& in_other) noexcept
+		Delegate& operator=(Delegate&& in_other) noexcept
 		{
 			m_handles = std::move(in_other.m_handles);
-			for (handle* it : m_handles)
+			for (Handle* it : m_handles)
 			{
 				if (it)
 					it->m_delegate = this;
 			}
 		}
 
-		virtual ~delegate()
+		virtual ~Delegate()
 		{
-			for (handle* it : m_handles)
+			for (Handle* it : m_handles)
 			{
 				if (it)
 					it->m_delegate = nullptr;
 			}
 		}
 
-		void bind(handle& in_out_handle)
+		void bind(Handle& in_out_handle)
 		{
 			std::scoped_lock lock(m_mutex);
 
@@ -107,7 +107,7 @@ namespace impuls
 			in_out_handle.m_delegate = this;
 		}
 
-		void unbind(handle& in_out_handle)
+		void unbind(Handle& in_out_handle)
 		{
 			std::scoped_lock lock(m_mutex);
 
@@ -127,7 +127,7 @@ namespace impuls
 		{
 			std::scoped_lock lock(m_mutex);
 
-			for (handle* it : m_handles)
+			for (Handle* it : m_handles)
 			{
 				if (it)
 					std::apply(it->m_function, in_params);
@@ -135,7 +135,7 @@ namespace impuls
 		}
 
 	private:
-		std::vector<handle*> m_handles;
+		std::vector<Handle*> m_handles;
 		std::mutex m_mutex;
 	};
 }

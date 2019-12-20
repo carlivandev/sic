@@ -7,13 +7,13 @@
 
 namespace impuls
 {
-	struct property
+	struct Property
 	{
 		template <typename t_data_type, typename t_owner>
 		void set(t_owner& in_owner, const t_data_type& in_to_set)
 		{
-			assert(m_owner_typeindex == type_index<>::get<t_owner>() && "type mismatch, owner type incorrect");
-			assert(m_data_typeindex == type_index<>::get<t_data_type>() && "type mismatch, data type incorrect");
+			assert(m_owner_typeindex == Type_index<>::get<t_owner>() && "type mismatch, owner type incorrect");
+			assert(m_data_typeindex == Type_index<>::get<t_data_type>() && "type mismatch, data type incorrect");
 
 			m_setter(*reinterpret_cast<impuls::byte*>(&in_owner), *reinterpret_cast<const impuls::byte*>(&in_to_set));
 		}
@@ -26,8 +26,8 @@ namespace impuls
 		template <typename t_data_type, typename t_owner>
 		t_data_type& get(t_owner& in_owner)
 		{
-			assert(m_owner_typeindex == type_index<>::get<t_owner>() && "type mismatch, owner type incorrect");
-			assert(m_data_typeindex == type_index<>::get<t_data_type>() && "type mismatch, data type incorrect");
+			assert(m_owner_typeindex == Type_index<>::get<t_owner>() && "type mismatch, owner type incorrect");
+			assert(m_data_typeindex == Type_index<>::get<t_data_type>() && "type mismatch, data type incorrect");
 
 			return *reinterpret_cast<t_data_type*>(&m_getter(*reinterpret_cast<impuls::byte*>(&in_owner)));
 		}
@@ -45,7 +45,7 @@ namespace impuls
 		i32 m_data_typeindex = -1;
 	};
 
-	struct typeinfo
+	struct Typeinfo
 	{
 		template <typename t_owner>
 		std::vector<byte> serialize_instance(t_owner& in_owner)
@@ -98,7 +98,7 @@ namespace impuls
 			}
 		}
 
-		property* get(const char* in_key)
+		Property* get(const char* in_key)
 		{
 			auto it = m_properties.find(in_key);
 
@@ -110,17 +110,17 @@ namespace impuls
 
 		std::string m_name;
 		std::string m_unique_key;
-		std::unordered_map<std::string, property> m_properties;
+		std::unordered_map<std::string, Property> m_properties;
 	};
 
-	struct type_reg
+	struct Type_reg
 	{
-		type_reg(typeinfo* in_to_register) : m_to_register(in_to_register) {}
+		Type_reg(Typeinfo* in_to_register) : m_to_register(in_to_register) {}
 
 		template <typename t_owner, typename t_data_type>
-		type_reg& property(const char* in_name, t_data_type t_owner::*in_ptr)
+		Type_reg& Property(const char* in_name, t_data_type t_owner::*in_ptr)
 		{
-			impuls::property& new_prop = m_to_register->m_properties[in_name];
+			impuls::Property& new_prop = m_to_register->m_properties[in_name];
 
 			new_prop.m_setter = [in_ptr](byte& in_to_set_on, const byte& in_data_to_set)
 			{
@@ -148,12 +148,12 @@ namespace impuls
 				return deserialize(in_serialized_data_begin, as_t.*in_ptr);
 			};
 
-			new_prop.m_owner_typeindex = type_index<>::get<t_owner>();
-			new_prop.m_data_typeindex = type_index<>::get<t_data_type>();
+			new_prop.m_owner_typeindex = Type_index<>::get<t_owner>();
+			new_prop.m_data_typeindex = Type_index<>::get<t_data_type>();
 
 			return *this;
 		}
 
-		typeinfo* m_to_register = nullptr;
+		Typeinfo* m_to_register = nullptr;
 	};
 }

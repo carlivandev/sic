@@ -8,7 +8,7 @@ namespace impuls
 {
 	struct window;
 
-	enum class e_key
+	enum class Key
 	{
 		unknown = GLFW_KEY_UNKNOWN,
 
@@ -141,7 +141,7 @@ namespace impuls
 		count = GLFW_KEY_LAST
 	};
 
-	enum class e_mousebutton
+	enum class Mousebutton
 	{
 		num_1 = GLFW_MOUSE_BUTTON_1,
 		num_2 = GLFW_MOUSE_BUTTON_2,
@@ -158,21 +158,21 @@ namespace impuls
 		middle = num_3
 	};
 
-	struct state_input : public i_state
+	struct State_input : public State
 	{
-		bool is_key_down(e_key in_key) const;
-		bool is_key_pressed(e_key in_key) const;
-		bool is_key_released(e_key in_key) const;
+		bool is_key_down(Key in_key) const;
+		bool is_key_pressed(Key in_key) const;
+		bool is_key_released(Key in_key) const;
 
-		bool is_mousebutton_down(e_mousebutton in_button) const;
-		bool is_mousebutton_pressed(e_mousebutton in_button) const;
-		bool is_mousebutton_released(e_mousebutton in_button) const;
+		bool is_mousebutton_down(Mousebutton in_button) const;
+		bool is_mousebutton_pressed(Mousebutton in_button) const;
+		bool is_mousebutton_released(Mousebutton in_button) const;
 
-		std::array<bool, static_cast<i32>(e_mousebutton::count)> mouse_last_frame_down;
-		std::array<bool, static_cast<i32>(e_mousebutton::count)> mouse_this_frame_down;
+		std::array<bool, static_cast<i32>(Mousebutton::count)> mouse_last_frame_down;
+		std::array<bool, static_cast<i32>(Mousebutton::count)> mouse_this_frame_down;
 
-		std::array<bool, static_cast<i32>(e_key::count)> key_last_frame_down;
-		std::array<bool, static_cast<i32>(e_key::count)> key_this_frame_down;
+		std::array<bool, static_cast<i32>(Key::count)> key_last_frame_down;
+		std::array<bool, static_cast<i32>(Key::count)> key_this_frame_down;
 
 		double m_scroll_offset_x = 0.0;
 		double m_scroll_offset_y = 0.0;

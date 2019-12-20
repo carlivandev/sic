@@ -3,11 +3,11 @@
 
 #include "impuls/state_render_scene.h"
 
-void impuls::system_renderer_state_swapper::on_engine_tick(engine_context&& in_context, float in_time_delta) const
+void impuls::System_renderer_state_swapper::on_engine_tick(Engine_context&& in_context, float in_time_delta) const
 {
 	in_time_delta;
 
-	state_render_scene* scene_state = in_context.get_state<state_render_scene>();
+	State_render_scene* scene_state = in_context.get_state<State_render_scene>();
 
 	if (!scene_state)
 		return;

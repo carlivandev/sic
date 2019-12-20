@@ -7,7 +7,7 @@
 
 namespace impuls
 {
-	struct serialize_stream
+	struct Serialize_stream
 	{
 		template <typename t_data_type>
 		void write(const t_data_type& in)
@@ -18,9 +18,9 @@ namespace impuls
 		std::string m_bytes;
 	};
 
-	struct deserialize_stream
+	struct Deserialize_stream
 	{
-		deserialize_stream(std::string&& in_bytes) : m_bytes(in_bytes) {}
+		Deserialize_stream(std::string&& in_bytes) : m_bytes(in_bytes) {}
 
 		template <typename t_data_type>
 		void read(t_data_type& out)
@@ -33,7 +33,7 @@ namespace impuls
 	};
 
 	template <typename t_data_type>
-	void serialize(const t_data_type& in_to_serialize, serialize_stream& out_stream)
+	void serialize(const t_data_type& in_to_serialize, Serialize_stream& out_stream)
 	{
 		const size_t old_size = out_stream.m_bytes.size();
 		out_stream.m_bytes.resize(old_size + sizeof(t_data_type));
@@ -41,14 +41,14 @@ namespace impuls
 	}
 
 	template <typename t_data_type>
-	void deserialize(deserialize_stream& in_stream, t_data_type& out_deserialized)
+	void deserialize(Deserialize_stream& in_stream, t_data_type& out_deserialized)
 	{
 		memcpy_s(&out_deserialized, sizeof(t_data_type), &(in_stream.m_bytes[in_stream.m_offset]), sizeof(t_data_type));
 		in_stream.m_offset += sizeof(t_data_type);
 	}
 
 	template <typename t_data_type>
-	void serialize(const std::vector<t_data_type>& in_to_serialize, serialize_stream& out_stream)
+	void serialize(const std::vector<t_data_type>& in_to_serialize, Serialize_stream& out_stream)
 	{
 		serialize(in_to_serialize.size(), out_stream);
 
@@ -57,7 +57,7 @@ namespace impuls
 	}
 
 	template <typename t_data_type>
-	void deserialize(deserialize_stream& in_stream, std::vector<t_data_type>& out_deserialized)
+	void deserialize(Deserialize_stream& in_stream, std::vector<t_data_type>& out_deserialized)
 	{
 		const size_t old_len = out_deserialized.size();
 
@@ -71,7 +71,7 @@ namespace impuls
 	}
 
 	template <typename t_map>
-	void serialize_map(const t_map& in_to_serialize, serialize_stream& out_stream)
+	void serialize_map(const t_map& in_to_serialize, Serialize_stream& out_stream)
 	{
 		serialize(in_to_serialize.size(), out_stream);
 
@@ -83,19 +83,19 @@ namespace impuls
 	}
 
 	template <typename t_key, typename t_value>
-	void serialize(const std::map<t_key, t_value>& in_to_serialize, serialize_stream& out_stream)
+	void serialize(const std::map<t_key, t_value>& in_to_serialize, Serialize_stream& out_stream)
 	{
 		serialize_map(in_to_serialize, out_stream);
 	}
 
 	template <typename t_key, typename t_value>
-	void serialize(const std::unordered_map<t_key, t_value>& in_to_serialize, serialize_stream& out_stream)
+	void serialize(const std::unordered_map<t_key, t_value>& in_to_serialize, Serialize_stream& out_stream)
 	{
 		serialize_map(in_to_serialize, out_stream);
 	}
 
 	template <typename t_key, typename t_value, typename t_map>
-	void deserialize_map(deserialize_stream& in_stream, t_map& out_deserialized)
+	void deserialize_map(Deserialize_stream& in_stream, t_map& out_deserialized)
 	{
 		size_t len = 0;
 		deserialize(in_stream, len);
@@ -112,19 +112,19 @@ namespace impuls
 	}
 
 	template <typename t_key, typename t_value>
-	void deserialize(deserialize_stream& in_stream, std::map<t_key, t_value>& out_deserialized)
+	void deserialize(Deserialize_stream& in_stream, std::map<t_key, t_value>& out_deserialized)
 	{
 		deserialize_map<t_key, t_value>(in_stream, out_deserialized);
 	}
 
 	template <typename t_key, typename t_value>
-	void deserialize(deserialize_stream& in_stream, std::unordered_map<t_key, t_value>& out_deserialized)
+	void deserialize(Deserialize_stream& in_stream, std::unordered_map<t_key, t_value>& out_deserialized)
 	{
 		deserialize_map<t_key, t_value>(in_stream, out_deserialized);
 	}
 
 	template <>
-	inline void serialize(const std::string& in_to_serialize, serialize_stream& out_stream)
+	inline void serialize(const std::string& in_to_serialize, Serialize_stream& out_stream)
 	{
 		const size_t len = in_to_serialize.size();
 		out_stream.write(len);
@@ -136,7 +136,7 @@ namespace impuls
 	}
 
 	template <>
-	inline void deserialize(deserialize_stream& in_stream, std::string& out_deserialized)
+	inline void deserialize(Deserialize_stream& in_stream, std::string& out_deserialized)
 	{
 		size_t len = 0;
 		in_stream.read(len);

@@ -6,9 +6,9 @@
 
 namespace impuls
 {
-	struct bucket_byte_allocator
+	struct Bucket_byte_allocator
 	{
-		struct bucket
+		struct Bucket
 		{
 			void deallocate()
 			{
@@ -27,7 +27,7 @@ namespace impuls
 			byte* m_data = nullptr;
 		};
 
-		~bucket_byte_allocator()
+		~Bucket_byte_allocator()
 		{
 			deallocate();
 		}
@@ -112,8 +112,8 @@ namespace impuls
 			return m_current_size;
 		}
 
-		std::vector<bucket> m_buckets;
-		bucket m_initial_bucket;
+		std::vector<Bucket> m_buckets;
+		Bucket m_initial_bucket;
 		ui32 m_initial_capacity = 0;
 		ui32 m_bucket_size = 0;
 		ui32 m_current_size = 0;
@@ -181,6 +181,6 @@ namespace impuls
 			m_byte_allocator.deallocate();
 		}
 
-		bucket_byte_allocator m_byte_allocator;
+		Bucket_byte_allocator m_byte_allocator;
 	};
 }

@@ -7,14 +7,14 @@
 
 namespace impuls
 {
-	class threadpool
+	class Threadpool
 	{
 	public:
 
 		typedef std::function<void()> closure;
 
-		threadpool() = default;
-		~threadpool();
+		Threadpool() = default;
+		~Threadpool();
 
 		void spawn(ui16 in_worker_count);
 		void shutdown();

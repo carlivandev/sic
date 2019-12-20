@@ -8,15 +8,15 @@
 #include "glm/gtc/matrix_transform.hpp"
 
 
-void impuls::system_editor_view_controller::on_created(engine_context&& in_context)
+void impuls::System_editor_view_controller::on_created(Engine_context&& in_context)
 {
-	in_context.register_component_type<component_editor_view_controller>("evcd", 1);
-	in_context.register_object<object_editor_view_controller>("evc", 1);
+	in_context.register_component_type<Component_editor_view_controller>("evcd", 1);
+	in_context.register_object<Object_editor_view_controller>("evc", 1);
 }
 
-void impuls::system_editor_view_controller::on_begin_simulation(level_context&& in_context) const
+void impuls::System_editor_view_controller::on_begin_simulation(Level_context&& in_context) const
 {
-	in_context.for_each<component_editor_view_controller>
+	in_context.for_each<Component_editor_view_controller>
 	(
 		[&in_context](auto& evc)
 		{
@@ -26,7 +26,7 @@ void impuls::system_editor_view_controller::on_begin_simulation(level_context&& 
 			if (!evc.m_view_to_control->get_window())
 				return;
 
-			component_window& wd = evc.m_view_to_control->get_window()->get<component_window>();
+			Component_window& wd = evc.m_view_to_control->get_window()->get<Component_window>();
 
 			impuls::i32 window_width, window_height;
 			glfwGetWindowSize(wd.m_window, &window_width, &window_height);
@@ -34,19 +34,19 @@ void impuls::system_editor_view_controller::on_begin_simulation(level_context&& 
 	);
 }
 
-void impuls::system_editor_view_controller::on_tick(level_context&& in_context, float in_time_delta) const
+void impuls::System_editor_view_controller::on_tick(Level_context&& in_context, float in_time_delta) const
 {
-	state_input* input_state = in_context.m_engine.get_state<state_input>();
+	State_input* input_state = in_context.m_engine.get_state<State_input>();
 
 	if (!input_state)
 		return;
 
-	if (input_state->is_key_pressed(e_key::escape))
+	if (input_state->is_key_pressed(Key::escape))
 		in_context.m_engine.shutdown();
 
-	in_context.for_each<component_editor_view_controller>
+	in_context.for_each<Component_editor_view_controller>
 	(
-		[input_state, in_time_delta](component_editor_view_controller& evc)
+		[input_state, in_time_delta](Component_editor_view_controller& evc)
 		{
 			if (!evc.m_view_to_control)
 				return;
@@ -54,15 +54,15 @@ void impuls::system_editor_view_controller::on_tick(level_context&& in_context, 
 			if (!evc.m_view_to_control->get_window())
 				return;
 
-			object_window& window_to_control = *evc.m_view_to_control->get_window();
-			component_window& wd = window_to_control.get<component_window>();
+			Object_window& window_to_control = *evc.m_view_to_control->get_window();
+			Component_window& wd = window_to_control.get<Component_window>();
 
-			if (input_state->is_mousebutton_pressed(e_mousebutton::right))
+			if (input_state->is_mousebutton_pressed(Mousebutton::right))
 				wd.set_input_mode(e_window_input_mode::disabled);
-			else if (input_state->is_mousebutton_released(e_mousebutton::right))
+			else if (input_state->is_mousebutton_released(Mousebutton::right))
 				wd.set_input_mode(e_window_input_mode::normal);
 
-			if (!input_state->is_mousebutton_down(e_mousebutton::right))
+			if (!input_state->is_mousebutton_down(Mousebutton::right))
 				return;
 
 			const float to_increment_with = evc.m_speed_multiplier_incrementation * static_cast<float>(input_state->m_scroll_offset_y);
@@ -72,7 +72,7 @@ void impuls::system_editor_view_controller::on_tick(level_context&& in_context, 
 			const float horizontal_angle = evc.m_mouse_speed * in_time_delta * wd.get_cursor_movement().x;
 			float vertical_angle = evc.m_mouse_speed * in_time_delta * -wd.get_cursor_movement().y;
 
-			component_transform* trans = evc.m_view_to_control->owner().find<component_transform>();
+			Component_transform* trans = evc.m_view_to_control->owner().find<Component_transform>();
 
 			const float max_vertical_angle = 80.0f;
 
@@ -84,32 +84,32 @@ void impuls::system_editor_view_controller::on_tick(level_context&& in_context, 
 			front.y = sin(glm::radians(evc.m_pitch));
 			front.z = sin(glm::radians(evc.m_yaw)) * cos(glm::radians(evc.m_pitch));
 
-			trans->look_at(front, transform::up);
+			trans->look_at(front, Transform::up);
 
 			const glm::vec3 direction = trans->get_forward();
 			const glm::vec3 right = trans->get_right();
-			const glm::vec3 up = transform::up;
+			const glm::vec3 up = Transform::up;
 
 			const float move_speed = in_time_delta * evc.m_speed * evc.m_speed_multiplier;
 
 			glm::vec3 translation = { 0.0f, 0.0f, 0.0f };
 
-			if (input_state->is_key_down(e_key::w))
+			if (input_state->is_key_down(Key::w))
 				translation += direction * move_speed;
 
-			if (input_state->is_key_down(e_key::s))
+			if (input_state->is_key_down(Key::s))
 				translation -= direction * move_speed;
 
-			if (input_state->is_key_down(e_key::d))
+			if (input_state->is_key_down(Key::d))
 				translation += right * move_speed;
 
-			if (input_state->is_key_down(e_key::a))
+			if (input_state->is_key_down(Key::a))
 				translation -= right * move_speed;
 
-			if (input_state->is_key_down(e_key::space))
+			if (input_state->is_key_down(Key::space))
 				translation += up * move_speed;
 
-			if (input_state->is_key_down(e_key::left_control))
+			if (input_state->is_key_down(Key::left_control))
 				translation -= up * move_speed;
 
 			trans->translate(translation);

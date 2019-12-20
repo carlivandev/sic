@@ -5,11 +5,11 @@
 
 namespace impuls
 {
-	struct i_object_base;
+	struct Object_base;
 	
-	struct level_context
+	struct Level_context
 	{
-		level_context(engine& inout_engine, level& inout_level) : m_engine(inout_engine), m_level(inout_level){}
+		Level_context(Engine& inout_engine, Level& inout_level) : m_engine(inout_engine), m_level(inout_level){}
 
 		template <typename t_object>
 		__forceinline constexpr t_object& create_object()
@@ -17,7 +17,7 @@ namespace impuls
 			return m_level.create_object<t_object>();
 		}
 
-		void destroy_object(i_object_base& in_object_to_destroy)
+		void destroy_object(Object_base& in_object_to_destroy)
 		{
 			m_level.destroy_object(in_object_to_destroy);
 		}
@@ -34,8 +34,8 @@ namespace impuls
 			m_level.for_each<t_type>(in_func);
 		}
 
-		engine& m_engine;
-		level& m_level;
+		Engine& m_engine;
+		Level& m_level;
 	};
 }
 

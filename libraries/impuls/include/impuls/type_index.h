@@ -5,7 +5,7 @@
 namespace impuls
 {
 	template <typename t_base = void>
-	struct type_index
+	struct Type_index
 	{
 		template <typename t_derived>
 		__forceinline static i32 get()
@@ -19,5 +19,5 @@ namespace impuls
 	};
 
 	template <typename t_base>
-	i32 type_index<t_base>::m_id_ticker = 0;
+	i32 Type_index<t_base>::m_id_ticker = 0;
 }

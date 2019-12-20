@@ -1,7 +1,7 @@
 #include "impuls/pch.h"
 #include "impuls/scheduler.h"
 
-void impuls::scheduler::schedule(i_system_base* in_to_schedule, std::vector<i_system_base*> in_dependencies)
+void impuls::Scheduler::schedule(i_system_base* in_to_schedule, std::vector<i_system_base*> in_dependencies)
 {
 	if (m_finalized)
 	{
@@ -29,7 +29,7 @@ void impuls::scheduler::schedule(i_system_base* in_to_schedule, std::vector<i_sy
 	}
 }
 
-void impuls::scheduler::finalize()
+void impuls::Scheduler::finalize()
 {
 	std::set<std::pair<i_system_base*, i_system_base*>> verified_combinations;
 
@@ -39,13 +39,13 @@ void impuls::scheduler::finalize()
 	m_finalized = true;
 }
 
-void impuls::scheduler::reset()
+void impuls::Scheduler::reset()
 {
 	m_finalized = false;
 	m_sys_to_item.clear();
 }
 
-void impuls::scheduler::travel_up(item& in_root, item& in_item, std::unordered_set<item*>& out_tree)
+void impuls::Scheduler::travel_up(Item& in_root, Item& in_item, std::unordered_set<Item*>& out_tree)
 {
 	for (i_system_base* up : in_item.m_this_depends_on)
 	{
@@ -68,7 +68,7 @@ void impuls::scheduler::travel_up(item& in_root, item& in_item, std::unordered_s
 	}
 }
 
-void impuls::scheduler::travel_down(item& in_root, item& in_item, std::unordered_set<item*>& out_tree)
+void impuls::Scheduler::travel_down(Item& in_root, Item& in_item, std::unordered_set<Item*>& out_tree)
 {
 	for (i_system_base* down : in_item.m_depends_on_this)
 	{
@@ -91,9 +91,9 @@ void impuls::scheduler::travel_down(item& in_root, item& in_item, std::unordered
 	}
 }
 
-void impuls::scheduler::validate_item(item& in_item, std::set<std::pair<i_system_base*, i_system_base*>>& in_verified_combinations)
+void impuls::Scheduler::validate_item(Item& in_item, std::set<std::pair<i_system_base*, i_system_base*>>& in_verified_combinations)
 {
-	std::unordered_set<item*> items_in_tree;
+	std::unordered_set<Item*> items_in_tree;
 
 	travel_up(in_item, in_item, items_in_tree);
 	travel_down(in_item, in_item, items_in_tree);

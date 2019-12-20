@@ -1,41 +1,41 @@
 #include "impuls/system_file.h"
 #include "impuls/file_management.h"
 
-void impuls::state_filesystem::request_load(file_load_request&& in_request)
+void impuls::State_filesystem::request_load(File_load_request&& in_request)
 {
 	std::scoped_lock lock(m_load_mutex);
 	m_load_requests.push_back(in_request);
 }
 
-void impuls::state_filesystem::request_load(std::vector<file_load_request>&& in_requests)
+void impuls::State_filesystem::request_load(std::vector<File_load_request>&& in_requests)
 {
 	std::scoped_lock lock(m_load_mutex);
 	std::move(in_requests.begin(), in_requests.end(), std::back_inserter(m_load_requests));
 }
 
-void impuls::state_filesystem::request_save(file_save_request&& in_request)
+void impuls::State_filesystem::request_save(File_save_request&& in_request)
 {
 	std::scoped_lock lock(m_save_mutex);
 	m_save_requests.push_back(in_request);
 }
 
-void impuls::state_filesystem::request_save(std::vector<file_save_request>&& in_requests)
+void impuls::State_filesystem::request_save(std::vector<File_save_request>&& in_requests)
 {
 	std::scoped_lock lock(m_save_mutex);
 	std::move(in_requests.begin(), in_requests.end(), std::back_inserter(m_save_requests));
 }
 
-void impuls::system_file::on_created(engine_context&& in_context)
+void impuls::System_file::on_created(Engine_context&& in_context)
 {
-	in_context.register_state<state_filesystem>("state_filesystem");
-	in_context.get_state<state_filesystem>()->m_worker_pool.spawn(4);
+	in_context.register_state<State_filesystem>("state_filesystem");
+	in_context.get_state<State_filesystem>()->m_worker_pool.spawn(4);
 }
 
-void impuls::system_file::on_tick(level_context&& in_context, float in_time_delta) const
+void impuls::System_file::on_tick(Level_context&& in_context, float in_time_delta) const
 {
 	in_time_delta;
 
-	state_filesystem* file_state = in_context.m_engine.get_state<state_filesystem>();
+	State_filesystem* file_state = in_context.m_engine.get_state<State_filesystem>();
 
 	if (!file_state)
 		return;
@@ -50,10 +50,10 @@ void impuls::system_file::on_tick(level_context&& in_context, float in_time_delt
 	std::scoped_lock load_lock(file_state->m_load_mutex);
 	std::scoped_lock save_lock(file_state->m_save_mutex);
 
-	std::vector<threadpool::closure> closures;
+	std::vector<Threadpool::closure> closures;
 	closures.reserve(file_state->m_load_requests.size() + file_state->m_save_requests.size());
 
-	for (const file_load_request& load_req : file_state->m_load_requests)
+	for (const File_load_request& load_req : file_state->m_load_requests)
 	{
 		if (!load_req.m_callback)
 			continue;
@@ -62,18 +62,18 @@ void impuls::system_file::on_tick(level_context&& in_context, float in_time_delt
 		(
 			[load_req]()
 			{
-				load_req.m_callback(file_management::load_file(load_req.m_path));
+				load_req.m_callback(File_management::load_file(load_req.m_path));
 			}
 		);
 	}
 
-	for (const file_save_request& save_req : file_state->m_save_requests)
+	for (const File_save_request& save_req : file_state->m_save_requests)
 	{
 		closures.push_back
 		(
 			[save_req]()
 			{
-				file_management::save_file(save_req.m_path, save_req.m_filedata);
+				File_management::save_file(save_req.m_path, save_req.m_filedata);
 				save_req.m_callback(save_req.m_path);
 			}
 		);
@@ -85,9 +85,9 @@ void impuls::system_file::on_tick(level_context&& in_context, float in_time_delt
 	file_state->m_load_requests.clear();
 }
 
-void impuls::system_file::on_end_simulation(level_context&& in_context) const
+void impuls::System_file::on_end_simulation(Level_context&& in_context) const
 {
-	state_filesystem* file_state = in_context.m_engine.get_state<state_filesystem>();
+	State_filesystem* file_state = in_context.m_engine.get_state<State_filesystem>();
 
 	if (!file_state)
 		return;

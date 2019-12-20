@@ -9,7 +9,7 @@
 
 namespace impuls
 {
-	namespace file_management
+	namespace File_management
 	{
 		std::string load_file(const std::string& in_filepath, bool in_binary = true);
 		void save_file(const std::string& in_filepath, const std::string& in_filedata, bool in_binary = true);

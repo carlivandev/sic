@@ -6,11 +6,11 @@
 
 namespace impuls
 {
-	enum class e_list_update_type
+	enum class List_update_type
 	{
 		create,
 		destroy,
-		update
+		Update
 	};
 
 	/*
@@ -19,34 +19,34 @@ namespace impuls
 	*/
 
 	template <typename t_object_type>
-	struct update_list_id
+	struct Update_list_id
 	{
 		template <typename t>
-		friend struct update_list;
-		update_list_id() = default;
+		friend struct Update_list;
+		Update_list_id() = default;
 
 	private:
-		update_list_id(i32 in_id) : m_id(in_id) {}
+		Update_list_id(i32 in_id) : m_id(in_id) {}
 
 		i32 m_id = -1;
 	};
 
 	template <typename t_object_type>
-	struct update_list
+	struct Update_list
 	{
-		struct update
+		struct Update
 		{
 			using callback = std::function<void(t_object_type& in_out_object)>;
 
 			callback m_callback;
-			update_list_id<t_object_type> m_object_id;
-			e_list_update_type m_type = e_list_update_type::create;
+			Update_list_id<t_object_type> m_object_id;
+			List_update_type m_type = List_update_type::create;
 		};
 
-		update_list_id<t_object_type> create_object(typename update::callback&& in_update_callback = nullptr);
-		void destroy_object(update_list_id<t_object_type> in_id);
+		Update_list_id<t_object_type> create_object(typename Update::callback&& in_update_callback = nullptr);
+		void destroy_object(Update_list_id<t_object_type> in_id);
 
-		void update_object(update_list_id<t_object_type> in_object_id, typename update::callback&& in_update_callback);
+		void update_object(Update_list_id<t_object_type> in_object_id, typename Update::callback&& in_update_callback);
 
 		void flush_updates();
 
@@ -55,12 +55,12 @@ namespace impuls
 
 		std::mutex m_update_lock;
 
-		double_buffer<std::vector<update>> m_object_data_updates;
+		Double_buffer<std::vector<Update>> m_object_data_updates;
 		size_t m_current_create_id = 0;
 	};
 
 	template<typename t_object_type>
-	inline update_list_id<t_object_type> update_list<t_object_type>::create_object(typename update::callback&& in_update_callback)
+	inline Update_list_id<t_object_type> Update_list<t_object_type>::create_object(typename Update::callback&& in_update_callback)
 	{
 		std::scoped_lock lock(m_update_lock);
 
@@ -76,13 +76,13 @@ namespace impuls
 			m_objects_free_indices.pop_back();
 		}
 
-		update_list_id<t_object_type> new_id(static_cast<i32>(new_idx));
+		Update_list_id<t_object_type> new_id(static_cast<i32>(new_idx));
 
 		m_object_data_updates.write
 		(
-			[in_update_callback, new_id](std::vector<update>& in_out_updates)
+			[in_update_callback, new_id](std::vector<Update>& in_out_updates)
 			{
-				in_out_updates.push_back({ in_update_callback, new_id, e_list_update_type::create });
+				in_out_updates.push_back({ in_update_callback, new_id, List_update_type::create });
 			}
 		);
 
@@ -90,7 +90,7 @@ namespace impuls
 	}
 
 	template<typename t_object_type>
-	inline void update_list<t_object_type>::destroy_object(update_list_id<t_object_type> in_id)
+	inline void Update_list<t_object_type>::destroy_object(Update_list_id<t_object_type> in_id)
 	{
 		assert(in_id.m_id != -1 && "Invalid object ID!");
 
@@ -100,38 +100,38 @@ namespace impuls
 
 		m_object_data_updates.write
 		(
-			[in_id](std::vector<update>& in_out_updates)
+			[in_id](std::vector<Update>& in_out_updates)
 			{
-				in_out_updates.push_back({ nullptr, in_id, e_list_update_type::destroy });
+				in_out_updates.push_back({ nullptr, in_id, List_update_type::destroy });
 			}
 		);
 	}
 	template<typename t_object_type>
-	inline void update_list<t_object_type>::update_object(update_list_id<t_object_type> in_object_id, typename update::callback&& in_update_callback)
+	inline void Update_list<t_object_type>::update_object(Update_list_id<t_object_type> in_object_id, typename Update::callback&& in_update_callback)
 	{
 		assert(in_object_id.m_id != -1 && "Invalid object ID!");
 
 		m_object_data_updates.write
 		(
-			[in_object_id, &in_update_callback](std::vector<update>& in_out_updates)
+			[in_object_id, &in_update_callback](std::vector<Update>& in_out_updates)
 			{
-				in_out_updates.push_back({ in_update_callback, in_object_id, e_list_update_type::update });
+				in_out_updates.push_back({ in_update_callback, in_object_id, List_update_type::Update });
 			}
 		);
 	}
 
 	template<typename t_object_type>
-	inline void update_list<t_object_type>::flush_updates()
+	inline void Update_list<t_object_type>::flush_updates()
 	{
 		std::scoped_lock lock(m_update_lock);
 
 		m_object_data_updates.read
 		(
-			[this](const std::vector<update>& in_updates)
+			[this](const std::vector<Update>& in_updates)
 			{
-				for (const update& update_instance : in_updates)
+				for (const Update& update_instance : in_updates)
 				{
-					if (update_instance.m_type == e_list_update_type::create)
+					if (update_instance.m_type == List_update_type::create)
 					{
 						if (m_objects.size() >= update_instance.m_object_id.m_id)
 						{
@@ -143,7 +143,7 @@ namespace impuls
 							new (&m_objects[update_instance.m_object_id.m_id]) t_object_type();
 						}
 					}
-					else if (update_instance.m_type == e_list_update_type::destroy)
+					else if (update_instance.m_type == List_update_type::destroy)
 					{
 						m_objects[update_instance.m_object_id.m_id].~t_object_type();
 						m_objects_free_indices.push_back(update_instance.m_object_id.m_id);
@@ -157,7 +157,7 @@ namespace impuls
 
 		m_object_data_updates.swap
 		(
-			[](std::vector<update>& in_out_read, std::vector<update>&)
+			[](std::vector<Update>& in_out_read, std::vector<Update>&)
 			{
 				in_out_read.clear();
 			}

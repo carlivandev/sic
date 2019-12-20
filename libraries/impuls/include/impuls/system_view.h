@@ -6,8 +6,8 @@
 
 namespace impuls
 {
-	struct system_view : i_system
+	struct System_view : System
 	{
-		virtual void on_created(engine_context&& in_context) override;
+		virtual void on_created(Engine_context&& in_context) override;
 	};
 }

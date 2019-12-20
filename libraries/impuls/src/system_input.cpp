@@ -5,16 +5,16 @@
 
 #include "impuls/gl_includes.h"
 
-void impuls::system_input::on_created(engine_context&& in_context)
+void impuls::System_input::on_created(Engine_context&& in_context)
 {
-	in_context.register_state<state_input>("input");
+	in_context.register_state<State_input>("input");
 }
 
-void impuls::system_input::on_engine_tick(engine_context&& in_context, float in_time_delta) const
+void impuls::System_input::on_engine_tick(Engine_context&& in_context, float in_time_delta) const
 {
 	in_time_delta;
 
-	state_input* input_state = in_context.get_state<state_input>();
+	State_input* input_state = in_context.get_state<State_input>();
 
 	if (!input_state)
 		return;
@@ -24,14 +24,14 @@ void impuls::system_input::on_engine_tick(engine_context&& in_context, float in_
 
 	for (auto& level : in_context.m_engine.m_levels)
 	{
-		level->for_each<component_view>
+		level->for_each<Component_view>
 		(
-			[input_state](component_view& component_view_it)
+			[input_state](Component_view& component_view_it)
 			{
 				if (!component_view_it.get_window())
 					return;
 
-				component_window& cur_window = component_view_it.get_window()->get<component_window>();
+				Component_window& cur_window = component_view_it.get_window()->get<Component_window>();
 
 				if (!cur_window.m_is_focused)
 					return;

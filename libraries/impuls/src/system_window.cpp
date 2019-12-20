@@ -22,7 +22,7 @@ namespace impuls_private
 
 	void window_resized(GLFWwindow* in_window, i32 in_width, i32 in_height)
 	{
-		component_window* wdw = static_cast<component_window*>(glfwGetWindowUserPointer(in_window));
+		Component_window* wdw = static_cast<Component_window*>(glfwGetWindowUserPointer(in_window));
 
 		if (!wdw)
 			return;
@@ -33,7 +33,7 @@ namespace impuls_private
 
 	void window_focused(GLFWwindow* in_window, int in_focused)
 	{
-		component_window* wdw = static_cast<component_window*>(glfwGetWindowUserPointer(in_window));
+		Component_window* wdw = static_cast<Component_window*>(glfwGetWindowUserPointer(in_window));
 
 		if (!wdw)
 			return;
@@ -43,7 +43,7 @@ namespace impuls_private
 
 	void window_scrolled(GLFWwindow* in_window, double in_xoffset, double in_yoffset)
 	{
-		component_window* wdw = static_cast<component_window*>(glfwGetWindowUserPointer(in_window));
+		Component_window* wdw = static_cast<Component_window*>(glfwGetWindowUserPointer(in_window));
 
 		if (!wdw)
 			return;
@@ -53,7 +53,7 @@ namespace impuls_private
 	}
 }
 
-void impuls::system_window::on_created(engine_context&& in_context)
+void impuls::System_window::on_created(Engine_context&& in_context)
 {
 	if (!glfwInit())
 	{
@@ -63,16 +63,16 @@ void impuls::system_window::on_created(engine_context&& in_context)
 
 	glfwSetErrorCallback(&impuls_private::glfw_error);
 
-	in_context.create_subsystem<system_view>(*this);
+	in_context.create_subsystem<System_view>(*this);
 
-	in_context.register_component_type<component_window>("component_window", 4);
-	in_context.register_object<object_window>("window", 4, 1);
+	in_context.register_component_type<Component_window>("component_window", 4);
+	in_context.register_object<Object_window>("window", 4, 1);
 
-	in_context.register_state<state_main_window>("state_main_window");
+	in_context.register_state<State_main_window>("state_main_window");
 
-	in_context.listen<impuls::event_created<object_window>>
+	in_context.listen<impuls::event_created<Object_window>>
 	(
-		[](engine_context&, object_window& new_window)
+		[](Engine_context&, Object_window& new_window)
 		{
 			constexpr i32 dimensions_x = 1600;
 			constexpr i32 dimensions_y = 800;
@@ -83,7 +83,7 @@ void impuls::system_window::on_created(engine_context&& in_context)
 			glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
 			glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL 
 
-			component_window& new_window_component = new_window.get<component_window>();
+			Component_window& new_window_component = new_window.get<Component_window>();
 			new_window_component.m_dimensions_x = dimensions_x;
 			new_window_component.m_dimensions_y = dimensions_y;
 
@@ -123,23 +123,23 @@ void impuls::system_window::on_created(engine_context&& in_context)
 	);
 }
 
-void impuls::system_window::on_tick(level_context&& in_context, float in_time_delta) const
+void impuls::System_window::on_tick(Level_context&& in_context, float in_time_delta) const
 {
 	in_time_delta;
 
-	state_main_window* main_window_state = in_context.m_engine.get_state<state_main_window>();
+	State_main_window* main_window_state = in_context.m_engine.get_state<State_main_window>();
 
 	if (!main_window_state)
 		return;
 
-	in_context.for_each<component_view>
+	in_context.for_each<Component_view>
 	(
-		[&in_context, main_window_state](component_view& component_view_it)
+		[&in_context, main_window_state](Component_view& component_view_it)
 		{
 			if (!component_view_it.get_window())
 				return;
 
-			component_window& render_window = component_view_it.get_window()->get<component_window>();
+			Component_window& render_window = component_view_it.get_window()->get<Component_window>();
 
 			impuls::i32 current_window_x, current_window_y;
 			glfwGetWindowSize(render_window.m_window, &current_window_x, &current_window_y);
@@ -216,16 +216,16 @@ void impuls::system_window::on_tick(level_context&& in_context, float in_time_de
 	glfwMakeContextCurrent(nullptr);
 }
 
-void impuls::system_window::on_end_simulation(level_context&& in_context) const
+void impuls::System_window::on_end_simulation(Level_context&& in_context) const
 {
-	in_context.for_each<component_view>
+	in_context.for_each<Component_view>
 	(
-		[&in_context](component_view& component_view_it)
+		[&in_context](Component_view& component_view_it)
 		{
 			if (!component_view_it.get_window())
 				return;
 
-			component_window& render_window = component_view_it.get_window()->get<component_window>();
+			Component_window& render_window = component_view_it.get_window()->get<Component_window>();
 			glfwDestroyWindow(render_window.m_window);
 		}
 	);

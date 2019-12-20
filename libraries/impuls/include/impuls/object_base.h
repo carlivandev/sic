@@ -6,16 +6,16 @@
 
 namespace impuls
 {
-	struct engine;
-	struct i_component_base;
+	struct Engine;
+	struct Component_base;
 
-	struct i_object_base : i_noncopyable
+	struct Object_base : Noncopyable
 	{
-		friend struct engine_context;
-		friend struct level_context;
-		friend struct level;
-		friend struct i_system;
-		friend struct object_storage;
+		friend struct Engine_context;
+		friend struct Level_context;
+		friend struct Level;
+		friend struct System;
+		friend struct Object_storage;
 
 		bool is_valid() const
 		{
@@ -25,7 +25,7 @@ namespace impuls
 		template <typename t_component>
 		constexpr t_component* find()
 		{
-			const i32 type_idx = type_index<i_component_base>::get<t_component>();
+			const i32 type_idx = Type_index<Component_base>::get<t_component>();
 
 			return reinterpret_cast<t_component*>(find_internal(type_idx));
 		}
@@ -33,14 +33,14 @@ namespace impuls
 		template <typename t_component>
 		constexpr const t_component* find() const
 		{
-			const i32 type_idx = type_index<i_component_base>::get<t_component>();
+			const i32 type_idx = Type_index<Component_base>::get<t_component>();
 
 			return reinterpret_cast<const t_component*>(find_internal(type_idx));
 		}
 
-		void add_child(i_object_base& inout_child)
+		void add_child(Object_base& inout_child)
 		{
-			for (i_object_base* child : m_children)
+			for (Object_base* child : m_children)
 			{
 				if (child == &inout_child)
 					return;
@@ -76,14 +76,14 @@ namespace impuls
 	protected:
 		virtual byte* find_internal(i32 in_type_idx) = 0;
 		virtual const byte* find_internal(i32 in_type_idx) const = 0;
-		virtual void destroy_instance(level_context& inout_level) = 0;
+		virtual void destroy_instance(Level_context& inout_level) = 0;
 
-		std::vector<i_object_base*> m_children;
-		i_object_base* m_parent = nullptr;
+		std::vector<Object_base*> m_children;
+		Object_base* m_parent = nullptr;
 		i32 m_type_index = -1;
 	};
 
-	struct i_object_storage_base
+	struct Object_storage_base
 	{
 		bucket_allocator m_instances;
 	};

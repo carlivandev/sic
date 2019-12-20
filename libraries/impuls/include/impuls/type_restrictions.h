@@ -2,15 +2,15 @@
 
 namespace impuls
 {
-	struct i_noncopyable
+	struct Noncopyable
 	{
-		i_noncopyable() = default;
-		~i_noncopyable() = default;
+		Noncopyable() = default;
+		~Noncopyable() = default;
 
-		i_noncopyable(const i_noncopyable&) = delete;
-		i_noncopyable& operator=(const i_noncopyable&) = delete;
+		Noncopyable(const Noncopyable&) = delete;
+		Noncopyable& operator=(const Noncopyable&) = delete;
 
-		i_noncopyable(i_noncopyable&&) = default;
-		i_noncopyable& operator=(i_noncopyable&&) = default;
+		Noncopyable(Noncopyable&&) = default;
+		Noncopyable& operator=(Noncopyable&&) = default;
 	};
 }

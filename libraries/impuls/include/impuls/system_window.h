@@ -20,9 +20,9 @@ namespace impuls
 		hidden
 	};
 
-	struct component_window : public i_component
+	struct Component_window : public Component
 	{
-		friend struct system_window;
+		friend struct System_window;
 
 		i32 m_dimensions_x = 1600;
 		i32 m_dimensions_y = 800;
@@ -64,22 +64,22 @@ namespace impuls
 		glm::vec2 m_cursor_movement;
 	};
 
-	struct object_window : public i_object<object_window, component_window> {};
+	struct Object_window : public Object<Object_window, Component_window> {};
 
-	struct state_main_window : public i_state
+	struct State_main_window : public State
 	{
-		object_window* m_window = nullptr;
+		Object_window* m_window = nullptr;
 	};
 
-	struct system_window : i_system
+	struct System_window : System
 	{
 		//create window, create window state
-		virtual void on_created(engine_context&& in_context) override;
+		virtual void on_created(Engine_context&& in_context) override;
 
 		//poll window events
-		virtual void on_tick(level_context&& in_context, float in_time_delta) const override;
+		virtual void on_tick(Level_context&& in_context, float in_time_delta) const override;
 
 		//cleanup
-		virtual void on_end_simulation(level_context&& in_context) const override;
+		virtual void on_end_simulation(Level_context&& in_context) const override;
 	};
 }

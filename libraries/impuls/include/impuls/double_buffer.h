@@ -5,26 +5,26 @@
 namespace impuls
 {
 	template <typename t_buffer_type>
-	struct double_buffer
+	struct Double_buffer
 	{
-		typedef std::function<void(const t_buffer_type& in_read)> read_function;
-		typedef std::function<void(t_buffer_type& in_write)> write_function;
-		typedef std::function<void(t_buffer_type& in_read, t_buffer_type& in_write)> swap_function;
+		typedef std::function<void(const t_buffer_type& in_read)> Read_function;
+		typedef std::function<void(t_buffer_type& in_write)> Write_function;
+		typedef std::function<void(t_buffer_type& in_read, t_buffer_type& in_write)> Swap_function;
 
-		void read(read_function&& in_function)
+		void read(Read_function&& in_function)
 		{
 			std::scoped_lock lock(m_swap_mutex);
 			in_function(*m_buffer_read);
 		}
 		
-		void write(write_function&& in_function)
+		void write(Write_function&& in_function)
 		{
 			std::scoped_lock lock_swap(m_swap_mutex);
 			std::scoped_lock lock_write(m_write_mutex);
 			in_function(*m_buffer_write);
 		}
 
-		void swap(swap_function&& in_pre_swap_function)
+		void swap(Swap_function&& in_pre_swap_function)
 		{
 			std::scoped_lock lock_swap(m_swap_mutex);
 			std::scoped_lock lock_write(m_write_mutex);

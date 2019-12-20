@@ -4,7 +4,7 @@
 
 namespace impuls
 {
-	void level::destroy_object(i_object_base& in_object_to_destroy)
+	void Level::destroy_object(Object_base& in_object_to_destroy)
 	{
 		const ui32 type_idx = in_object_to_destroy.m_type_index;
 		assert((type_idx < m_objects.size() || m_objects[type_idx].get() != nullptr) && "type not registered");
@@ -18,18 +18,18 @@ namespace impuls
 			destroy_object(*in_object_to_destroy.m_children[i]);
 
 		//destroy in_obj
-		auto* storage_to_destroy_from = reinterpret_cast<object_storage*>(m_objects[type_idx].get());
+		auto* storage_to_destroy_from = reinterpret_cast<Object_storage*>(m_objects[type_idx].get());
 
-		level_context context(m_engine, *this);
+		Level_context context(m_engine, *this);
 		storage_to_destroy_from->destroy_instance(context, in_object_to_destroy);
 	}
 
-	std::unique_ptr<i_component_storage>& level::get_component_storage_at_index(i32 in_index)
+	std::unique_ptr<Component_storage_base>& Level::get_component_storage_at_index(i32 in_index)
 	{
 		return m_component_storages[in_index];
 	}
 
-	std::unique_ptr<i_object_storage_base>& level::get_object_storage_at_index(i32 in_index)
+	std::unique_ptr<Object_storage_base>& Level::get_object_storage_at_index(i32 in_index)
 	{
 		return m_objects[in_index];
 	}

@@ -7,9 +7,9 @@ namespace impuls
 {
 	struct i_system_base;
 
-	struct scheduler
+	struct Scheduler
 	{
-		struct item
+		struct Item
 		{
 			enum class e_state
 			{
@@ -29,12 +29,12 @@ namespace impuls
 		void finalize();
 		void reset();
 
-		void travel_up(item& in_root, item& in_item, std::unordered_set<item*>& out_tree);
-		void travel_down(item& in_root, item& in_item, std::unordered_set<item*>& out_tree);
+		void travel_up(Item& in_root, Item& in_item, std::unordered_set<Item*>& out_tree);
+		void travel_down(Item& in_root, Item& in_item, std::unordered_set<Item*>& out_tree);
 
-		void validate_item(item& in_item, std::set<std::pair<i_system_base*, i_system_base*>>& in_verified_combinations);
+		void validate_item(Item& in_item, std::set<std::pair<i_system_base*, i_system_base*>>& in_verified_combinations);
 
-		std::unordered_map<i_system_base*, item> m_sys_to_item;
+		std::unordered_map<i_system_base*, Item> m_sys_to_item;
 		bool m_finalized = false;
 	};
 }

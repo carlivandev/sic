@@ -7,7 +7,7 @@
 
 namespace impuls
 {
-	struct transform
+	struct Transform
 	{
 		static constexpr glm::vec3 up = { 0.0f, 1.0f, 0.0f };
 		static constexpr glm::vec3 right = { 1.0f, 0.0f, 0.0f };
@@ -116,9 +116,9 @@ namespace impuls
 		glm::vec3 m_scale = { 1.0f, 1.0f, 1.0f };
 	};
 
-	struct component_transform : public i_component
+	struct Component_transform : public Component
 	{
-		struct on_updated : delegate<const component_transform&> {};
+		struct on_updated : Delegate<const Component_transform&> {};
 
 		void set_rotation(const glm::quat& in_rotation)
 		{
@@ -249,6 +249,6 @@ namespace impuls
 		on_updated m_on_updated;
 
 	protected:
-		transform m_transform;
+		Transform m_transform;
 	};
 }

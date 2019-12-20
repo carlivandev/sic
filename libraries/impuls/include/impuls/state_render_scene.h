@@ -11,11 +11,11 @@
 
 namespace impuls
 {
-	struct asset_model;
-	struct asset_material;
-	struct object_window;
+	struct Asset_model;
+	struct Asset_material;
+	struct Object_window;
 
-	struct render_object_view
+	struct Render_object_view
 	{
 		GLFWwindow* m_window_render_on = nullptr;
 
@@ -31,35 +31,35 @@ namespace impuls
 		GLuint m_depth_texture_id = 0;
 	};
 
-	struct render_object_model
+	struct Render_object_model
 	{
-		asset_ref<asset_model> m_model;
-		std::unordered_map<std::string, asset_ref<asset_material>> m_material_overrides;
+		Asset_ref<Asset_model> m_model;
+		std::unordered_map<std::string, Asset_ref<Asset_material>> m_material_overrides;
 		glm::vec3 m_position = { 0.0f, 0.0f, 0.0f };
 	};
 
-	enum class e_debug_shape
+	enum class Debug_shape
 	{
 		box,
 		sphere,
 		none
 	};
 
-	struct render_object_debug_shape
+	struct Render_object_debug_shape
 	{
-		e_debug_shape m_shape = e_debug_shape::box;
+		Debug_shape m_shape = Debug_shape::box;
 		//use life time to push to destroy post render if < 0
 		float m_lifetime = -1.0f;
 	};
 
-	struct state_render_scene : i_state
+	struct State_render_scene : State
 	{
-		friend struct system_renderer;
-		friend struct system_renderer_state_swapper;
+		friend struct System_renderer;
+		friend struct System_renderer_state_swapper;
 
-		update_list<render_object_view> m_views;
-		update_list<render_object_model> m_models;
-		update_list<render_object_debug_shape> m_debug_shapes;
+		Update_list<Render_object_view> m_views;
+		Update_list<Render_object_model> m_models;
+		Update_list<Render_object_debug_shape> m_debug_shapes;
 
 	protected:
 		void flush_updates();
