@@ -6,7 +6,6 @@
 
 #include "event.h"
 
-#include "scheduler.h"
 #include "threadpool.h"
 
 #include "type_index.h"
@@ -18,7 +17,7 @@
 
 namespace sic
 {
-	enum class Tickstep
+	enum struct Tickstep
 	{
 		async, //never synchronizes
 		pre_tick, //runs before tick, always on main thread

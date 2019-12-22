@@ -13,7 +13,7 @@ struct GLFWwindow;
 
 namespace sic
 {
-	enum class e_window_input_mode
+	enum struct Window_input_mode
 	{
 		normal,
 		disabled,
@@ -42,12 +42,12 @@ namespace sic
 			return m_cursor_pos_to_set.value_or(m_cursor_pos);
 		}
 
-		void set_input_mode(e_window_input_mode in_mode)
+		void set_input_mode(Window_input_mode in_mode)
 		{
 			m_input_mode_to_set = in_mode;
 		}
 
-		e_window_input_mode get_input_mode() const
+		Window_input_mode get_input_mode() const
 		{
 			return m_input_mode_to_set.value_or(m_current_input_mode);
 		}
@@ -55,8 +55,8 @@ namespace sic
 		const glm::vec2& get_cursor_movement() const { return m_cursor_movement; }
 
 	private:
-		std::optional<e_window_input_mode> m_input_mode_to_set;
-		e_window_input_mode m_current_input_mode = e_window_input_mode::normal;
+		std::optional<Window_input_mode> m_input_mode_to_set;
+		Window_input_mode m_current_input_mode = Window_input_mode::normal;
 
 		std::optional<glm::vec2> m_cursor_pos_to_set;
 		glm::vec2 m_cursor_pos;

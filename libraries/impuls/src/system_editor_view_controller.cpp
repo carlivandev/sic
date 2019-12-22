@@ -58,9 +58,9 @@ void sic::System_editor_view_controller::on_tick(Level_context&& in_context, flo
 			Component_window& wd = window_to_control.get<Component_window>();
 
 			if (input_state->is_mousebutton_pressed(Mousebutton::right))
-				wd.set_input_mode(e_window_input_mode::disabled);
+				wd.set_input_mode(Window_input_mode::disabled);
 			else if (input_state->is_mousebutton_released(Mousebutton::right))
-				wd.set_input_mode(e_window_input_mode::normal);
+				wd.set_input_mode(Window_input_mode::normal);
 
 			if (!input_state->is_mousebutton_down(Mousebutton::right))
 				return;

@@ -7,10 +7,9 @@
 
 namespace sic
 {
-	class Threadpool
+	struct Threadpool
 	{
 	public:
-
 		using Closure = std::function<void()>;
 
 		Threadpool() = default;

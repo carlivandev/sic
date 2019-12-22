@@ -163,8 +163,8 @@ void sic::System_window::on_tick(Level_context&& in_context, float in_time_delta
 
 			if (render_window.m_input_mode_to_set.has_value())
 			{
-				if (render_window.m_current_input_mode != e_window_input_mode::disabled &&
-					render_window.m_input_mode_to_set.value() == e_window_input_mode::disabled)
+				if (render_window.m_current_input_mode != Window_input_mode::disabled &&
+					render_window.m_input_mode_to_set.value() == Window_input_mode::disabled)
 					needs_cursor_reset = true;
 
 				render_window.m_current_input_mode = render_window.m_input_mode_to_set.value();
@@ -172,13 +172,13 @@ void sic::System_window::on_tick(Level_context&& in_context, float in_time_delta
 
 				switch (render_window.m_current_input_mode)
 				{
-				case e_window_input_mode::normal:
+				case Window_input_mode::normal:
 					glfwSetInputMode(render_window.m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 					break;
-				case e_window_input_mode::disabled:
+				case Window_input_mode::disabled:
 					glfwSetInputMode(render_window.m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 					break;
-				case e_window_input_mode::hidden:
+				case Window_input_mode::hidden:
 					glfwSetInputMode(render_window.m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 					break;
 				default:

@@ -6,7 +6,7 @@
 
 namespace sic
 {
-	enum class List_update_type
+	enum struct List_update_type
 	{
 		create,
 		destroy,

@@ -44,7 +44,6 @@ add_headers(IMPULS_HEADERS
 	object.h
 	object_base.h
 	pch.h
-	scheduler.h
 	serializer.h
 	system.h
 	thread_naming.h
@@ -82,7 +81,6 @@ add_headers(IMPULS_HEADERS
 add_sources(IMPULS_SOURCES
 	component.cpp
 	pch.cpp
-	scheduler.cpp
 	system.cpp
 	threadpool.cpp
 	logger.cpp

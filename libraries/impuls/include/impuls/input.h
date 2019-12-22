@@ -6,7 +6,7 @@
 
 namespace sic
 {
-	enum class Key
+	enum struct Key
 	{
 		unknown = GLFW_KEY_UNKNOWN,
 
@@ -139,7 +139,7 @@ namespace sic
 		count = GLFW_KEY_LAST
 	};
 
-	enum class Mousebutton
+	enum struct Mousebutton
 	{
 		num_1 = GLFW_MOUSE_BUTTON_1,
 		num_2 = GLFW_MOUSE_BUTTON_2,

@@ -38,7 +38,7 @@ namespace sic
 		glm::vec3 m_position = { 0.0f, 0.0f, 0.0f };
 	};
 
-	enum class Debug_shape
+	enum struct Debug_shape
 	{
 		box,
 		sphere,
