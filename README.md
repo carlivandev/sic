@@ -12,7 +12,7 @@ component type creation:
 ```cpp
 //model depends on transform, and will cache a pointer to it on creation,
 //throws compile time error if object doesn't have a transform
-struct Component_model : Component<Component_transform>
+struct Component_model : sic::Component<Component_transform>
 {
 	sic::Asset_ref<sic::Asset_model> m_model;
 };
