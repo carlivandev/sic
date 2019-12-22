@@ -7,9 +7,9 @@ namespace sic
 	template <typename t_buffer_type>
 	struct Double_buffer
 	{
-		typedef std::function<void(const t_buffer_type& in_read)> Read_function;
-		typedef std::function<void(t_buffer_type& in_write)> Write_function;
-		typedef std::function<void(t_buffer_type& in_read, t_buffer_type& in_write)> Swap_function;
+		using Read_function = std::function<void(const t_buffer_type& in_read)>;
+		using Write_function = std::function<void(t_buffer_type& in_write)> ;
+		using Swap_function = std::function<void(t_buffer_type& in_read, t_buffer_type& in_write)>;
 
 		void read(Read_function&& in_function)
 		{

@@ -20,7 +20,7 @@ void sic::Threadpool::spawn(ui16 in_worker_count)
 		(
 			[this, i]() -> void
 		{
-			closure task;
+				Closure task;
 
 			std::unique_lock lock(m_mutex);
 
@@ -86,7 +86,7 @@ void sic::Threadpool::shutdown()
 }
 
 
-void sic::Threadpool::emplace(closure&& in_closure)
+void sic::Threadpool::emplace(Closure&& in_closure)
 {
 	if (num_workers() == 0)
 	{
@@ -101,7 +101,7 @@ void sic::Threadpool::emplace(closure&& in_closure)
 	}
 }
 
-void sic::Threadpool::batch(std::vector<closure>&& in_closures)
+void sic::Threadpool::batch(std::vector<Closure>&& in_closures)
 {
 	if (num_workers() == 0)
 	{

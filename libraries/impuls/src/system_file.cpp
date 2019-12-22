@@ -50,7 +50,7 @@ void sic::System_file::on_tick(Level_context&& in_context, float in_time_delta) 
 	std::scoped_lock load_lock(file_state->m_load_mutex);
 	std::scoped_lock save_lock(file_state->m_save_mutex);
 
-	std::vector<Threadpool::closure> closures;
+	std::vector<Threadpool::Closure> closures;
 	closures.reserve(file_state->m_load_requests.size() + file_state->m_save_requests.size());
 
 	for (const File_load_request& load_req : file_state->m_load_requests)

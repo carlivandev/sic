@@ -118,7 +118,7 @@ namespace sic
 
 	struct Component_transform : public Component
 	{
-		struct on_updated : Delegate<const Component_transform&> {};
+		struct On_updated : Delegate<const Component_transform&> {};
 
 		void set_rotation(const glm::quat& in_rotation)
 		{
@@ -246,7 +246,7 @@ namespace sic
 			return m_transform.get_euler_angles();
 		}
 
-		on_updated m_on_updated;
+		On_updated m_on_updated;
 
 	protected:
 		Transform m_transform;

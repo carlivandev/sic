@@ -94,7 +94,7 @@ namespace sic
 
 		if (!m_tick_systems.empty())
 		{
-			std::vector<Threadpool::closure> tasks_to_run;
+			std::vector<Threadpool::Closure> tasks_to_run;
 			tasks_to_run.reserve(m_tick_systems.size() - 1);
 
 			for (ui32 system_idx = 1; system_idx < m_tick_systems.size(); system_idx++)

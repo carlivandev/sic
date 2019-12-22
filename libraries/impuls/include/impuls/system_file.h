@@ -12,22 +12,22 @@
 
 namespace sic
 {
-	typedef std::function<void(std::string&& in_filedata)> file_load_callback;
-	typedef std::function<void(const std::string& in_path)> file_save_callback;
+	using File_load_callback = std::function<void(std::string&& in_filedata)>;
+	using File_save_callback = std::function<void(const std::string& in_path)>;
 
 	struct File_load_request
 	{
-		File_load_request(std::string&& in_path, file_load_callback in_callback) : m_path(in_path), m_callback(in_callback) {}
+		File_load_request(std::string&& in_path, File_load_callback in_callback) : m_path(in_path), m_callback(in_callback) {}
 		std::string m_path;
-		file_load_callback m_callback;
+		File_load_callback m_callback;
 	};
 
 	struct File_save_request
 	{
-		File_save_request(std::string&& in_path, std::string&& in_filedata, file_save_callback in_callback) : m_path(in_path), m_filedata(in_filedata), m_callback(in_callback) {}
+		File_save_request(std::string&& in_path, std::string&& in_filedata, File_save_callback in_callback) : m_path(in_path), m_filedata(in_filedata), m_callback(in_callback) {}
 		std::string m_path;
 		std::string m_filedata;
-		file_save_callback m_callback;
+		File_save_callback m_callback;
 	};
 
 	struct State_filesystem : public State

@@ -15,8 +15,6 @@ namespace sic
 	template <typename t_data_to_send>
 	struct Event : public Event_base
 	{
-		typedef t_data_to_send argument_type;
-
 		void invoke(Engine_context&& in_out_context, void* in_data) override
 		{
 			invoke(std::move(in_out_context), *reinterpret_cast<t_data_to_send*>(in_data));

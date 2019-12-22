@@ -33,7 +33,7 @@ namespace sic
 		glm::vec2 m_viewport_size = { 1.0f, 1.0f };
 
 		Update_list_id<Render_object_view> m_render_object_id;
-		Component_transform::on_updated::Handle m_on_updated_handle;
+		Component_transform::On_updated::Handle m_on_updated_handle;
 	};
 
 	struct object_view : public Object<object_view, Component_view, Component_transform> {};

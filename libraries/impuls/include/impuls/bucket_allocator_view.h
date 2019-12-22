@@ -41,16 +41,16 @@ namespace sic
 	template <typename t_type>
 	struct Bucket_allocator_view
 	{
-		typedef Bucket_allocator_iterator<t_type> iterator;
-		typedef Bucket_allocator_iterator<const t_type> const_iterator;
+		using Iterator = Bucket_allocator_iterator<t_type>;
+		using Const_iterator = Bucket_allocator_iterator<const t_type>;
 
 		Bucket_allocator_view() = default;
 		Bucket_allocator_view(Bucket_byte_allocator* in_storage) : m_storage(in_storage) {}
 
-		iterator begin() { return iterator(m_storage, 0); }
-		iterator end() { return iterator(m_storage, static_cast<i32>(m_storage->size() / m_storage->m_typesize)); }
-		const const_iterator begin() const { return const_iterator(m_storage, 0); }
-		const const_iterator end() const { return const_iterator(m_storage, static_cast<i32>(m_storage->size() / m_storage->m_typesize)); }
+		Iterator begin() { return Iterator(m_storage, 0); }
+		Iterator end() { return Iterator(m_storage, static_cast<i32>(m_storage->size() / m_storage->m_typesize)); }
+		const Const_iterator begin() const { return Const_iterator(m_storage, 0); }
+		const Const_iterator end() const { return Const_iterator(m_storage, static_cast<i32>(m_storage->size() / m_storage->m_typesize)); }
 
 		Bucket_byte_allocator* m_storage = nullptr;
 	};

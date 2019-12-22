@@ -4,15 +4,15 @@
 
 namespace sic
 {
-	typedef char byte;
+	using byte = char;
 	
-	typedef int8_t		i8;
-	typedef int16_t		i16;
-	typedef int32_t		i32;
-	typedef int64_t		i64;
+	using i8 =		int8_t;
+	using i16 =		int16_t;
+	using i32 =		int32_t;
+	using i64 =		int64_t;
 
-	typedef uint8_t		ui8;
-	typedef uint16_t	ui16;
-	typedef uint32_t	ui32;
-	typedef uint64_t	ui64;
+	using ui8 =		uint8_t;
+	using ui16 =	uint16_t;
+	using ui32 =	uint32_t;
+	using ui64 =	uint64_t;
 }
