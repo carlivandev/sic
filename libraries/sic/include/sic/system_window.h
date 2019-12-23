@@ -72,11 +72,6 @@ namespace sic
 
 	struct Object_window : public Object<Object_window, Component_window> {};
 
-	struct State_main_window : public State
-	{
-		Object_window* m_window = nullptr;
-	};
-
 	struct State_window : public State
 	{
 		friend struct System_window;
@@ -86,6 +81,8 @@ namespace sic
 			std::scoped_lock lock(m_mutex);
 			m_windows_to_destroy.push_back(in_window);
 		}
+
+		Object_window* m_main_window = nullptr;
 
 	private:
 		std::vector<GLFWwindow*> m_windows_to_destroy;

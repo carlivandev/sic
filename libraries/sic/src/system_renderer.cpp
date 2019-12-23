@@ -245,9 +245,9 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 	if (!assetsystem_state)
 		return;
 
-	State_main_window* mainwindow_state = in_context.get_state<State_main_window>();
+	State_window* window_state = in_context.get_state<State_window>();
 
-	glfwMakeContextCurrent(mainwindow_state->m_window->get<Component_window>().m_window);
+	glfwMakeContextCurrent(window_state->m_main_window->get<Component_window>().m_window);
 	
 	assetsystem_state->do_post_load<Asset_texture>
 		(

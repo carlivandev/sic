@@ -68,7 +68,6 @@ void sic::System_window::on_created(Engine_context&& in_context)
 	in_context.register_component_type<Component_window>("component_window", 4);
 	in_context.register_object<Object_window>("window", 4, 1);
 
-	in_context.register_state<State_main_window>("state_main_window");
 	in_context.register_state<State_window>("state_window");
 
 	in_context.listen<event_destroyed<Component_window>>
@@ -90,7 +89,12 @@ void sic::System_window::on_tick(Level_context&& in_context, float in_time_delta
 {
 	in_time_delta;
 
-	for (GLFWwindow* window : in_context.m_engine.get_state<State_window>()->m_windows_to_destroy)
+	State_window* window_state = in_context.m_engine.get_state<State_window>();
+
+	if (!window_state)
+		return;
+
+	for (GLFWwindow* window : window_state->m_windows_to_destroy)
 		glfwDestroyWindow(window);
 
 	in_context.for_each<Component_window>
@@ -143,14 +147,9 @@ void sic::System_window::on_tick(Level_context&& in_context, float in_time_delta
 		}
 	);
 
-	State_main_window* main_window_state = in_context.m_engine.get_state<State_main_window>();
-
-	if (!main_window_state)
-		return;
-
 	in_context.for_each<Component_window>
 	(
-		[&in_context, main_window_state](Component_window& window)
+		[&in_context, window_state](Component_window& window)
 		{
 			sic::i32 current_window_x, current_window_y;
 			glfwGetWindowSize(window.m_window, &current_window_x, &current_window_y);
@@ -217,7 +216,7 @@ void sic::System_window::on_tick(Level_context&& in_context, float in_time_delta
 
 			if (glfwWindowShouldClose(window.m_window) != 0)
 			{
-				if (&(main_window_state->m_window->get<Component_window>()) == &window)
+				if (&(window_state->m_main_window->get<Component_window>()) == &window)
 					in_context.m_engine.shutdown();
 				else
 					in_context.destroy_object(window.owner());
