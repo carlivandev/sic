@@ -98,6 +98,6 @@ namespace sic
 		virtual void on_shutdown(Engine_context&& in_context);
 
 		//poll window events
-		virtual void on_tick(Level_context&& in_context, float in_time_delta) const override;
+		virtual void on_engine_tick(Engine_context&& in_context, float in_time_delta) const override;
 	};
 }

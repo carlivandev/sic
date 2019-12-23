@@ -85,7 +85,7 @@ void sic::System_window::on_shutdown(Engine_context&& in_context)
 	glfwTerminate();
 }
 
-void sic::System_window::on_tick(Level_context&& in_context, float in_time_delta) const
+void sic::System_window::on_engine_tick(Engine_context&& in_context, float in_time_delta) const
 {
 	in_time_delta;
 
@@ -97,132 +97,138 @@ void sic::System_window::on_tick(Level_context&& in_context, float in_time_delta
 	for (GLFWwindow* window : window_state->m_windows_to_destroy)
 		glfwDestroyWindow(window);
 
-	in_context.for_each<Component_window>
-	(
-		[](Component_window& window)
-		{
-			if (window.m_window)
-				return;
-
-			glfwWindowHint(GLFW_SAMPLES, 4); // 4x antialiasing
-			glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); // We want OpenGL 3.3
-			glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-			glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
-			glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL
-
-			window.m_window = glfwCreateWindow(window.m_dimensions_x, window.m_dimensions_y, "impuls_test_game", NULL, NULL);
-
-			if (window.m_window == NULL)
+	for (auto& level : in_context.m_engine.m_levels)
+	{
+		level->for_each<Component_window>
+		(
+			[](Component_window& window)
 			{
-				SIC_LOG_E(g_log_renderer, "Failed to open GLFW window. GPU not 3.3 compatible.");
-				glfwTerminate();
-				return;
-			}
+				if (window.m_window)
+					return;
 
-			glfwSetWindowUserPointer(window.m_window, &window);
-			glfwSetWindowSizeCallback(window.m_window, &impuls_private::window_resized);
-			glfwSetWindowFocusCallback(window.m_window, &impuls_private::window_focused);
-			glfwSetScrollCallback(window.m_window, &impuls_private::window_scrolled);
+				glfwWindowHint(GLFW_SAMPLES, 4); // 4x antialiasing
+				glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); // We want OpenGL 3.3
+				glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+				glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
+				glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL
 
-			glfwMakeContextCurrent(window.m_window); // Initialize GLEW
-			glewExperimental = true; // Needed in core profile
-			if (glewInit() != GLEW_OK) {
-				SIC_LOG_E(g_log_renderer, "Failed to initialize GLEW.");
-				return;
-			}
+				window.m_window = glfwCreateWindow(window.m_dimensions_x, window.m_dimensions_y, "impuls_test_game", NULL, NULL);
 
-			// Enable depth test
-			glEnable(GL_DEPTH_TEST);
-			// Accept fragment if it closer to the camera than the former one
-			glDepthFunc(GL_LESS);
-
-			glEnable(GL_CULL_FACE);
-
-			// Ensure we can capture the escape key being pressed below
-			glfwSetInputMode(window.m_window, GLFW_STICKY_KEYS, GL_TRUE);
-
-			window.m_on_window_created.invoke(window.m_window);
-
-			glfwMakeContextCurrent(nullptr);
-		}
-	);
-
-	in_context.for_each<Component_window>
-	(
-		[&in_context, window_state](Component_window& window)
-		{
-			sic::i32 current_window_x, current_window_y;
-			glfwGetWindowSize(window.m_window, &current_window_x, &current_window_y);
-
-			if (window.m_dimensions_x != current_window_x ||
-				window.m_dimensions_y != current_window_y)
-			{
-				//handle resize
-				glfwSetWindowSize(window.m_window, window.m_dimensions_x, window.m_dimensions_y);
-			}
-
-			if (window.m_cursor_pos_to_set.has_value())
-			{
-				window.m_cursor_pos = window.m_cursor_pos_to_set.value();
-				glfwSetCursorPos(window.m_window, window.m_cursor_pos.x, window.m_cursor_pos.y);
-
-				window.m_cursor_pos_to_set.reset();
-			}
-
-			bool needs_cursor_reset = false;
-
-			if (window.m_input_mode_to_set.has_value())
-			{
-				if (window.m_current_input_mode != Window_input_mode::disabled &&
-					window.m_input_mode_to_set.value() == Window_input_mode::disabled)
-					needs_cursor_reset = true;
-
-				window.m_current_input_mode = window.m_input_mode_to_set.value();
-				window.m_input_mode_to_set.reset();
-
-				switch (window.m_current_input_mode)
+				if (window.m_window == NULL)
 				{
-				case Window_input_mode::normal:
-					glfwSetInputMode(window.m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-					break;
-				case Window_input_mode::disabled:
-					glfwSetInputMode(window.m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-					break;
-				case Window_input_mode::hidden:
-					glfwSetInputMode(window.m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-					break;
-				default:
-					break;
+					SIC_LOG_E(g_log_renderer, "Failed to open GLFW window. GPU not 3.3 compatible.");
+					glfwTerminate();
+					return;
+				}
+
+				glfwSetWindowUserPointer(window.m_window, &window);
+				glfwSetWindowSizeCallback(window.m_window, &impuls_private::window_resized);
+				glfwSetWindowFocusCallback(window.m_window, &impuls_private::window_focused);
+				glfwSetScrollCallback(window.m_window, &impuls_private::window_scrolled);
+
+				glfwMakeContextCurrent(window.m_window); // Initialize GLEW
+				glewExperimental = true; // Needed in core profile
+				if (glewInit() != GLEW_OK) {
+					SIC_LOG_E(g_log_renderer, "Failed to initialize GLEW.");
+					return;
+				}
+
+				// Enable depth test
+				glEnable(GL_DEPTH_TEST);
+				// Accept fragment if it closer to the camera than the former one
+				glDepthFunc(GL_LESS);
+
+				glEnable(GL_CULL_FACE);
+
+				// Ensure we can capture the escape key being pressed below
+				glfwSetInputMode(window.m_window, GLFW_STICKY_KEYS, GL_TRUE);
+
+				window.m_on_window_created.invoke(window.m_window);
+
+				glfwMakeContextCurrent(nullptr);
+			}
+		);
+	}
+
+	for (auto& level : in_context.m_engine.m_levels)
+	{
+		level->for_each<Component_window>
+		(
+			[&in_context, window_state, &level](Component_window& window)
+			{
+				sic::i32 current_window_x, current_window_y;
+				glfwGetWindowSize(window.m_window, &current_window_x, &current_window_y);
+
+				if (window.m_dimensions_x != current_window_x ||
+					window.m_dimensions_y != current_window_y)
+				{
+					//handle resize
+					glfwSetWindowSize(window.m_window, window.m_dimensions_x, window.m_dimensions_y);
+				}
+
+				if (window.m_cursor_pos_to_set.has_value())
+				{
+					window.m_cursor_pos = window.m_cursor_pos_to_set.value();
+					glfwSetCursorPos(window.m_window, window.m_cursor_pos.x, window.m_cursor_pos.y);
+
+					window.m_cursor_pos_to_set.reset();
+				}
+
+				bool needs_cursor_reset = false;
+
+				if (window.m_input_mode_to_set.has_value())
+				{
+					if (window.m_current_input_mode != Window_input_mode::disabled &&
+						window.m_input_mode_to_set.value() == Window_input_mode::disabled)
+						needs_cursor_reset = true;
+
+					window.m_current_input_mode = window.m_input_mode_to_set.value();
+					window.m_input_mode_to_set.reset();
+
+					switch (window.m_current_input_mode)
+					{
+					case Window_input_mode::normal:
+						glfwSetInputMode(window.m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+						break;
+					case Window_input_mode::disabled:
+						glfwSetInputMode(window.m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+						break;
+					case Window_input_mode::hidden:
+						glfwSetInputMode(window.m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+						break;
+					default:
+						break;
+					}
+				}
+
+				glfwPollEvents();
+
+				double cursor_x, cursor_y;
+				glfwGetCursorPos(window.m_window, &cursor_x, &cursor_y);
+
+				if (needs_cursor_reset)
+				{
+					window.m_cursor_movement = { 0.0f, 0.0f };
+				}
+				else
+				{
+					window.m_cursor_movement.x = static_cast<float>(cursor_x) - window.m_cursor_pos.x;
+					window.m_cursor_movement.y = static_cast<float>(cursor_y) - window.m_cursor_pos.y;
+				}
+
+				window.m_cursor_pos.x = static_cast<float>(cursor_x);
+				window.m_cursor_pos.y = static_cast<float>(cursor_y);
+
+				if (glfwWindowShouldClose(window.m_window) != 0)
+				{
+					if (&(window_state->m_main_window->get<Component_window>()) == &window)
+						in_context.m_engine.shutdown();
+					else
+						level->destroy_object(window.get_owner());
 				}
 			}
-
-			glfwPollEvents();
-
-			double cursor_x, cursor_y;
-			glfwGetCursorPos(window.m_window, &cursor_x, &cursor_y);
-
-			if (needs_cursor_reset)
-			{
-				window.m_cursor_movement = { 0.0f, 0.0f };
-			}
-			else
-			{
-				window.m_cursor_movement.x = static_cast<float>(cursor_x) - window.m_cursor_pos.x;
-				window.m_cursor_movement.y = static_cast<float>(cursor_y) - window.m_cursor_pos.y;
-			}
-
-			window.m_cursor_pos.x = static_cast<float>(cursor_x);
-			window.m_cursor_pos.y = static_cast<float>(cursor_y);
-
-			if (glfwWindowShouldClose(window.m_window) != 0)
-			{
-				if (&(window_state->m_main_window->get<Component_window>()) == &window)
-					in_context.m_engine.shutdown();
-				else
-					in_context.destroy_object(window.get_owner());
-			}
-		}
-	);
+		);
+	}
 
 	glfwMakeContextCurrent(nullptr);
 }
