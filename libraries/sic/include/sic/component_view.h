@@ -5,6 +5,7 @@
 #include "sic/gl_includes.h"
 #include "sic/object.h"
 #include "sic/state_render_scene.h"
+#include "sic/system_window.h"
 
 #include "glm/vec3.hpp"
 
@@ -34,6 +35,7 @@ namespace sic
 
 		Update_list_id<Render_object_view> m_render_object_id;
 		Component_transform::On_updated::Handle m_on_updated_handle;
+		Component_window::On_Window_Created::Handle m_on_window_created_handle;
 	};
 
 	struct Object_view : public Object<Object_view, Component_view, Component_transform> {};

@@ -69,39 +69,40 @@ void sic::System_window::on_created(Engine_context&& in_context)
 	in_context.register_object<Object_window>("window", 4, 1);
 
 	in_context.register_state<State_main_window>("state_main_window");
+}
 
-	in_context.listen<sic::event_created<Object_window>>
+void sic::System_window::on_tick(Level_context&& in_context, float in_time_delta) const
+{
+	in_time_delta;
+
+	in_context.for_each<Component_window>
 	(
-		[](Engine_context&, Object_window& new_window)
+		[](Component_window& window)
 		{
-			constexpr i32 dimensions_x = 1600;
-			constexpr i32 dimensions_y = 800;
+			if (window.m_window)
+				return;
 
 			glfwWindowHint(GLFW_SAMPLES, 4); // 4x antialiasing
 			glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); // We want OpenGL 3.3
 			glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 			glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
-			glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL 
+			glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL
 
-			Component_window& new_window_component = new_window.get<Component_window>();
-			new_window_component.m_dimensions_x = dimensions_x;
-			new_window_component.m_dimensions_y = dimensions_y;
+			window.m_window = glfwCreateWindow(window.m_dimensions_x, window.m_dimensions_y, "impuls_test_game", NULL, NULL);
 
-			new_window_component.m_window = glfwCreateWindow(new_window_component.m_dimensions_x, new_window_component.m_dimensions_y, "impuls_test_game", NULL, NULL);
-
-			if (new_window_component.m_window == NULL)
+			if (window.m_window == NULL)
 			{
 				SIC_LOG_E(g_log_renderer, "Failed to open GLFW window. GPU not 3.3 compatible.");
 				glfwTerminate();
 				return;
 			}
 
-			glfwSetWindowUserPointer(new_window_component.m_window, &new_window_component);
-			glfwSetWindowSizeCallback(new_window_component.m_window, &impuls_private::window_resized);
-			glfwSetWindowFocusCallback(new_window_component.m_window, &impuls_private::window_focused);
-			glfwSetScrollCallback(new_window_component.m_window, &impuls_private::window_scrolled);
+			glfwSetWindowUserPointer(window.m_window, &window);
+			glfwSetWindowSizeCallback(window.m_window, &impuls_private::window_resized);
+			glfwSetWindowFocusCallback(window.m_window, &impuls_private::window_focused);
+			glfwSetScrollCallback(window.m_window, &impuls_private::window_scrolled);
 
-			glfwMakeContextCurrent(new_window_component.m_window); // Initialize GLEW
+			glfwMakeContextCurrent(window.m_window); // Initialize GLEW
 			glewExperimental = true; // Needed in core profile
 			if (glewInit() != GLEW_OK) {
 				SIC_LOG_E(g_log_renderer, "Failed to initialize GLEW.");
@@ -116,16 +117,13 @@ void sic::System_window::on_created(Engine_context&& in_context)
 			glEnable(GL_CULL_FACE);
 
 			// Ensure we can capture the escape key being pressed below
-			glfwSetInputMode(new_window_component.m_window, GLFW_STICKY_KEYS, GL_TRUE);
+			glfwSetInputMode(window.m_window, GLFW_STICKY_KEYS, GL_TRUE);
+
+			window.m_on_window_created.invoke(window.m_window);
 
 			glfwMakeContextCurrent(nullptr);
 		}
 	);
-}
-
-void sic::System_window::on_tick(Level_context&& in_context, float in_time_delta) const
-{
-	in_time_delta;
 
 	State_main_window* main_window_state = in_context.m_engine.get_state<State_main_window>();
 

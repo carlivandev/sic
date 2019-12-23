@@ -2,6 +2,8 @@
 #include "sic/system.h"
 #include "sic/engine_context.h"
 #include "sic/object.h"
+#include "sic/system_window.h"
+
 #include "glm/vec2.hpp"
 
 namespace sic
@@ -22,6 +24,8 @@ namespace sic
 
 		float m_pitch = 0.0f;
 		float m_yaw = -90.0f;
+
+		Component_window::On_Window_Created::Handle m_on_window_created_handle;
 	};
 
 	struct Object_editor_view_controller : public Object<Object_editor_view_controller, Component_editor_view_controller> {};

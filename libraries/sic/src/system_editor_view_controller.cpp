@@ -1,7 +1,6 @@
 #include "sic/system_editor_view_controller.h"
 
 #include "sic/gl_includes.h"
-#include "sic/system_window.h"
 #include "sic/component_view.h"
 #include "sic/logger.h"
 
@@ -18,18 +17,23 @@ void sic::System_editor_view_controller::on_begin_simulation(Level_context&& in_
 {
 	in_context.for_each<Component_editor_view_controller>
 	(
-		[&in_context](auto& evc)
+		[&in_context](Component_editor_view_controller& evc)
 		{
 			if (!evc.m_view_to_control)
 				return;
 
-			if (!evc.m_view_to_control->get_window())
-				return;
+			evc.m_view_to_control->get_window()->get<Component_window>().m_on_window_created.bind(evc.m_on_window_created_handle);
+			evc.m_on_window_created_handle.m_function =
+			[&evc](GLFWwindow* in_window)
+			{
+				if (!evc.m_view_to_control->get_window())
+					return;
 
-			Component_window& wd = evc.m_view_to_control->get_window()->get<Component_window>();
+				Component_window& wd = evc.m_view_to_control->get_window()->get<Component_window>();
 
-			sic::i32 window_width, window_height;
-			glfwGetWindowSize(wd.m_window, &window_width, &window_height);
+				sic::i32 window_width, window_height;
+				glfwGetWindowSize(wd.m_window, &window_width, &window_height);
+			};
 		}
 	);
 }
@@ -56,6 +60,9 @@ void sic::System_editor_view_controller::on_tick(Level_context&& in_context, flo
 
 			Object_window& window_to_control = *evc.m_view_to_control->get_window();
 			Component_window& wd = window_to_control.get<Component_window>();
+
+			if (!wd.m_window)
+				return;
 
 			if (input_state->is_mousebutton_pressed(Mousebutton::right))
 				wd.set_input_mode(Window_input_mode::disabled);

@@ -3,6 +3,7 @@
 #include "sic/engine_context.h"
 #include "sic/object.h"
 #include "sic/input.h"
+#include "sic/delegate.h"
 
 #include "sic/gl_includes.h"
 #include "glm/vec2.hpp"
@@ -20,8 +21,11 @@ namespace sic
 		hidden
 	};
 
+
 	struct Component_window : public Component
 	{
+		struct On_Window_Created : Delegate<GLFWwindow*> {};
+
 		friend struct System_window;
 
 		i32 m_dimensions_x = 1600;
@@ -53,6 +57,8 @@ namespace sic
 		}
 
 		const glm::vec2& get_cursor_movement() const { return m_cursor_movement; }
+
+		On_Window_Created m_on_window_created;
 
 	private:
 		std::optional<Window_input_mode> m_input_mode_to_set;

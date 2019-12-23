@@ -7,14 +7,35 @@ void sic::Component_view::set_window(Object_window* in_window)
 {
 	m_window_render_on = in_window;
 
-	m_render_scene_state->m_views.update_object
-	(
-		m_render_object_id,
-		[window = in_window->get<Component_window>().m_window](Render_object_view& inout_view)
+	Component_window& cw = in_window->get<Component_window>();
+
+	if (cw.m_window)
+	{
+		m_render_scene_state->m_views.update_object
+		(
+			m_render_object_id,
+			[window = cw.m_window](Render_object_view& inout_view)
+			{
+				inout_view.m_window_render_on = window;
+			}
+		);
+	}
+	else
+	{
+		cw.m_on_window_created.bind(m_on_window_created_handle);
+		m_on_window_created_handle.m_function =
+		[this](GLFWwindow* window)
 		{
-			inout_view.m_window_render_on = window;
-		}
-	);
+			m_render_scene_state->m_views.update_object
+			(
+				m_render_object_id,
+				[window](Render_object_view& inout_view)
+				{
+					inout_view.m_window_render_on = window;
+				}
+			);
+		};
+	}
 }
 
 void sic::Component_view::set_viewport_offset(const glm::vec2& in_viewport_offset)
