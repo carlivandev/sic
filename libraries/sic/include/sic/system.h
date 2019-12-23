@@ -20,9 +20,13 @@ namespace sic
 
 		/*
 			happens right after a system has been created in a engine
-			useful for creating subsystems
+			useful for creating subsystems, registering types, etc
 		*/
 		virtual void on_created(Engine_context&& in_context) { in_context; }
+
+		/*
+		*/
+		virtual void on_shutdown(Engine_context&& in_context) { in_context; }
 
 		/*
 			happens after level has finished setting up

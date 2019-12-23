@@ -77,15 +77,29 @@ namespace sic
 		Object_window* m_window = nullptr;
 	};
 
+	struct State_window : public State
+	{
+		friend struct System_window;
+
+		void push_window_to_destroy(GLFWwindow* in_window)
+		{
+			std::scoped_lock lock(m_mutex);
+			m_windows_to_destroy.push_back(in_window);
+		}
+
+	private:
+		std::vector<GLFWwindow*> m_windows_to_destroy;
+		std::mutex m_mutex;
+	};
+
 	struct System_window : System
 	{
 		//create window, create window state
 		virtual void on_created(Engine_context&& in_context) override;
+		virtual void on_shutdown(Engine_context&& in_context);
 
+		//TODO: this should be engine tick
 		//poll window events
 		virtual void on_tick(Level_context&& in_context, float in_time_delta) const override;
-
-		//cleanup
-		virtual void on_end_simulation(Level_context&& in_context) const override;
 	};
 }

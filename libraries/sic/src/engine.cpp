@@ -157,6 +157,9 @@ namespace sic
 
 		while (!m_levels.empty())
 			destroy_level(*m_levels.back().get());
+
+		for (auto& system : m_systems)
+			system->on_shutdown(Engine_context(*this));
 	}
 
 	void Engine::create_level()

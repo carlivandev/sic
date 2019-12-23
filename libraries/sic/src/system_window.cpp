@@ -69,11 +69,29 @@ void sic::System_window::on_created(Engine_context&& in_context)
 	in_context.register_object<Object_window>("window", 4, 1);
 
 	in_context.register_state<State_main_window>("state_main_window");
+	in_context.register_state<State_window>("state_window");
+
+	in_context.listen<event_destroyed<Component_window>>
+	(
+		[window_state = in_context.get_state<State_window>()](Engine_context&, Component_window& window)
+		{
+			if (window.m_window)
+				window_state->push_window_to_destroy(window.m_window);
+		}
+	);
+}
+
+void sic::System_window::on_shutdown(Engine_context&& in_context)
+{
+	glfwTerminate();
 }
 
 void sic::System_window::on_tick(Level_context&& in_context, float in_time_delta) const
 {
 	in_time_delta;
+
+	for (GLFWwindow* window : in_context.m_engine.get_state<State_window>()->m_windows_to_destroy)
+		glfwDestroyWindow(window);
 
 	in_context.for_each<Component_window>
 	(
@@ -130,54 +148,49 @@ void sic::System_window::on_tick(Level_context&& in_context, float in_time_delta
 	if (!main_window_state)
 		return;
 
-	in_context.for_each<Component_view>
+	in_context.for_each<Component_window>
 	(
-		[&in_context, main_window_state](Component_view& component_view_it)
+		[&in_context, main_window_state](Component_window& window)
 		{
-			if (!component_view_it.get_window())
-				return;
-
-			Component_window& render_window = component_view_it.get_window()->get<Component_window>();
-
 			sic::i32 current_window_x, current_window_y;
-			glfwGetWindowSize(render_window.m_window, &current_window_x, &current_window_y);
+			glfwGetWindowSize(window.m_window, &current_window_x, &current_window_y);
 
-			if (render_window.m_dimensions_x != current_window_x ||
-				render_window.m_dimensions_y != current_window_y)
+			if (window.m_dimensions_x != current_window_x ||
+				window.m_dimensions_y != current_window_y)
 			{
 				//handle resize
-				glfwSetWindowSize(render_window.m_window, render_window.m_dimensions_x, render_window.m_dimensions_y);
+				glfwSetWindowSize(window.m_window, window.m_dimensions_x, window.m_dimensions_y);
 			}
 
-			if (render_window.m_cursor_pos_to_set.has_value())
+			if (window.m_cursor_pos_to_set.has_value())
 			{
-				render_window.m_cursor_pos = render_window.m_cursor_pos_to_set.value();
-				glfwSetCursorPos(render_window.m_window, render_window.m_cursor_pos.x, render_window.m_cursor_pos.y);
+				window.m_cursor_pos = window.m_cursor_pos_to_set.value();
+				glfwSetCursorPos(window.m_window, window.m_cursor_pos.x, window.m_cursor_pos.y);
 
-				render_window.m_cursor_pos_to_set.reset();
+				window.m_cursor_pos_to_set.reset();
 			}
 
 			bool needs_cursor_reset = false;
 
-			if (render_window.m_input_mode_to_set.has_value())
+			if (window.m_input_mode_to_set.has_value())
 			{
-				if (render_window.m_current_input_mode != Window_input_mode::disabled &&
-					render_window.m_input_mode_to_set.value() == Window_input_mode::disabled)
+				if (window.m_current_input_mode != Window_input_mode::disabled &&
+					window.m_input_mode_to_set.value() == Window_input_mode::disabled)
 					needs_cursor_reset = true;
 
-				render_window.m_current_input_mode = render_window.m_input_mode_to_set.value();
-				render_window.m_input_mode_to_set.reset();
+				window.m_current_input_mode = window.m_input_mode_to_set.value();
+				window.m_input_mode_to_set.reset();
 
-				switch (render_window.m_current_input_mode)
+				switch (window.m_current_input_mode)
 				{
 				case Window_input_mode::normal:
-					glfwSetInputMode(render_window.m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+					glfwSetInputMode(window.m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 					break;
 				case Window_input_mode::disabled:
-					glfwSetInputMode(render_window.m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+					glfwSetInputMode(window.m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 					break;
 				case Window_input_mode::hidden:
-					glfwSetInputMode(render_window.m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+					glfwSetInputMode(window.m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 					break;
 				default:
 					break;
@@ -187,46 +200,30 @@ void sic::System_window::on_tick(Level_context&& in_context, float in_time_delta
 			glfwPollEvents();
 
 			double cursor_x, cursor_y;
-			glfwGetCursorPos(render_window.m_window, &cursor_x, &cursor_y);
+			glfwGetCursorPos(window.m_window, &cursor_x, &cursor_y);
 
 			if (needs_cursor_reset)
 			{
-				render_window.m_cursor_movement = { 0.0f, 0.0f };
+				window.m_cursor_movement = { 0.0f, 0.0f };
 			}
 			else
 			{
-				render_window.m_cursor_movement.x = static_cast<float>(cursor_x) - render_window.m_cursor_pos.x;
-				render_window.m_cursor_movement.y = static_cast<float>(cursor_y) - render_window.m_cursor_pos.y;
+				window.m_cursor_movement.x = static_cast<float>(cursor_x) - window.m_cursor_pos.x;
+				window.m_cursor_movement.y = static_cast<float>(cursor_y) - window.m_cursor_pos.y;
 			}
 
-			render_window.m_cursor_pos.x = static_cast<float>(cursor_x);
-			render_window.m_cursor_pos.y = static_cast<float>(cursor_y);
+			window.m_cursor_pos.x = static_cast<float>(cursor_x);
+			window.m_cursor_pos.y = static_cast<float>(cursor_y);
 
-			if (glfwWindowShouldClose(render_window.m_window) != 0)
+			if (glfwWindowShouldClose(window.m_window) != 0)
 			{
-				if (main_window_state->m_window == component_view_it.get_window())
+				if (&(main_window_state->m_window->get<Component_window>()) == &window)
 					in_context.m_engine.shutdown();
 				else
-					glfwDestroyWindow(render_window.m_window);
+					in_context.destroy_object(window.owner());
 			}
 		}
 	);
+
 	glfwMakeContextCurrent(nullptr);
-}
-
-void sic::System_window::on_end_simulation(Level_context&& in_context) const
-{
-	in_context.for_each<Component_view>
-	(
-		[&in_context](Component_view& component_view_it)
-		{
-			if (!component_view_it.get_window())
-				return;
-
-			Component_window& render_window = component_view_it.get_window()->get<Component_window>();
-			glfwDestroyWindow(render_window.m_window);
-		}
-	);
-
-	glfwTerminate();
 }
