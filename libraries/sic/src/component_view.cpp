@@ -65,3 +65,33 @@ void sic::Component_view::set_viewport_size(const glm::vec2& in_viewport_size)
 		}
 	);
 }
+
+void sic::Component_view::set_fov(float in_fov)
+{
+	m_fov = in_fov;
+
+	m_render_scene_state->m_views.update_object
+	(
+		m_render_object_id,
+		[in_fov](Render_object_view& inout_view)
+		{
+			inout_view.m_fov = in_fov;
+		}
+	);
+}
+
+void sic::Component_view::set_near_and_far_plane(float in_near, float in_far)
+{
+	m_near_plane = in_near;
+	m_far_plane = in_far;
+
+	m_render_scene_state->m_views.update_object
+	(
+		m_render_object_id,
+		[in_near, in_far](Render_object_view& inout_view)
+		{
+			inout_view.m_near_plane = in_near;
+			inout_view.m_far_plane = in_far;
+		}
+	);
+}

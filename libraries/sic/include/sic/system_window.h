@@ -93,9 +93,10 @@ namespace sic
 	{
 		//create window, create window state
 		virtual void on_created(Engine_context&& in_context) override;
+
+		//cleanup
 		virtual void on_shutdown(Engine_context&& in_context);
 
-		//TODO: this should be engine tick
 		//poll window events
 		virtual void on_tick(Level_context&& in_context, float in_time_delta) const override;
 	};

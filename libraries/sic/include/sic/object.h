@@ -95,22 +95,24 @@ namespace sic
 			destroy_it = nullptr;
 		}
 
-		private:
-			constexpr void make_instance(Level_context& inout_level)
-			{
-				(create_component<t_component>(inout_level), ...);
-				(invoke_post_creation_event<t_component>(inout_level), ...);
-			}
+	private:
+		constexpr void make_instance(Level_context& inout_level)
+		{
+			m_level_id = inout_level.m_level.m_level_id;
 
-			void destroy_instance(Level_context& inout_level) override
-			{
-				static_assert(std::is_base_of_v<Object_base, t_subtype>, "did you forget t_subtype?");
-				inout_level.m_engine.invoke<event_destroyed<t_subtype>>(*reinterpret_cast<t_subtype*>(this));
+			(create_component<t_component>(inout_level), ...);
+			(invoke_post_creation_event<t_component>(inout_level), ...);
+		}
 
-				(destroy_component<t_component>(inout_level), ...);
-			}
+		void destroy_instance(Level_context& inout_level) override
+		{
+			static_assert(std::is_base_of_v<Object_base, t_subtype>, "did you forget t_subtype?");
+			inout_level.m_engine.invoke<event_destroyed<t_subtype>>(*reinterpret_cast<t_subtype*>(this));
 
-			std::tuple<t_component*...> m_components;
+			(destroy_component<t_component>(inout_level), ...);
+		}
+
+		std::tuple<t_component*...> m_components;
 	};
 
 	struct Object_storage : public Object_storage_base

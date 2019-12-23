@@ -26,7 +26,7 @@ namespace sic
 		Asset_ref<Asset_model> m_model;
 
 		std::unordered_map<std::string, Asset_ref<Asset_material>> m_material_overrides;
-		Update_list_id<Render_object_model> m_render_object_id;
+		Render_object_id<Render_object_model> m_render_object_id;
 
 		Component_transform::On_updated::Handle m_on_updated_handle;
 	};

@@ -22,6 +22,11 @@ namespace sic
 			return m_type_index != -1;
 		}
 
+		constexpr const i32 get_level_id() const
+		{
+			return m_level_id;
+		}
+
 		template <typename t_component>
 		constexpr t_component* find()
 		{
@@ -81,6 +86,7 @@ namespace sic
 		std::vector<Object_base*> m_children;
 		Object_base* m_parent = nullptr;
 		i32 m_type_index = -1;
+		i32 m_level_id = -1;
 	};
 
 	struct Object_storage_base

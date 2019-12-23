@@ -36,17 +36,17 @@ namespace sic
 	{
 		struct Update
 		{
-			using callback = std::function<void(t_object_type& in_out_object)>;
+			using Callback = std::function<void(t_object_type& in_out_object)>;
 
-			callback m_callback;
+			Callback m_callback;
 			Update_list_id<t_object_type> m_object_id;
 			List_update_type m_type = List_update_type::create;
 		};
 
-		Update_list_id<t_object_type> create_object(typename Update::callback&& in_update_callback = nullptr);
+		Update_list_id<t_object_type> create_object(typename Update::Callback&& in_update_callback = nullptr);
 		void destroy_object(Update_list_id<t_object_type> in_id);
 
-		void update_object(Update_list_id<t_object_type> in_object_id, typename Update::callback&& in_update_callback);
+		void update_object(Update_list_id<t_object_type> in_object_id, typename Update::Callback&& in_update_callback);
 
 		void flush_updates();
 
@@ -60,7 +60,7 @@ namespace sic
 	};
 
 	template<typename t_object_type>
-	inline Update_list_id<t_object_type> Update_list<t_object_type>::create_object(typename Update::callback&& in_update_callback)
+	inline Update_list_id<t_object_type> Update_list<t_object_type>::create_object(typename Update::Callback&& in_update_callback)
 	{
 		std::scoped_lock lock(m_update_lock);
 
@@ -107,7 +107,7 @@ namespace sic
 		);
 	}
 	template<typename t_object_type>
-	inline void Update_list<t_object_type>::update_object(Update_list_id<t_object_type> in_object_id, typename Update::callback&& in_update_callback)
+	inline void Update_list<t_object_type>::update_object(Update_list_id<t_object_type> in_object_id, typename Update::Callback&& in_update_callback)
 	{
 		assert(in_object_id.m_id != -1 && "Invalid object ID!");
 

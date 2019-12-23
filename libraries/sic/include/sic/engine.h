@@ -90,9 +90,11 @@ namespace sic
 
 		std::vector<std::unique_ptr<System>> m_systems;
 		std::vector<std::unique_ptr<State>> m_states;
+		
 		std::vector<std::unique_ptr<Level>> m_levels;
 		std::vector<std::unique_ptr<Level>> m_levels_to_add;
 		std::vector<Level*> m_levels_to_remove;
+		i32 m_level_id_ticker = 0;
 
 		std::vector<std::unique_ptr<Event_base>> m_engine_events;
 

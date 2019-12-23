@@ -38,6 +38,8 @@ namespace sic
 
 		std::vector<std::unique_ptr<Level>> m_sublevels;
 		Engine& m_engine;
+
+		i32 m_level_id = -1;
 	};
 
 	template <typename t_object>

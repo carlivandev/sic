@@ -171,6 +171,7 @@ namespace sic
 		m_levels_to_add.push_back(std::make_unique<Level>(*this));
 
 		Level& new_level = *m_levels_to_add.back().get();
+		new_level.m_level_id = m_level_id_ticker++;
 
 		for (auto&& registration_callback : m_registration_callbacks)
 			registration_callback(new_level);

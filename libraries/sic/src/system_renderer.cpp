@@ -309,7 +309,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 			}
 	);
 
-	State_render_scene* scene_state = in_context.get_state<State_render_scene>();
+	const State_render_scene* scene_state = in_context.get_state<State_render_scene>();
 
 	if (!scene_state)
 		return;
@@ -345,22 +345,23 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 
 		for (const Render_object_view* view : window_to_views_it.second)
 		{
-			//TODO: these variables should be stored per view
-			const float fov = 45.0f;
-			const float near_plane = 0.1f;
-			const float far_plane = 100.0f;
+			auto scene_it = scene_state->m_level_id_to_scene_lut.find(view->m_level_id);
+
+			if (scene_it == scene_state->m_level_id_to_scene_lut.end())
+				continue;
 
 			const glm::mat4x4 proj_mat = glm::perspective
 			(
-				glm::radians(fov),
+				glm::radians(view->m_fov),
 				aspect_ratio,
-				near_plane,
-				far_plane
+				view->m_near_plane,
+				view->m_far_plane
 			);
 
 			const glm::mat4x4 view_mat = glm::inverse(view->m_view_orientation);
 
-			for (const Render_object_model& model : scene_state->m_models.m_objects)
+			const Update_list<Render_object_model>& models = std::get<Update_list<Render_object_model>>(scene_it->second);
+			for (const Render_object_model& model : models.m_objects)
 			{
 				if (!model.m_model.is_valid())
 					continue;

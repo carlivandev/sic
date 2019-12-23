@@ -22,6 +22,9 @@ namespace sic
 		void set_viewport_offset(const glm::vec2& in_viewport_offset);
 		void set_viewport_size(const glm::vec2& in_viewport_size);
 
+		void set_fov(float in_fov);
+		void set_near_and_far_plane(float in_near, float in_far);
+
 		Object_window* get_window() const { return m_window_render_on; }
 
 	private:
@@ -32,6 +35,10 @@ namespace sic
 		glm::vec2 m_viewport_offset = { 0.0f, 0.0f };
 		//size in percentage(0 - 1) based on window size, top-left
 		glm::vec2 m_viewport_size = { 1.0f, 1.0f };
+
+		float m_fov = 45.0f;
+		float m_near_plane = 0.1f;
+		float m_far_plane = 100.0f;
 
 		Update_list_id<Render_object_view> m_render_object_id;
 		Component_transform::On_updated::Handle m_on_updated_handle;
