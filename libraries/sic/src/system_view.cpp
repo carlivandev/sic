@@ -11,7 +11,7 @@ void sic::System_view::on_created(Engine_context&& in_context)
 	(
 		[](Engine_context& in_out_context, Component_view& in_out_component)
 		{
-			Component_transform* transform = in_out_component.owner().find<Component_transform>();
+			Component_transform* transform = in_out_component.get_owner().find<Component_transform>();
 			assert(transform && "view component requires a Transform attached!");
 
 			in_out_component.m_render_scene_state = in_out_context.get_state<State_render_scene>();
@@ -35,7 +35,7 @@ void sic::System_view::on_created(Engine_context&& in_context)
 			in_out_component.m_render_object_id = in_out_component.m_render_scene_state->m_views.create_object
 			(
 				[
-					level_id = in_out_component.owner().get_level_id(),
+					level_id = in_out_component.get_owner().get_level_id(),
 					matrix = transform->get_matrix(),
 					viewport_offset = in_out_component.m_viewport_offset,
 					viewport_size = in_out_component.m_viewport_size

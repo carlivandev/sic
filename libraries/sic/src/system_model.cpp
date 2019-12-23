@@ -13,7 +13,7 @@ void sic::System_model::on_created(Engine_context&& in_context)
 	(
 		[](Engine_context& in_out_context, Component_model& in_out_component)
 		{
-			Component_transform* transform = in_out_component.owner().find<Component_transform>();
+			Component_transform* transform = in_out_component.get_owner().find<Component_transform>();
 			assert(transform && "model component requires a Transform attached!");
 
 			in_out_component.m_render_scene_state = in_out_context.get_state<State_render_scene>();
@@ -35,7 +35,7 @@ void sic::System_model::on_created(Engine_context&& in_context)
 
 			in_out_component.m_render_object_id = in_out_component.m_render_scene_state->create_object<Render_object_model>
 			(
-				in_out_component.owner().get_level_id(),
+				in_out_component.get_owner().get_level_id(),
 				[
 					model = in_out_component.m_model,
 					material_overrides = in_out_component.m_material_overrides,

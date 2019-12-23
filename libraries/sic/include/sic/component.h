@@ -28,8 +28,8 @@ namespace sic
 			return m_owner != nullptr;
 		}
 
-		inline Object_base& owner() { return *m_owner; }
-		inline const Object_base& owner() const { return *m_owner; }
+		inline Object_base& get_owner() { return *m_owner; }
+		inline const Object_base& get_owner() const { return *m_owner; }
 
 	private:
 		Object_base* m_owner = nullptr;

@@ -219,7 +219,7 @@ void sic::System_window::on_tick(Level_context&& in_context, float in_time_delta
 				if (&(window_state->m_main_window->get<Component_window>()) == &window)
 					in_context.m_engine.shutdown();
 				else
-					in_context.destroy_object(window.owner());
+					in_context.destroy_object(window.get_owner());
 			}
 		}
 	);

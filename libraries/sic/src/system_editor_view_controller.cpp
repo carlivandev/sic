@@ -79,7 +79,7 @@ void sic::System_editor_view_controller::on_tick(Level_context&& in_context, flo
 			const float horizontal_angle = evc.m_mouse_speed * in_time_delta * wd.get_cursor_movement().x;
 			float vertical_angle = evc.m_mouse_speed * in_time_delta * -wd.get_cursor_movement().y;
 
-			Component_transform* trans = evc.m_view_to_control->owner().find<Component_transform>();
+			Component_transform* trans = evc.m_view_to_control->get_owner().find<Component_transform>();
 
 			const float max_vertical_angle = 80.0f;
 
