@@ -1,7 +1,7 @@
 # sic
 very very wip!
 
-sic is an engine where objects are pre-defined list of components and (s)ystems (i)terate (c)omponents to manipulate their state.
+sic is an engine where objects are a statically defined list of components and (s)ystems (i)terate (c)omponents to manipulate their state.
 
 object type creation:
 ```cpp
