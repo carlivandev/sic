@@ -73,7 +73,7 @@ namespace sic
 						//todo: add time delta support on async systems
 
 						for (auto& level : m_levels)
-							async_system->execute_tick(Level_context(*this, *level.get()), 0.0f);
+								async_system->execute_tick(Level_context(*this, *level.get()), 0.0f);
 
 						async_system->execute_engine_tick(Engine_context(*this), 0.0f);
 					}

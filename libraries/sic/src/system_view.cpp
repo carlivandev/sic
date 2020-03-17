@@ -46,6 +46,8 @@ void sic::System_view::on_created(Engine_context&& in_context)
 					in_object.m_view_orientation = matrix;
 					in_object.m_viewport_offset = viewport_offset;
 					in_object.m_viewport_size = viewport_size;
+
+					in_object.m_render_target.initialize({ 1024, 768 });
 				}
 			);
 		}

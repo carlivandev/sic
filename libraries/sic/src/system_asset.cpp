@@ -5,7 +5,7 @@
 #include "nlohmann/json.hpp"
 #include <filesystem>
 
-namespace impuls_private
+namespace sic_private
 {
 	using namespace sic;
 
@@ -60,7 +60,7 @@ void sic::System_asset::on_created(Engine_context&& in_context)
 		if (asset_header_data.empty())
 			continue;
 
-		auto new_header = impuls_private::parse_header(std::move(asset_header_data), *assetsystem_state);
+		auto new_header = sic_private::parse_header(std::move(asset_header_data), *assetsystem_state);
 		 
 		if (!new_header)
 			continue;

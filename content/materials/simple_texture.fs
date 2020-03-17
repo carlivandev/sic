@@ -1,0 +1,12 @@
+#version 330 core
+
+in vec2 texcoord;
+
+layout(location = 0) out vec4 out_color;
+
+uniform sampler2D uniform_texture;
+
+void main()
+{
+    out_color = texture(uniform_texture, texcoord.xy);
+}

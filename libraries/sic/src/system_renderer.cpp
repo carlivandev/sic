@@ -14,7 +14,7 @@
 
 #include "stb/stb_image.h"
 
-namespace impuls_private
+namespace sic_private
 {
 	using namespace sic;
 
@@ -66,35 +66,42 @@ namespace impuls_private
 		//end gpu texture setup
 	}
 
+	GLuint create_program(const std::string& in_vertex_shader_path, const std::string& in_fragment_shader_path);
+
 	void init_material(Asset_material& out_material)
 	{
-		const std::string vertex_file_path = out_material.m_vertex_shader;
-		const std::string fragment_file_path = out_material.m_fragment_shader;
+		const GLuint program_id = create_program(out_material.m_vertex_shader, out_material.m_fragment_shader);
 
+		if (program_id != 0)
+			out_material.m_program_id = program_id;
+	}
+
+	GLuint create_program(const std::string& in_vertex_shader_path, const std::string& in_fragment_shader_path)
+	{
 		// Create the shaders
 		GLuint vertex_shader_id = glCreateShader(GL_VERTEX_SHADER);
 		GLuint fragment_shader_id = glCreateShader(GL_FRAGMENT_SHADER);
 
-		const std::string vertex_shader_code = File_management::load_file(vertex_file_path, false);
+		const std::string vertex_shader_code = File_management::load_file(in_vertex_shader_path, false);
 
 		if (vertex_shader_code.size() == 0)
 		{
-			SIC_LOG_E(g_log_renderer_verbose, "Impossible to open {0}. Are you in the right directory?", vertex_file_path.c_str());
-			return;
+			SIC_LOG_E(g_log_renderer_verbose, "Impossible to open {0}. Are you in the right directory?", in_vertex_shader_path.c_str());
+			return 0;
 		}
-		const std::string fragment_shader_code = File_management::load_file(fragment_file_path, false);
+		const std::string fragment_shader_code = File_management::load_file(in_fragment_shader_path, false);
 
 		if (fragment_shader_code.size() == 0)
 		{
-			SIC_LOG_E(g_log_renderer_verbose, "Impossible to open {0}. Are you in the right directory?", fragment_file_path.c_str());
-			return;
+			SIC_LOG_E(g_log_renderer_verbose, "Impossible to open {0}. Are you in the right directory?", in_fragment_shader_path.c_str());
+			return 0;
 		}
 
 		GLint result_id = GL_FALSE;
 		i32 info_log_length;
 
 		// Compile Vertex Shader
-		SIC_LOG(g_log_renderer_verbose, "Compiling shader : {0}", vertex_file_path.c_str());
+		SIC_LOG(g_log_renderer_verbose, "Compiling shader : {0}", in_vertex_shader_path.c_str());
 
 		const GLchar* vertex_source_ptr = vertex_shader_code.data();
 		glShaderSource(vertex_shader_id, 1, &vertex_source_ptr, NULL);
@@ -111,7 +118,7 @@ namespace impuls_private
 		}
 
 		// Compile Fragment Shader
-		SIC_LOG(g_log_renderer_verbose, "Compiling shader : {0}", fragment_file_path.c_str());
+		SIC_LOG(g_log_renderer_verbose, "Compiling shader : {0}", in_fragment_shader_path.c_str());
 
 		const GLchar* fragment_source_ptr = fragment_shader_code.data();
 		glShaderSource(fragment_shader_id, 1, &fragment_source_ptr, NULL);
@@ -150,43 +157,45 @@ namespace impuls_private
 		glDeleteShader(vertex_shader_id);
 		glDeleteShader(fragment_shader_id);
 
-		out_material.m_program_id = program_id;
+		return program_id;
 	}
 
-	void init_mesh(Asset_model::Mesh& out_mesh)
+	void init_mesh(Asset_model::Mesh& inout_mesh)
 	{
-		std::vector<Asset_model::Asset_model::Mesh::Vertex>& vertices = out_mesh.m_vertices;
-		std::vector<ui32>& indices = out_mesh.m_indices;
+		std::vector<Asset_model::Asset_model::Mesh::Vertex>& vertices = inout_mesh.m_vertices;
+		std::vector<ui32>& indices = inout_mesh.m_indices;
 
-		glGenVertexArrays(1, &out_mesh.m_vao);
-		glGenBuffers(1, &out_mesh.m_vbo);
-		glGenBuffers(1, &out_mesh.m_ebo);
+		glGenVertexArrays(1, &inout_mesh.m_vertexarray);
+		glBindVertexArray(inout_mesh.m_vertexarray);
 
-		glBindVertexArray(out_mesh.m_vao);
-		glBindBuffer(GL_ARRAY_BUFFER, out_mesh.m_vbo);
-
+		glGenBuffers(1, &inout_mesh.m_vertexbuffer);
+		glBindBuffer(GL_ARRAY_BUFFER, inout_mesh.m_vertexbuffer);
 		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Asset_model::Mesh::Vertex), &vertices[0], GL_STATIC_DRAW);
 
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, out_mesh.m_ebo);
+		glGenBuffers(1, &inout_mesh.m_elementbuffer);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, inout_mesh.m_elementbuffer);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(ui32), &indices[0], GL_STATIC_DRAW);
 
-		// vertex positions
+		glBindBuffer(GL_ARRAY_BUFFER, inout_mesh.m_vertexbuffer);
 		glEnableVertexAttribArray(0);
+		// vertex positions
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Asset_model::Mesh::Vertex), (void*)0);
-		// vertex normals
-		glEnableVertexAttribArray(1);
-		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Asset_model::Mesh::Vertex), (void*)offsetof(Asset_model::Mesh::Vertex, m_normal));
-		// vertex texture coords
-		glEnableVertexAttribArray(2);
-		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Asset_model::Mesh::Vertex), (void*)offsetof(Asset_model::Mesh::Vertex, m_tex_coords));
-		// vertex tangent
-		glEnableVertexAttribArray(3);
-		glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Asset_model::Mesh::Vertex), (void*)offsetof(Asset_model::Mesh::Vertex, m_tangent));
-		// vertex bitangent
-		glEnableVertexAttribArray(4);
-		glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, sizeof(Asset_model::Mesh::Vertex), (void*)offsetof(Asset_model::Mesh::Vertex, m_bitangent));
 
-		glBindVertexArray(0);
+		glEnableVertexAttribArray(1);
+		// vertex normals
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Asset_model::Mesh::Vertex), (void*)offsetof(Asset_model::Mesh::Vertex, m_normal));
+		
+		glEnableVertexAttribArray(2);
+		// vertex texture coords
+		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Asset_model::Mesh::Vertex), (void*)offsetof(Asset_model::Mesh::Vertex, m_tex_coords));
+		
+		glEnableVertexAttribArray(3);
+		// vertex tangent
+		glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Asset_model::Mesh::Vertex), (void*)offsetof(Asset_model::Mesh::Vertex, m_tangent));
+		
+		glEnableVertexAttribArray(4);
+		// vertex bitangent
+		glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, sizeof(Asset_model::Mesh::Vertex), (void*)offsetof(Asset_model::Mesh::Vertex, m_bitangent));
 	}
 
 	void draw_mesh(const Asset_model::Mesh& in_mesh, const Asset_material& in_material, const glm::mat4& in_mvp)
@@ -213,7 +222,12 @@ namespace impuls_private
 
 			//error handle this
 			if (uniform_loc == -1)
+			{
+				SIC_LOG_E(g_log_renderer_verbose,
+					"Texture parameter: {0}, not found in material with shaders: {1} and {2}",
+					texture_param.m_name.c_str(), in_material.m_vertex_shader.c_str(), in_material.m_fragment_shader.c_str());
 				continue;
+			}
 
 			glActiveTexture(GL_TEXTURE0 + texture_param_idx);
 			glBindTexture(GL_TEXTURE_2D, texture_param.m_texture.get()->m_render_id);
@@ -223,9 +237,11 @@ namespace impuls_private
 		}
 
 		// draw mesh
-		glBindVertexArray(in_mesh.m_vao);
+		glBindVertexArray(in_mesh.m_vertexarray);
+		glBindBuffer(GL_ARRAY_BUFFER, in_mesh.m_vertexbuffer);
+
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, in_mesh.m_elementbuffer);
 		glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(in_mesh.m_indices.size()), GL_UNSIGNED_INT, 0);
-		glBindVertexArray(0);
 
 		glActiveTexture(GL_TEXTURE0);
 	}
@@ -254,7 +270,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 			[](Asset_texture& in_texture)
 			{
 				//do opengl load
-				impuls_private::init_texture(in_texture);
+				sic_private::init_texture(in_texture);
 			}
 	);
 
@@ -263,7 +279,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 			[](Asset_material& in_material)
 			{
 				//do opengl load
-				impuls_private::init_material(in_material);
+				sic_private::init_material(in_material);
 			}
 	);
 
@@ -273,7 +289,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 		{
 			//do opengl load
 			for (auto&& mesh : in_model.m_meshes)
-				impuls_private::init_mesh(mesh.first);
+				sic_private::init_mesh(mesh.first);
 		}
 	);
 
@@ -302,14 +318,14 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 			{
 				for (auto&& mesh : in_model.m_meshes)
 				{
-					glDeleteVertexArrays(1, &mesh.first.m_vao);
-					glDeleteBuffers(1, &mesh.first.m_vbo);
-					glDeleteBuffers(1, &mesh.first.m_ebo);
+					glDeleteVertexArrays(1, &mesh.first.m_vertexarray);
+					glDeleteBuffers(1, &mesh.first.m_vertexbuffer);
+					glDeleteBuffers(1, &mesh.first.m_elementbuffer);
 				}
 			}
 	);
 
-	const State_render_scene* scene_state = in_context.get_state<State_render_scene>();
+	State_render_scene* scene_state = in_context.get_state<State_render_scene>();
 
 	if (!scene_state)
 		return;
@@ -318,9 +334,9 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 	std::vector<Asset_ref<Asset_material>> materials_to_load;
 	std::vector<Asset_ref<Asset_model>> models_to_load;
 
-	std::unordered_map<GLFWwindow*, std::vector<const Render_object_view*>> window_to_views_lut;
+	std::unordered_map<GLFWwindow*, std::vector<Render_object_view*>> window_to_views_lut;
 
-	for (const Render_object_view& view : scene_state->m_views.m_objects)
+	for (Render_object_view& view : scene_state->m_views.m_objects)
 	{
 		if (!view.m_window_render_on)
 			continue;
@@ -328,12 +344,17 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 		window_to_views_lut[view.m_window_render_on].push_back(&view);
 	}
 
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 	for (auto& window_to_views_it : window_to_views_lut)
 	{
 		glfwMakeContextCurrent(window_to_views_it.first);
 
-		glClearColor(0.0f, 0.0f, 0.1f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		//glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		//glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		sic::i32 current_window_x, current_window_y;
 		glfwGetWindowSize(window_to_views_it.first, &current_window_x, &current_window_y);
@@ -343,12 +364,26 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 
 		const float aspect_ratio = static_cast<float>(current_window_x) / static_cast<float>(current_window_y);
 
-		for (const Render_object_view* view : window_to_views_it.second)
+		for (Render_object_view* view : window_to_views_it.second)
 		{
 			auto scene_it = scene_state->m_level_id_to_scene_lut.find(view->m_level_id);
 
 			if (scene_it == scene_state->m_level_id_to_scene_lut.end())
 				continue;
+
+			// Render to our framebuffer
+			view->m_render_target.bind_as_target();
+
+			glClearColor(0.0f, 0.0f, 0.1f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glViewport(0, 0, current_window_x * view->m_viewport_size.x, current_window_y * view->m_viewport_size.y);
+
+			// Set "renderedTexture" as our colour attachement #0
+			glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, view->m_render_target.m_texture_id, 0);
+
+			// Set the list of draw buffers.
+			GLenum draw_buffers[1] = { GL_COLOR_ATTACHMENT0 };
+			glDrawBuffers(1, draw_buffers); // "1" is the size of DrawBuffers
 
 			const glm::mat4x4 proj_mat = glm::perspective
 			(
@@ -387,37 +422,122 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 						auto material_override_it = model.m_material_overrides.find(mesh.first.m_material_slot);
 
 						const Asset_ref<Asset_material>& mat_to_draw = material_override_it != model.m_material_overrides.end() ? material_override_it->second : model_asset->get_material(mesh_idx);
-						if (mat_to_draw.is_valid())
+						if (!mat_to_draw.is_valid())
+							continue;
+
+						if (mat_to_draw.get_load_state() == Asset_load_state::loaded)
 						{
-							if (mat_to_draw.get_load_state() == Asset_load_state::loaded)
-							{
-								bool all_texture_loaded = true;
+							bool all_texture_loaded = true;
 
-								for (Asset_material::Texture_parameter& texture_param : mat_to_draw.get()->m_texture_parameters)
+							for (Asset_material::Texture_parameter& texture_param : mat_to_draw.get()->m_texture_parameters)
+							{
+								if (texture_param.m_texture.is_valid())
 								{
-									if (texture_param.m_texture.is_valid())
-									{
-										if (texture_param.m_texture.get_load_state() == Asset_load_state::not_loaded)
-											textures_to_load.push_back(texture_param.m_texture);
+									if (texture_param.m_texture.get_load_state() == Asset_load_state::not_loaded)
+										textures_to_load.push_back(texture_param.m_texture);
 
-										if (texture_param.m_texture.get_load_state() != Asset_load_state::loaded)
-											all_texture_loaded = false;
-									}
+									if (texture_param.m_texture.get_load_state() != Asset_load_state::loaded)
+										all_texture_loaded = false;
 								}
+							}
 
-								if (all_texture_loaded)
-									impuls_private::draw_mesh(mesh.first, *mat_to_draw.get(), mvp);
-							}
-							else if (mat_to_draw.get_load_state() == Asset_load_state::not_loaded)
-							{
-								materials_to_load.push_back(mat_to_draw);
-							}
+							if (all_texture_loaded)
+								sic_private::draw_mesh(mesh.first, *mat_to_draw.get(), mvp);
+						}
+						else if (mat_to_draw.get_load_state() == Asset_load_state::not_loaded)
+						{
+							materials_to_load.push_back(mat_to_draw);
 						}
 					}
 				}
 				else if (model.m_model.get_load_state() == Asset_load_state::not_loaded)
 					models_to_load.push_back(model.m_model);
 			}
+
+			static bool one_shot = false;
+
+			static GLuint quad_vao, quad_vb_positions, quad_vb_tex_coords, elementbuffer;
+			static GLuint quad_program_id, tex_loc_id;
+
+			static std::vector<unsigned int> indices;
+
+			if (!one_shot)
+			{
+				one_shot = true;
+
+				//initialization code
+				glGenVertexArrays(1, &quad_vao);
+				glBindVertexArray(quad_vao);
+
+				const GLfloat positions[] = {
+					-1.0f * 0.5f, -1.0f * 0.5f,
+					-1.0f* 0.5f, 1.0f* 0.5f,
+					1.0f * 0.5f, 1.0f* 0.5f,
+					1.0f * 0.5f, -1.0f* 0.5f
+				};
+
+				const GLfloat tex_coords[] =
+				{
+					0.0f, 0.0f,
+					0.0f, 1.0f,
+					1.0f, 1.0f,
+					1.0f, 0.0f
+				};
+
+				/*
+				1 2
+				0 3
+				*/
+				indices = {
+					0, 2, 1,
+					0, 3, 2
+				};
+
+				//TODO: THIS BUFFER SETUP SHOULD BE USED FOR MESHES AS WELL. BUT INSTEAD OF INLINED GL SHIT WE WANT INTERFACES YAY
+
+				glGenBuffers(1, &quad_vb_positions);
+				glBindBuffer(GL_ARRAY_BUFFER, quad_vb_positions);
+				glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 8, positions, GL_STATIC_DRAW);
+
+				glGenBuffers(1, &quad_vb_tex_coords);
+				glBindBuffer(GL_ARRAY_BUFFER, quad_vb_tex_coords);
+				glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 8, tex_coords, GL_STATIC_DRAW);
+
+				glGenBuffers(1, &elementbuffer);
+				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer);
+				glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
+
+				glEnableVertexAttribArray(0);
+				glBindBuffer(GL_ARRAY_BUFFER, quad_vb_positions);
+				glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+				glEnableVertexAttribArray(1);
+				glBindBuffer(GL_ARRAY_BUFFER, quad_vb_tex_coords);
+				glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+				// Create and compile our GLSL program from the shaders
+				quad_program_id = sic_private::create_program("content/materials/pass_through.vs", "content/materials/simple_texture.fs");
+			}
+
+			
+			// Render to the screen
+			
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glViewport(0, 0, current_window_x, current_window_y);
+
+			glUseProgram(quad_program_id);
+
+			tex_loc_id = glGetUniformLocation(quad_program_id, "uniform_texture");
+			view->m_render_target.bind_as_texture(0, tex_loc_id);
+
+			// draw mesh
+			glBindVertexArray(quad_vao);
+
+			// Index buffer
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer);
+			glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, 0);
+
+			glActiveTexture(GL_TEXTURE0);
 		}
 
 		glfwSwapBuffers(window_to_views_it.first);

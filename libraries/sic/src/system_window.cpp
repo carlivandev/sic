@@ -11,7 +11,7 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
-namespace impuls_private
+namespace sic_private
 {
 	using namespace sic;
 
@@ -61,7 +61,7 @@ void sic::System_window::on_created(Engine_context&& in_context)
 		return;
 	}
 
-	glfwSetErrorCallback(&impuls_private::glfw_error);
+	glfwSetErrorCallback(&sic_private::glfw_error);
 
 	in_context.create_subsystem<System_view>(*this);
 
@@ -122,9 +122,9 @@ void sic::System_window::on_engine_tick(Engine_context&& in_context, float in_ti
 				}
 
 				glfwSetWindowUserPointer(window.m_window, &window);
-				glfwSetWindowSizeCallback(window.m_window, &impuls_private::window_resized);
-				glfwSetWindowFocusCallback(window.m_window, &impuls_private::window_focused);
-				glfwSetScrollCallback(window.m_window, &impuls_private::window_scrolled);
+				glfwSetWindowSizeCallback(window.m_window, &sic_private::window_resized);
+				glfwSetWindowFocusCallback(window.m_window, &sic_private::window_focused);
+				glfwSetScrollCallback(window.m_window, &sic_private::window_scrolled);
 
 				glfwMakeContextCurrent(window.m_window); // Initialize GLEW
 				glewExperimental = true; // Needed in core profile

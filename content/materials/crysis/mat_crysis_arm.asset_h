@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/materials/crysis/mat_crysis_arm.asset",
-	"id": "012c1f52-e0ed-4e25-8ce7-7784606b0a23",
+	"id": "a66aedca-082f-4434-879e-d446a012a5e3",
 	"name": "mat_crysis_arm",
 	"type": "struct sic::Asset_material"
 }

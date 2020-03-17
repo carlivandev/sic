@@ -6,7 +6,7 @@ in vec3 normal;
 in vec2 texcoord;
 
 // Ouput data
-out vec3 color;
+layout(location = 0) out vec3 color;
 
 // Values that stay constant for the whole mesh.
 uniform sampler2D tex_albedo;
