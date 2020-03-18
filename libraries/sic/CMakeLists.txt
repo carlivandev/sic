@@ -68,6 +68,9 @@ add_headers(SIC_HEADERS
 	system_view.h
 	input.h
 	gl_includes.h
+	opengl_buffer.h
+	opengl_vertex_attributes.h
+	opengl_vertex_buffer_array.h
 	system_editor_view_controller.h
 	component_view.h
 	system_model.h

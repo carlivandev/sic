@@ -8,6 +8,7 @@
 #include "sic/state_render_scene.h"
 #include "sic/file_management.h"
 #include "sic/system_asset.h"
+#include "sic/opengl_vertex_buffer_array.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
@@ -162,40 +163,17 @@ namespace sic_private
 
 	void init_mesh(Asset_model::Mesh& inout_mesh)
 	{
-		std::vector<Asset_model::Asset_model::Mesh::Vertex>& vertices = inout_mesh.m_vertices;
-		std::vector<ui32>& indices = inout_mesh.m_indices;
+		auto& vertex_buffer_array = inout_mesh.m_vertex_buffer_array.emplace();
+		vertex_buffer_array.bind();
 
-		glGenVertexArrays(1, &inout_mesh.m_vertexarray);
-		glBindVertexArray(inout_mesh.m_vertexarray);
+		vertex_buffer_array.set_data<OpenGl_vertex_attribute_position3D>(inout_mesh.m_positions);
+		vertex_buffer_array.set_data<OpenGl_vertex_attribute_normal>(inout_mesh.m_normals);
+		vertex_buffer_array.set_data<OpenGl_vertex_attribute_texcoord>(inout_mesh.m_texcoords);
+		vertex_buffer_array.set_data<OpenGl_vertex_attribute_tangent>(inout_mesh.m_tangents);
+		vertex_buffer_array.set_data<OpenGl_vertex_attribute_bitangent>(inout_mesh.m_bitangents);
 
-		glGenBuffers(1, &inout_mesh.m_vertexbuffer);
-		glBindBuffer(GL_ARRAY_BUFFER, inout_mesh.m_vertexbuffer);
-		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Asset_model::Mesh::Vertex), &vertices[0], GL_STATIC_DRAW);
-
-		glGenBuffers(1, &inout_mesh.m_elementbuffer);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, inout_mesh.m_elementbuffer);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(ui32), &indices[0], GL_STATIC_DRAW);
-
-		glBindBuffer(GL_ARRAY_BUFFER, inout_mesh.m_vertexbuffer);
-		glEnableVertexAttribArray(0);
-		// vertex positions
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Asset_model::Mesh::Vertex), (void*)0);
-
-		glEnableVertexAttribArray(1);
-		// vertex normals
-		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Asset_model::Mesh::Vertex), (void*)offsetof(Asset_model::Mesh::Vertex, m_normal));
-		
-		glEnableVertexAttribArray(2);
-		// vertex texture coords
-		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Asset_model::Mesh::Vertex), (void*)offsetof(Asset_model::Mesh::Vertex, m_tex_coords));
-		
-		glEnableVertexAttribArray(3);
-		// vertex tangent
-		glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Asset_model::Mesh::Vertex), (void*)offsetof(Asset_model::Mesh::Vertex, m_tangent));
-		
-		glEnableVertexAttribArray(4);
-		// vertex bitangent
-		glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, sizeof(Asset_model::Mesh::Vertex), (void*)offsetof(Asset_model::Mesh::Vertex, m_bitangent));
+		auto& index_buffer = inout_mesh.m_index_buffer.emplace(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW);
+		index_buffer.set_data(inout_mesh.m_indices);
 	}
 
 	void draw_mesh(const Asset_model::Mesh& in_mesh, const Asset_material& in_material, const glm::mat4& in_mvp)
@@ -237,11 +215,9 @@ namespace sic_private
 		}
 
 		// draw mesh
-		glBindVertexArray(in_mesh.m_vertexarray);
-		glBindBuffer(GL_ARRAY_BUFFER, in_mesh.m_vertexbuffer);
-
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, in_mesh.m_elementbuffer);
-		glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(in_mesh.m_indices.size()), GL_UNSIGNED_INT, 0);
+		in_mesh.m_vertex_buffer_array.value().bind();
+		in_mesh.m_index_buffer.value().bind();
+		glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(in_mesh.m_index_buffer.value().size()), GL_UNSIGNED_INT, 0);
 
 		glActiveTexture(GL_TEXTURE0);
 	}
@@ -289,7 +265,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 		{
 			//do opengl load
 			for (auto&& mesh : in_model.m_meshes)
-				sic_private::init_mesh(mesh.first);
+				sic_private::init_mesh(mesh);
 		}
 	);
 
@@ -318,9 +294,8 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 			{
 				for (auto&& mesh : in_model.m_meshes)
 				{
-					glDeleteVertexArrays(1, &mesh.first.m_vertexarray);
-					glDeleteBuffers(1, &mesh.first.m_vertexbuffer);
-					glDeleteBuffers(1, &mesh.first.m_elementbuffer);
+					mesh.m_vertex_buffer_array.reset();
+					mesh.m_index_buffer.reset();
 				}
 			}
 	);
@@ -376,7 +351,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 
 			glClearColor(0.0f, 0.0f, 0.1f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			glViewport(0, 0, current_window_x * view->m_viewport_size.x, current_window_y * view->m_viewport_size.y);
+			glViewport(0, 0, static_cast<GLsizei>(current_window_x * view->m_viewport_size.x), static_cast<GLsizei>(current_window_y * view->m_viewport_size.y));
 
 			// Set "renderedTexture" as our colour attachement #0
 			glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, view->m_render_target.m_texture_id, 0);
@@ -419,7 +394,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 					{
 						auto& mesh = model_asset->m_meshes[mesh_idx];
 
-						auto material_override_it = model.m_material_overrides.find(mesh.first.m_material_slot);
+						auto material_override_it = model.m_material_overrides.find(mesh.m_material_slot);
 
 						const Asset_ref<Asset_material>& mat_to_draw = material_override_it != model.m_material_overrides.end() ? material_override_it->second : model_asset->get_material(mesh_idx);
 						if (!mat_to_draw.is_valid())
@@ -442,7 +417,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 							}
 
 							if (all_texture_loaded)
-								sic_private::draw_mesh(mesh.first, *mat_to_draw.get(), mvp);
+								sic_private::draw_mesh(mesh, *mat_to_draw.get(), mvp);
 						}
 						else if (mat_to_draw.get_load_state() == Asset_load_state::not_loaded)
 						{
@@ -460,8 +435,8 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 
 			static OpenGl_vertex_buffer_array
 				<
-				OpenGl_vertex_attribute_float2, //position
-				OpenGl_vertex_attribute_float2 //texcoords
+				OpenGl_vertex_attribute_position2D,
+				OpenGl_vertex_attribute_texcoord
 				> quad_vertex_buffer_array;
 
 			static OpenGl_buffer quad_indexbuffer(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW);
@@ -498,8 +473,8 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 
 				quad_vertex_buffer_array.bind();
 
-				quad_vertex_buffer_array.set_data<0>(positions);
-				quad_vertex_buffer_array.set_data<1>(tex_coords);
+				quad_vertex_buffer_array.set_data<OpenGl_vertex_attribute_position2D>(positions);
+				quad_vertex_buffer_array.set_data<OpenGl_vertex_attribute_texcoord>(tex_coords);
 
 				quad_indexbuffer.set_data(indices);
 
