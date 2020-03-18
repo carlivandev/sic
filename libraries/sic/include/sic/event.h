@@ -1,4 +1,5 @@
 #pragma once
+#include "sic/type_restrictions.h"
 
 #include <functional>
 
@@ -6,7 +7,7 @@ namespace sic
 {
 	struct Engine_context;
 
-	struct Event_base
+	struct Event_base : Noncopyable
 	{
 		virtual ~Event_base() = default;
 		virtual void invoke(Engine_context&& in_out_context, void* in_data) = 0;
