@@ -9,7 +9,7 @@
 
 namespace sic
 {
-	struct Level
+	struct Level : Noncopyable
 	{
 		Level(Engine& in_engine) : m_engine(in_engine) {}
 

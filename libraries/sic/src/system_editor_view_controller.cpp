@@ -24,7 +24,7 @@ void sic::System_editor_view_controller::on_begin_simulation(Level_context&& in_
 
 			evc.m_view_to_control->get_window()->get<Component_window>().m_on_window_created.bind(evc.m_on_window_created_handle);
 			evc.m_on_window_created_handle.m_function =
-			[&evc](GLFWwindow* in_window)
+			[&evc](GLFWwindow*)
 			{
 				if (!evc.m_view_to_control->get_window())
 					return;

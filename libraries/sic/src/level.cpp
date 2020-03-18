@@ -13,7 +13,7 @@ namespace sic
 		in_object_to_destroy.unchild();
 
 		//destroy children recursive
-		const i16 last_idx = in_object_to_destroy.m_children.size() - 1;
+		const i16 last_idx = static_cast<i16>(in_object_to_destroy.m_children.size()) - 1;
 		for (i16 i = last_idx; i >= 0; i--)
 			destroy_object(*in_object_to_destroy.m_children[i]);
 

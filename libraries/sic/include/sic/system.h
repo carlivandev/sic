@@ -1,6 +1,7 @@
 #pragma once
-#include "defines.h"
-#include "type_index.h"
+#include "sic/defines.h"
+#include "sic/type_index.h"
+#include "sic/type_restrictions.h"
 
 #include <string>
 #include <vector>
@@ -13,7 +14,7 @@ namespace sic
 	struct Component_base;
 	struct Object_base;
 
-	struct System
+	struct System : Noncopyable
 	{
 		friend Engine_context;
 		friend Engine;

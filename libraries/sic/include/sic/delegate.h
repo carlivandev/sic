@@ -35,7 +35,7 @@ namespace sic
 				m_function = in_other.m_function;
 			}
 
-			Handle(Handle&& in_other)
+			Handle(Handle&& in_other) noexcept
 			{
 				if (in_other.m_delegate)
 				{

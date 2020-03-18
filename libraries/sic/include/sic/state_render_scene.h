@@ -37,7 +37,7 @@ namespace sic
 		i32 m_level_id = -1;
 	};
 
-	struct Render_object_model
+	struct Render_object_model : Noncopyable
 	{
 		Asset_ref<Asset_model> m_model;
 		std::unordered_map<std::string, Asset_ref<Asset_material>> m_material_overrides;
@@ -51,7 +51,7 @@ namespace sic
 		none
 	};
 
-	struct Render_object_debug_shape
+	struct Render_object_debug_shape : Noncopyable
 	{
 		Debug_shape m_shape = Debug_shape::box;
 		//use life time to push to destroy post render if < 0

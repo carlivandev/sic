@@ -1,15 +1,15 @@
 #pragma once
-#include "component.h"
+#include "sic/type_restrictions.h"
+#include "sic/type_index.h"
+#include "sic/type.h"
 
-#include "object_base.h"
-#include "system.h"
+#include "sic/component.h"
+#include "sic/object_base.h"
 
-#include "event.h"
+#include "sic/system.h"
+#include "sic/event.h"
 
-#include "threadpool.h"
-
-#include "type_index.h"
-#include "type.h"
+#include "sic/threadpool.h"
 
 #include <new>
 #include <chrono>
@@ -28,11 +28,11 @@ namespace sic
 	struct Level;
 
 	//enginewide state data
-	struct State
+	struct State : Noncopyable
 	{
 	};
 
-	struct Engine
+	struct Engine : Noncopyable
 	{
 		void initialize();
 

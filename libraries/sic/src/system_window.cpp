@@ -80,7 +80,7 @@ void sic::System_window::on_created(Engine_context&& in_context)
 	);
 }
 
-void sic::System_window::on_shutdown(Engine_context&& in_context)
+void sic::System_window::on_shutdown(Engine_context&&)
 {
 	glfwTerminate();
 }

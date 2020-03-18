@@ -1,5 +1,6 @@
 #pragma once
-#include "defines.h"
+#include "sic/defines.h"
+#include "sic/type_restrictions.h"
 
 #include <mutex>
 #include <unordered_map>
@@ -7,7 +8,7 @@
 
 namespace sic
 {
-	struct Threadpool
+	struct Threadpool : Noncopyable
 	{
 	public:
 		using Closure = std::function<void()>;
