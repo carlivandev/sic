@@ -456,8 +456,15 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 
 			static bool one_shot = false;
 
-			static GLuint quad_vao, quad_vb_positions, quad_vb_tex_coords, elementbuffer;
 			static GLuint quad_program_id, tex_loc_id;
+
+			static OpenGl_vertex_buffer_array
+				<
+				OpenGl_vertex_attribute_float2, //position
+				OpenGl_vertex_attribute_float2 //texcoords
+				> quad_vertex_buffer_array;
+
+			static OpenGl_buffer quad_indexbuffer(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW);
 
 			static std::vector<unsigned int> indices;
 
@@ -465,18 +472,14 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 			{
 				one_shot = true;
 
-				//initialization code
-				glGenVertexArrays(1, &quad_vao);
-				glBindVertexArray(quad_vao);
-
-				const GLfloat positions[] = {
+				const std::vector<GLfloat> positions = {
 					-1.0f * 0.5f, -1.0f * 0.5f,
 					-1.0f* 0.5f, 1.0f* 0.5f,
 					1.0f * 0.5f, 1.0f* 0.5f,
 					1.0f * 0.5f, -1.0f* 0.5f
 				};
 
-				const GLfloat tex_coords[] =
+				const std::vector<GLfloat> tex_coords =
 				{
 					0.0f, 0.0f,
 					0.0f, 1.0f,
@@ -493,35 +496,18 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 					0, 3, 2
 				};
 
-				//TODO: THIS BUFFER SETUP SHOULD BE USED FOR MESHES AS WELL. BUT INSTEAD OF INLINED GL SHIT WE WANT INTERFACES YAY
+				quad_vertex_buffer_array.bind();
 
-				glGenBuffers(1, &quad_vb_positions);
-				glBindBuffer(GL_ARRAY_BUFFER, quad_vb_positions);
-				glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 8, positions, GL_STATIC_DRAW);
+				quad_vertex_buffer_array.set_data<0>(positions);
+				quad_vertex_buffer_array.set_data<1>(tex_coords);
 
-				glGenBuffers(1, &quad_vb_tex_coords);
-				glBindBuffer(GL_ARRAY_BUFFER, quad_vb_tex_coords);
-				glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 8, tex_coords, GL_STATIC_DRAW);
+				quad_indexbuffer.set_data(indices);
 
-				glGenBuffers(1, &elementbuffer);
-				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer);
-				glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), &indices[0], GL_STATIC_DRAW);
-
-				glEnableVertexAttribArray(0);
-				glBindBuffer(GL_ARRAY_BUFFER, quad_vb_positions);
-				glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
-
-				glEnableVertexAttribArray(1);
-				glBindBuffer(GL_ARRAY_BUFFER, quad_vb_tex_coords);
-				glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
-
-				// Create and compile our GLSL program from the shaders
 				quad_program_id = sic_private::create_program("content/materials/pass_through.vs", "content/materials/simple_texture.fs");
 			}
 
 			
 			// Render to the screen
-			
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 			glViewport(0, 0, current_window_x, current_window_y);
 
@@ -530,14 +516,10 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 			tex_loc_id = glGetUniformLocation(quad_program_id, "uniform_texture");
 			view->m_render_target.bind_as_texture(0, tex_loc_id);
 
-			// draw mesh
-			glBindVertexArray(quad_vao);
+			quad_vertex_buffer_array.bind();
+			quad_indexbuffer.bind();
 
-			// Index buffer
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer);
-			glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indices.size()), GL_UNSIGNED_INT, 0);
-
-			glActiveTexture(GL_TEXTURE0);
+			glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(quad_indexbuffer.size()), GL_UNSIGNED_INT, 0);
 		}
 
 		glfwSwapBuffers(window_to_views_it.first);
