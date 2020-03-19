@@ -4,7 +4,7 @@
 
 #include "sic/gl_includes.h"
 #include "sic/asset.h"
-#include "sic/render_target.h"
+#include "sic/opengl_render_target.h"
 
 #include "glm/mat4x4.hpp"
 #include "glm/vec2.hpp"
@@ -33,7 +33,7 @@ namespace sic
 		float m_near_plane = 0.1f;
 		float m_far_plane = 100.0f;
 
-		Render_target m_render_target;
+		std::optional<OpenGl_render_target> m_render_target;
 		i32 m_level_id = -1;
 	};
 

@@ -38,7 +38,8 @@ void sic::System_view::on_created(Engine_context&& in_context)
 					level_id = in_out_component.get_owner().get_level_id(),
 					matrix = transform->get_matrix(),
 					viewport_offset = in_out_component.m_viewport_offset,
-					viewport_size = in_out_component.m_viewport_size
+					viewport_size = in_out_component.m_viewport_size,
+					viewport_dimensions = in_out_component.m_viewport_dimensions
 				]
 				(Render_object_view& in_object)
 				{
@@ -47,7 +48,7 @@ void sic::System_view::on_created(Engine_context&& in_context)
 					in_object.m_viewport_offset = viewport_offset;
 					in_object.m_viewport_size = viewport_size;
 
-					in_object.m_render_target.initialize({ 1024, 768 });
+					in_object.m_render_target.emplace(viewport_dimensions, true);
 				}
 			);
 		}

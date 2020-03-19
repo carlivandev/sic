@@ -28,8 +28,7 @@ namespace sic
 
 		friend struct System_window;
 
-		i32 m_dimensions_x = 1600;
-		i32 m_dimensions_y = 800;
+		glm::ivec2 m_dimensions = { 1600, 800 };
 		bool m_is_focused = true;
 		double m_scroll_offset_x = 0.0;
 		double m_scroll_offset_y = 0.0;

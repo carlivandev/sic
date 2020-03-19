@@ -207,35 +207,45 @@ namespace sic
 
 	void Engine::flush_level_streaming()
 	{
-		//first remove levels
-		for (Level* level : m_levels_to_remove)
+		if (!m_levels_to_remove.empty())
 		{
-			for (auto& system : m_systems)
+			std::scoped_lock levels_lock(m_levels_mutex);
+
+			//first remove levels
+			for (Level* level : m_levels_to_remove)
 			{
-				if (!is_shutting_down())
-					system->on_end_simulation(Level_context(*this, *level));
+				for (auto& system : m_systems)
+				{
+					if (!is_shutting_down())
+						system->on_end_simulation(Level_context(*this, *level));
+				}
+
+				auto it = std::find_if(m_levels.begin(), m_levels.end(), [level](auto& other_level) {return level == other_level.get(); });
+				if (it != m_levels.end())
+					m_levels.erase(it);
 			}
 
-			auto it = std::find_if(m_levels.begin(), m_levels.end(), [level](auto& other_level) {return level == other_level.get(); });
-			if (it != m_levels.end())
-				m_levels.erase(it);
+			m_levels_to_remove.clear();
 		}
 
-		m_levels_to_remove.clear();
-
-		//then add new levels
-		for (auto& level : m_levels_to_add)
+		if (!m_levels_to_add.empty())
 		{
-			m_levels.push_back(std::move(level));
+			std::scoped_lock levels_lock(m_levels_mutex);
 
-			for (auto& system : m_systems)
+			//then add new levels
+			for (auto& level : m_levels_to_add)
 			{
-				if (!is_shutting_down())
-					system->on_begin_simulation(Level_context(*this, *m_levels.back().get()));
-			}
-		}
+				m_levels.push_back(std::move(level));
 
-		m_levels_to_add.clear();
+				for (auto& system : m_systems)
+				{
+					if (!is_shutting_down())
+						system->on_begin_simulation(Level_context(*this, *m_levels.back().get()));
+				}
+			}
+
+			m_levels_to_add.clear();
+		}
 	}
 
 	std::unique_ptr<State>& Engine::get_state_at_index(i32 in_index)

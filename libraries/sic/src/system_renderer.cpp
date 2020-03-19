@@ -319,23 +319,19 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 		window_to_views_lut[view.m_window_render_on].push_back(&view);
 	}
 
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
 	for (auto& window_to_views_it : window_to_views_lut)
 	{
 		glfwMakeContextCurrent(window_to_views_it.first);
-
-		//glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		//glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		sic::i32 current_window_x, current_window_y;
 		glfwGetWindowSize(window_to_views_it.first, &current_window_x, &current_window_y);
 
 		if (current_window_x == 0 || current_window_y == 0)
 			continue;
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		const float aspect_ratio = static_cast<float>(current_window_x) / static_cast<float>(current_window_y);
 
@@ -346,15 +342,17 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 			if (scene_it == scene_state->m_level_id_to_scene_lut.end())
 				continue;
 
-			// Render to our framebuffer
-			view->m_render_target.bind_as_target();
+			view->m_render_target.value().bind_as_target(0);
+			view->m_render_target.value().clear();
+			const glm::ivec2& view_dimensions = view->m_render_target.value().get_dimensions();
 
-			glClearColor(0.0f, 0.0f, 0.1f, 1.0f);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			glViewport(0, 0, static_cast<GLsizei>(current_window_x * view->m_viewport_size.x), static_cast<GLsizei>(current_window_y * view->m_viewport_size.y));
-
-			// Set "renderedTexture" as our colour attachement #0
-			glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, view->m_render_target.m_texture_id, 0);
+			glViewport
+			(
+				0,
+				0,
+				view_dimensions.x,
+				view_dimensions.y
+			);
 
 			// Set the list of draw buffers.
 			GLenum draw_buffers[1] = { GL_COLOR_ATTACHMENT0 };
@@ -448,10 +446,10 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 				one_shot = true;
 
 				const std::vector<GLfloat> positions = {
-					-1.0f * 0.5f, -1.0f * 0.5f,
-					-1.0f* 0.5f, 1.0f* 0.5f,
-					1.0f * 0.5f, 1.0f* 0.5f,
-					1.0f * 0.5f, -1.0f* 0.5f
+					-1.0f, -1.0f,
+					-1.0f, 1.0f,
+					1.0f, 1.0f,
+					1.0f, -1.0f
 				};
 
 				const std::vector<GLfloat> tex_coords =
@@ -481,15 +479,21 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 				quad_program_id = sic_private::create_program("content/materials/pass_through.vs", "content/materials/simple_texture.fs");
 			}
 
-			
-			// Render to the screen
+			// render to  backbuffer
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
-			glViewport(0, 0, current_window_x, current_window_y);
+
+			glViewport
+			(
+				static_cast<GLsizei>((current_window_x * view->m_viewport_offset.x)),
+				static_cast<GLsizei>(current_window_y * view->m_viewport_offset.y),
+				static_cast<GLsizei>((current_window_x * view->m_viewport_size.x)),
+				static_cast<GLsizei>(current_window_y * view->m_viewport_size.y)
+			);
 
 			glUseProgram(quad_program_id);
 
 			tex_loc_id = glGetUniformLocation(quad_program_id, "uniform_texture");
-			view->m_render_target.bind_as_texture(0, tex_loc_id);
+			view->m_render_target.value().bind_as_texture(0, tex_loc_id);
 
 			quad_vertex_buffer_array.bind();
 			quad_indexbuffer.bind();

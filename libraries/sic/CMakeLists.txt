@@ -71,6 +71,7 @@ add_headers(SIC_HEADERS
 	opengl_buffer.h
 	opengl_vertex_attributes.h
 	opengl_vertex_buffer_array.h
+	opengl_render_target.h
 	system_editor_view_controller.h
 	component_view.h
 	system_model.h
@@ -78,7 +79,6 @@ add_headers(SIC_HEADERS
 	system_renderer_state_swapper.h
 	update_list.h
 	state_render_scene.h
-	render_target.h
 	component_transform.h
 	)
 
@@ -103,13 +103,13 @@ add_sources(SIC_SOURCES
 	system_input.cpp
 	system_view.cpp
 	input.cpp
+	opengl_render_target.cpp
 	system_editor_view_controller.cpp
 	component_view.cpp
 	system_model.cpp
 	system_renderer.cpp
 	system_renderer_state_swapper.cpp
 	state_render_scene.cpp
-	render_target.cpp
 	component_transform.cpp
 	)
 

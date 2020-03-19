@@ -27,8 +27,8 @@ namespace sic_private
 		if (!wdw)
 			return;
 
-		wdw->m_dimensions_x = in_width;
-		wdw->m_dimensions_y = in_height;
+		wdw->m_dimensions.x = in_width;
+		wdw->m_dimensions.y = in_height;
 	}
 
 	void window_focused(GLFWwindow* in_window, int in_focused)
@@ -112,7 +112,7 @@ void sic::System_window::on_engine_tick(Engine_context&& in_context, float in_ti
 				glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
 				glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL
 
-				window.m_window = glfwCreateWindow(window.m_dimensions_x, window.m_dimensions_y, "impuls_test_game", NULL, NULL);
+				window.m_window = glfwCreateWindow(window.m_dimensions.x, window.m_dimensions.y, "sic_test_game", NULL, NULL);
 
 				if (window.m_window == NULL)
 				{
@@ -128,7 +128,8 @@ void sic::System_window::on_engine_tick(Engine_context&& in_context, float in_ti
 
 				glfwMakeContextCurrent(window.m_window); // Initialize GLEW
 				glewExperimental = true; // Needed in core profile
-				if (glewInit() != GLEW_OK) {
+				if (glewInit() != GLEW_OK)
+				{
 					SIC_LOG_E(g_log_renderer, "Failed to initialize GLEW.");
 					return;
 				}
@@ -159,11 +160,11 @@ void sic::System_window::on_engine_tick(Engine_context&& in_context, float in_ti
 				sic::i32 current_window_x, current_window_y;
 				glfwGetWindowSize(window.m_window, &current_window_x, &current_window_y);
 
-				if (window.m_dimensions_x != current_window_x ||
-					window.m_dimensions_y != current_window_y)
+				if (window.m_dimensions.x != current_window_x ||
+					window.m_dimensions.y != current_window_y)
 				{
 					//handle resize
-					glfwSetWindowSize(window.m_window, window.m_dimensions_x, window.m_dimensions_y);
+					glfwSetWindowSize(window.m_window, window.m_dimensions.x, window.m_dimensions.y);
 				}
 
 				if (window.m_cursor_pos_to_set.has_value())
