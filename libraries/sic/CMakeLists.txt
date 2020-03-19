@@ -72,6 +72,8 @@ add_headers(SIC_HEADERS
 	opengl_vertex_attributes.h
 	opengl_vertex_buffer_array.h
 	opengl_render_target.h
+	opengl_program.h
+	opengl_texture.h
 	system_editor_view_controller.h
 	component_view.h
 	system_model.h
@@ -104,6 +106,8 @@ add_sources(SIC_SOURCES
 	system_view.cpp
 	input.cpp
 	opengl_render_target.cpp
+	opengl_program.cpp
+	opengl_texture.cpp
 	system_editor_view_controller.cpp
 	component_view.cpp
 	system_model.cpp

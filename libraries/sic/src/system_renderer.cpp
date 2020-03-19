@@ -9,6 +9,7 @@
 #include "sic/file_management.h"
 #include "sic/system_asset.h"
 #include "sic/opengl_vertex_buffer_array.h"
+#include "sic/opengl_program.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
@@ -21,20 +22,6 @@ namespace sic_private
 
 	void init_texture(Asset_texture& out_texture)
 	{
-		GLuint& texture_id = out_texture.m_render_id;
-
-		glGenTextures(1, &texture_id);
-
-		glBindTexture(GL_TEXTURE_2D, texture_id);
-
-		// Nice trilinear filtering.
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		// When MAGnifying the image (no bigger mipmap available), use LINEAR filtering
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		// When MINifying the image, use a LINEAR blend of two mipmaps, each filtered LINEARLY too
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-
 		i32 gl_texture_format = 0;
 
 		switch (out_texture.m_format)
@@ -55,110 +42,15 @@ namespace sic_private
 			break;
 		}
 
-		glTexImage2D(GL_TEXTURE_2D, 0, gl_texture_format, out_texture.m_width, out_texture.m_height, 0, gl_texture_format, GL_UNSIGNED_BYTE, out_texture.m_texture_data.get());
-
-		glGenerateMipmap(GL_TEXTURE_2D);
-
-		glBindTexture(GL_TEXTURE_2D, 0);
+		out_texture.m_texture.emplace(glm::ivec2(out_texture.m_width, out_texture.m_height), gl_texture_format, out_texture.m_texture_data.get());
 
 		if (out_texture.m_free_texture_data_after_setup)
 			out_texture.m_texture_data.reset();
-
-		//end gpu texture setup
 	}
-
-	GLuint create_program(const std::string& in_vertex_shader_path, const std::string& in_fragment_shader_path);
 
 	void init_material(Asset_material& out_material)
 	{
-		const GLuint program_id = create_program(out_material.m_vertex_shader, out_material.m_fragment_shader);
-
-		if (program_id != 0)
-			out_material.m_program_id = program_id;
-	}
-
-	GLuint create_program(const std::string& in_vertex_shader_path, const std::string& in_fragment_shader_path)
-	{
-		// Create the shaders
-		GLuint vertex_shader_id = glCreateShader(GL_VERTEX_SHADER);
-		GLuint fragment_shader_id = glCreateShader(GL_FRAGMENT_SHADER);
-
-		const std::string vertex_shader_code = File_management::load_file(in_vertex_shader_path, false);
-
-		if (vertex_shader_code.size() == 0)
-		{
-			SIC_LOG_E(g_log_renderer_verbose, "Impossible to open {0}. Are you in the right directory?", in_vertex_shader_path.c_str());
-			return 0;
-		}
-		const std::string fragment_shader_code = File_management::load_file(in_fragment_shader_path, false);
-
-		if (fragment_shader_code.size() == 0)
-		{
-			SIC_LOG_E(g_log_renderer_verbose, "Impossible to open {0}. Are you in the right directory?", in_fragment_shader_path.c_str());
-			return 0;
-		}
-
-		GLint result_id = GL_FALSE;
-		i32 info_log_length;
-
-		// Compile Vertex Shader
-		SIC_LOG(g_log_renderer_verbose, "Compiling shader : {0}", in_vertex_shader_path.c_str());
-
-		const GLchar* vertex_source_ptr = vertex_shader_code.data();
-		glShaderSource(vertex_shader_id, 1, &vertex_source_ptr, NULL);
-		glCompileShader(vertex_shader_id);
-
-		// Check Vertex Shader
-		glGetShaderiv(vertex_shader_id, GL_COMPILE_STATUS, &result_id);
-		glGetShaderiv(vertex_shader_id, GL_INFO_LOG_LENGTH, &info_log_length);
-		if (info_log_length > 0)
-		{
-			std::vector<char> vertex_shader_error_message(static_cast<size_t>(info_log_length) + 1);
-			glGetShaderInfoLog(vertex_shader_id, info_log_length, NULL, &vertex_shader_error_message[0]);
-			SIC_LOG(g_log_renderer_verbose, &vertex_shader_error_message[0]);
-		}
-
-		// Compile Fragment Shader
-		SIC_LOG(g_log_renderer_verbose, "Compiling shader : {0}", in_fragment_shader_path.c_str());
-
-		const GLchar* fragment_source_ptr = fragment_shader_code.data();
-		glShaderSource(fragment_shader_id, 1, &fragment_source_ptr, NULL);
-		glCompileShader(fragment_shader_id);
-
-		// Check Fragment Shader
-		glGetShaderiv(fragment_shader_id, GL_COMPILE_STATUS, &result_id);
-		glGetShaderiv(fragment_shader_id, GL_INFO_LOG_LENGTH, &info_log_length);
-		if (info_log_length > 0)
-		{
-			std::vector<char> fragment_shader_error_message(static_cast<size_t>(info_log_length) + 1);
-			glGetShaderInfoLog(fragment_shader_id, info_log_length, NULL, &fragment_shader_error_message[0]);
-			SIC_LOG_E(g_log_renderer_verbose, &fragment_shader_error_message[0]);
-		}
-
-		// Link the program
-		SIC_LOG(g_log_renderer_verbose, "Linking program");
-		GLuint program_id = glCreateProgram();
-		glAttachShader(program_id, vertex_shader_id);
-		glAttachShader(program_id, fragment_shader_id);
-		glLinkProgram(program_id);
-
-		// Check the program
-		glGetProgramiv(program_id, GL_LINK_STATUS, &result_id);
-		glGetProgramiv(program_id, GL_INFO_LOG_LENGTH, &info_log_length);
-		if (info_log_length > 0)
-		{
-			std::vector<char> program_error_message(static_cast<size_t>(info_log_length) + 1);
-			glGetProgramInfoLog(program_id, info_log_length, NULL, &program_error_message[0]);
-			SIC_LOG_E(g_log_renderer_verbose, &program_error_message[0]);
-		}
-
-		glDetachShader(program_id, vertex_shader_id);
-		glDetachShader(program_id, fragment_shader_id);
-
-		glDeleteShader(vertex_shader_id);
-		glDeleteShader(fragment_shader_id);
-
-		return program_id;
+		out_material.m_program.emplace(out_material.m_vertex_shader_path, out_material.m_vertex_shader_code, out_material.m_fragment_shader_path, out_material.m_fragment_shader_code);
 	}
 
 	void init_mesh(Asset_model::Mesh& inout_mesh)
@@ -179,9 +71,9 @@ namespace sic_private
 	void draw_mesh(const Asset_model::Mesh& in_mesh, const Asset_material& in_material, const glm::mat4& in_mvp)
 	{
 		// Use our shader
-		glUseProgram(in_material.m_program_id);
+		in_material.m_program.value().use();
 
-		GLuint mvp_uniform_loc = glGetUniformLocation(in_material.m_program_id, "MVP");
+		GLuint mvp_uniform_loc = in_material.m_program.value().get_uniform_location("MVP");
 
 		if (mvp_uniform_loc == -1)
 			return;
@@ -196,21 +88,18 @@ namespace sic_private
 			if (!texture_param.m_texture.is_valid())
 				continue;
 
-			const i32 uniform_loc = glGetUniformLocation(in_material.m_program_id, texture_param.m_name.c_str());
+			const i32 uniform_loc = in_material.m_program.value().get_uniform_location(texture_param.m_name.c_str());
 
 			//error handle this
 			if (uniform_loc == -1)
 			{
 				SIC_LOG_E(g_log_renderer_verbose,
 					"Texture parameter: {0}, not found in material with shaders: {1} and {2}",
-					texture_param.m_name.c_str(), in_material.m_vertex_shader.c_str(), in_material.m_fragment_shader.c_str());
+					texture_param.m_name.c_str(), in_material.m_vertex_shader_path.c_str(), in_material.m_fragment_shader_path.c_str());
 				continue;
 			}
 
-			glActiveTexture(GL_TEXTURE0 + texture_param_idx);
-			glBindTexture(GL_TEXTURE_2D, texture_param.m_texture.get()->m_render_id);
-			glUniform1i(uniform_loc, texture_param_idx);
-
+			texture_param.m_texture.get()->m_texture.value().bind(uniform_loc, texture_param_idx);
 			++texture_param_idx;
 		}
 
@@ -273,7 +162,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 		(
 			[](Asset_texture& in_texture)
 			{
-				glDeleteTextures(1, &in_texture.m_render_id);
+				in_texture.m_texture.reset();
 
 				if (!in_texture.m_free_texture_data_after_setup)
 					in_texture.m_texture_data.reset();
@@ -284,7 +173,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 		(
 			[](Asset_material& in_material)
 			{
-				glDeleteProgram(in_material.m_program_id);
+				in_material.m_program.reset();
 			}
 	);
 
@@ -429,7 +318,9 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 
 			static bool one_shot = false;
 
-			static GLuint quad_program_id, tex_loc_id;
+			const std::string quad_vertex_shader_path = "content/materials/pass_through.vs";
+			const std::string quad_fragment_shader_path = "content/materials/simple_texture.fs";
+			static OpenGl_program quad_program(quad_vertex_shader_path, File_management::load_file(quad_vertex_shader_path), quad_fragment_shader_path, File_management::load_file(quad_fragment_shader_path));
 
 			static OpenGl_vertex_buffer_array
 				<
@@ -475,8 +366,6 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 				quad_vertex_buffer_array.set_data<OpenGl_vertex_attribute_texcoord>(tex_coords);
 
 				quad_indexbuffer.set_data(indices);
-
-				quad_program_id = sic_private::create_program("content/materials/pass_through.vs", "content/materials/simple_texture.fs");
 			}
 
 			// render to  backbuffer
@@ -490,9 +379,9 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 				static_cast<GLsizei>(current_window_y * view->m_viewport_size.y)
 			);
 
-			glUseProgram(quad_program_id);
+			quad_program.use();
+			GLuint tex_loc_id = quad_program.get_uniform_location("uniform_texture");
 
-			tex_loc_id = glGetUniformLocation(quad_program_id, "uniform_texture");
 			view->m_render_target.value().bind_as_texture(0, tex_loc_id);
 
 			quad_vertex_buffer_array.bind();
