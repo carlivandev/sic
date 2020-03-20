@@ -42,7 +42,7 @@ namespace sic_private
 			break;
 		}
 
-		out_texture.m_texture.emplace(glm::ivec2(out_texture.m_width, out_texture.m_height), gl_texture_format, out_texture.m_texture_data.get());
+		out_texture.m_texture.emplace(glm::ivec2(out_texture.m_width, out_texture.m_height), gl_texture_format, GL_LINEAR, GL_LINEAR_MIPMAP_LINEAR, out_texture.m_texture_data.get());
 
 		if (out_texture.m_free_texture_data_after_setup)
 			out_texture.m_texture_data.reset();
@@ -382,7 +382,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 			quad_program.use();
 			GLuint tex_loc_id = quad_program.get_uniform_location("uniform_texture");
 
-			view->m_render_target.value().bind_as_texture(0, tex_loc_id);
+			view->m_render_target.value().m_texture.bind(tex_loc_id, 0);
 
 			quad_vertex_buffer_array.bind();
 			quad_indexbuffer.bind();
