@@ -15,5 +15,5 @@ layout(std140) uniform block_test
 void main()
 {
     out_color = texture(uniform_texture, texcoord.xy);
-	//out_color = vec4(second_value.xyz, 1);
+	//out_color = vec4(first_value.xyz, 1);
 }

@@ -10,6 +10,7 @@
 #include "sic/system_asset.h"
 #include "sic/opengl_vertex_buffer_array.h"
 #include "sic/opengl_program.h"
+#include "sic/opengl_engine_uniform_blocks.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
@@ -51,7 +52,7 @@ namespace sic_private
 	void init_material(Asset_material& out_material)
 	{
 		out_material.m_program.emplace(out_material.m_vertex_shader_path, out_material.m_vertex_shader_code, out_material.m_fragment_shader_path, out_material.m_fragment_shader_code);
-		out_material.m_program.value().set_uniform_block<OpenGl_uniform_block_view>();
+		out_material.m_program.value().set_uniform_block(OpenGl_uniform_block_view::get());
 	}
 
 	void init_mesh(Asset_model::Mesh& inout_mesh)
@@ -77,7 +78,7 @@ namespace sic_private
 		auto& program = in_material.m_program.value();
 		program.set_uniform("MVP", in_mvp);
 		program.set_uniform("model_matrix", in_model_matrix);
-		program.set_uniform("light_position_worldspace", in_light_position);
+		//program.set_uniform("light_position_worldspace", in_light_position);
 
 		ui32 texture_param_idx = 0;
 
@@ -257,6 +258,19 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 			const glm::mat4x4 view_mat = glm::inverse(view->m_view_orientation);
 			OpenGl_uniform_block_view::get().set_data(0, view_mat);
 
+			std::vector<OpenGl_uniform_block_light_instance> relevant_lights;
+			OpenGl_uniform_block_light_instance light;
+			light.m_position = glm::vec4(10.0f, 10.0f, -30.0f, 1.0f);
+			light.m_color = { 1.0f, 0.0f, 0.0f };
+			light.m_intensity = 100.0f;
+
+			//relevant_lights.push_back(light);
+
+			const ui32 byte_size = sizeof(OpenGl_uniform_block_light_instance) * relevant_lights.size();
+
+			//OpenGl_uniform_block_lights::get().set_data(0, GLint(relevant_lights.size()));
+			//OpenGl_uniform_block_lights::get().set_data_raw(1, 0, byte_size, relevant_lights.data());
+
 			const Update_list<Render_object_model>& models = std::get<Update_list<Render_object_model>>(scene_it->second);
 			for (const Render_object_model& model : models.m_objects)
 			{
@@ -370,7 +384,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 				OpenGl_uniform_block_test::get().set_data(0, glm::vec3(1.0f, 0.0f, 0.0f));
 				OpenGl_uniform_block_test::get().set_data(1, glm::vec3(0.0f, 0.0f, 1.0f));
 
-				quad_program.set_uniform_block<OpenGl_uniform_block_test>();
+				quad_program.set_uniform_block(OpenGl_uniform_block_test::get());
 			}
 
 			// render to  backbuffer

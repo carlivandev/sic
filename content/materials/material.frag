@@ -13,7 +13,6 @@ layout(location = 0) out vec3 color;
 
 // Values that stay constant for the whole mesh.
 uniform sampler2D tex_albedo;
-uniform mat4 MV;
 uniform vec3 light_position_worldspace;
 
 void main()

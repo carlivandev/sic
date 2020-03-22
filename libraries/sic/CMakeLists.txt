@@ -75,6 +75,7 @@ add_headers(SIC_HEADERS
 	opengl_program.h
 	opengl_texture.h
 	opengl_uniform_block.h
+	opengl_engine_uniform_blocks.h
 	system_editor_view_controller.h
 	component_view.h
 	system_model.h
