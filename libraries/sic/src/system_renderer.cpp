@@ -51,6 +51,7 @@ namespace sic_private
 	void init_material(Asset_material& out_material)
 	{
 		out_material.m_program.emplace(out_material.m_vertex_shader_path, out_material.m_vertex_shader_code, out_material.m_fragment_shader_path, out_material.m_fragment_shader_code);
+		out_material.m_program.value().set_uniform_block<OpenGl_uniform_block_view>();
 	}
 
 	void init_mesh(Asset_model::Mesh& inout_mesh)
@@ -68,17 +69,15 @@ namespace sic_private
 		index_buffer.set_data(inout_mesh.m_indices);
 	}
 
-	void draw_mesh(const Asset_model::Mesh& in_mesh, const Asset_material& in_material, const glm::mat4& in_mvp)
+	void draw_mesh(const Asset_model::Mesh& in_mesh, const Asset_material& in_material, const glm::mat4& in_mvp, const glm::mat4& in_view_matrix, const glm::mat4& in_model_matrix, const glm::vec3& in_light_position)
 	{
 		// Use our shader
 		in_material.m_program.value().use();
 
-		GLuint mvp_uniform_loc = in_material.m_program.value().get_uniform_location("MVP");
-
-		if (mvp_uniform_loc == -1)
-			return;
-
-		glUniformMatrix4fv(mvp_uniform_loc, 1, GL_FALSE, glm::value_ptr(in_mvp));
+		auto& program = in_material.m_program.value();
+		program.set_uniform("MVP", in_mvp);
+		program.set_uniform("model_matrix", in_model_matrix);
+		program.set_uniform("light_position_worldspace", in_light_position);
 
 		ui32 texture_param_idx = 0;
 
@@ -131,21 +130,21 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 	glfwMakeContextCurrent(window_state->m_main_window->get<Component_window>().m_window);
 	
 	assetsystem_state->do_post_load<Asset_texture>
-		(
-			[](Asset_texture& in_texture)
-			{
-				//do opengl load
-				sic_private::init_texture(in_texture);
-			}
+	(
+		[](Asset_texture& in_texture)
+		{
+			//do opengl load
+			sic_private::init_texture(in_texture);
+		}
 	);
 
 	assetsystem_state->do_post_load<Asset_material>
-		(
-			[](Asset_material& in_material)
-			{
-				//do opengl load
-				sic_private::init_material(in_material);
-			}
+	(
+		[](Asset_material& in_material)
+		{
+			//do opengl load
+			sic_private::init_material(in_material);
+		}
 	);
 
 	assetsystem_state->do_post_load<Asset_model>
@@ -159,34 +158,34 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 	);
 
 	assetsystem_state->do_pre_unload<Asset_texture>
-		(
-			[](Asset_texture& in_texture)
-			{
-				in_texture.m_texture.reset();
+	(
+		[](Asset_texture& in_texture)
+		{
+			in_texture.m_texture.reset();
 
-				if (!in_texture.m_free_texture_data_after_setup)
-					in_texture.m_texture_data.reset();
-			}
+			if (!in_texture.m_free_texture_data_after_setup)
+				in_texture.m_texture_data.reset();
+		}
 	);
 
 	assetsystem_state->do_pre_unload<Asset_material>
-		(
-			[](Asset_material& in_material)
-			{
-				in_material.m_program.reset();
-			}
+	(
+		[](Asset_material& in_material)
+		{
+			in_material.m_program.reset();
+		}
 	);
 
 	assetsystem_state->do_pre_unload<Asset_model>
-		(
-			[](Asset_model& in_model)
+	(
+		[](Asset_model& in_model)
+		{
+			for (auto&& mesh : in_model.m_meshes)
 			{
-				for (auto&& mesh : in_model.m_meshes)
-				{
-					mesh.m_vertex_buffer_array.reset();
-					mesh.m_index_buffer.reset();
-				}
+				mesh.m_vertex_buffer_array.reset();
+				mesh.m_index_buffer.reset();
 			}
+		}
 	);
 
 	State_render_scene* scene_state = in_context.get_state<State_render_scene>();
@@ -256,6 +255,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 			);
 
 			const glm::mat4x4 view_mat = glm::inverse(view->m_view_orientation);
+			OpenGl_uniform_block_view::get().set_data(0, view_mat);
 
 			const Update_list<Render_object_model>& models = std::get<Update_list<Render_object_model>>(scene_it->second);
 			for (const Render_object_model& model : models.m_objects)
@@ -304,7 +304,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 							}
 
 							if (all_texture_loaded)
-								sic_private::draw_mesh(mesh, *mat_to_draw.get(), mvp);
+								sic_private::draw_mesh(mesh, *mat_to_draw.get(), mvp, view_mat, model_mat, glm::vec3(10.0f, 10.0f, -30.0f));
 						}
 						else if (mat_to_draw.get_load_state() == Asset_load_state::not_loaded)
 						{
@@ -318,8 +318,8 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 
 			static bool one_shot = false;
 
-			const std::string quad_vertex_shader_path = "content/materials/pass_through.vs";
-			const std::string quad_fragment_shader_path = "content/materials/simple_texture.fs";
+			const std::string quad_vertex_shader_path = "content/materials/pass_through.vert";
+			const std::string quad_fragment_shader_path = "content/materials/simple_texture.frag";
 			static OpenGl_program quad_program(quad_vertex_shader_path, File_management::load_file(quad_vertex_shader_path), quad_fragment_shader_path, File_management::load_file(quad_fragment_shader_path));
 
 			static OpenGl_vertex_buffer_array
@@ -330,10 +330,10 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 
 			static OpenGl_buffer quad_indexbuffer(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW);
 
-			static std::vector<unsigned int> indices;
-
 			if (!one_shot)
 			{
+				
+
 				one_shot = true;
 
 				const std::vector<GLfloat> positions = {
@@ -355,7 +355,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 				1 2
 				0 3
 				*/
-				indices = {
+				std::vector<unsigned int> indices = {
 					0, 2, 1,
 					0, 3, 2
 				};
@@ -366,6 +366,11 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 				quad_vertex_buffer_array.set_data<OpenGl_vertex_attribute_texcoord>(tex_coords);
 
 				quad_indexbuffer.set_data(indices);
+
+				OpenGl_uniform_block_test::get().set_data(0, glm::vec3(1.0f, 0.0f, 0.0f));
+				OpenGl_uniform_block_test::get().set_data(1, glm::vec3(0.0f, 0.0f, 1.0f));
+
+				quad_program.set_uniform_block<OpenGl_uniform_block_test>();
 			}
 
 			// render to  backbuffer
@@ -380,6 +385,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 			);
 
 			quad_program.use();
+
 			GLuint tex_loc_id = quad_program.get_uniform_location("uniform_texture");
 
 			view->m_render_target.value().m_texture.bind(tex_loc_id, 0);
