@@ -53,6 +53,7 @@ namespace sic_private
 	{
 		out_material.m_program.emplace(out_material.m_vertex_shader_path, out_material.m_vertex_shader_code, out_material.m_fragment_shader_path, out_material.m_fragment_shader_code);
 		out_material.m_program.value().set_uniform_block(OpenGl_uniform_block_view::get());
+		out_material.m_program.value().set_uniform_block(OpenGl_uniform_block_lights::get());
 	}
 
 	void init_mesh(Asset_model::Mesh& inout_mesh)
@@ -70,7 +71,7 @@ namespace sic_private
 		index_buffer.set_data(inout_mesh.m_indices);
 	}
 
-	void draw_mesh(const Asset_model::Mesh& in_mesh, const Asset_material& in_material, const glm::mat4& in_mvp, const glm::mat4& in_view_matrix, const glm::mat4& in_model_matrix, const glm::vec3& in_light_position)
+	void draw_mesh(const Asset_model::Mesh& in_mesh, const Asset_material& in_material, const glm::mat4& in_mvp, const glm::mat4& in_model_matrix)
 	{
 		// Use our shader
 		in_material.m_program.value().use();
@@ -109,6 +110,84 @@ namespace sic_private
 		glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(in_mesh.m_index_buffer.value().size()), GL_UNSIGNED_INT, 0);
 
 		glActiveTexture(GL_TEXTURE0);
+	}
+
+	void draw_lines(const std::vector<glm::vec3>& in_lines, const glm::mat4x4& in_view_projection_matrix, const glm::vec4& in_color);
+
+	void draw_line(const glm::vec3& in_start, const glm::vec3& in_end, const glm::mat4x4& in_view_projection_matrix, const glm::vec4& in_color)
+	{
+		draw_lines({ in_start, in_end }, in_view_projection_matrix, in_color);
+	}
+
+	void draw_cube(const glm::vec3& in_center, const glm::vec3& in_size, const glm::mat4x4& in_view_projection_matrix, const glm::vec4& in_color)
+	{
+		std::vector<glm::vec3> lines;
+
+		const glm::vec3 min = in_center - (in_size * 0.5f);
+		const glm::vec3 max = in_center + (in_size * 0.5f);
+
+		//bottom
+		lines.push_back(min);
+		lines.push_back(glm::vec3(min.x, min.y, max.z));
+		lines.push_back(glm::vec3(max.x, min.y, max.z));
+		lines.push_back(glm::vec3(max.x, min.y, min.z));
+		lines.push_back(min);
+
+		//front
+		lines.push_back(min);
+		lines.push_back(glm::vec3(min.x, max.y, min.z));
+		lines.push_back(glm::vec3(max.x, max.y, min.z));
+		lines.push_back(glm::vec3(max.x, min.y, min.z));
+		lines.push_back(min);
+
+		//TODO: finish this
+
+		draw_lines(lines, in_view_projection_matrix, in_color);
+	}
+
+	void draw_sphere(const glm::vec3& in_center, float in_radius, float in_segments, const glm::mat4x4& in_view_projection_matrix, const glm::vec4& in_color)
+	{
+		std::vector<glm::vec3> lines;
+
+		for (int i = 0; i <= in_segments; i++)
+		{
+			double lat0 = sic::constants::pi * (-0.5 + (double)(i - 1) / in_segments);
+			double z0 = sin(lat0);
+			double zr0 = cos(lat0);
+
+			double lat1 = sic::constants::pi * (-0.5 + (double)i / in_segments);
+			double z1 = sin(lat1);
+			double zr1 = cos(lat1);
+
+			for (int j = 0; j <= in_segments; j++)
+			{
+				double lng = 2 * sic::constants::pi * (double)(j - 1) / in_segments;
+				double x = cos(lng);
+				double y = sin(lng);
+
+				lines.push_back(in_center + glm::vec3(in_radius * x * zr0, in_radius * y * zr0, in_radius * z0));
+				lines.push_back(in_center + glm::vec3(in_radius * x * zr1, in_radius * y * zr1, in_radius * z1));
+			}
+		}
+
+		draw_lines(lines, in_view_projection_matrix, in_color);
+	}
+
+	void draw_lines(const std::vector<glm::vec3>& in_lines, const glm::mat4x4& in_view_projection_matrix, const glm::vec4& in_color)
+	{
+		static const std::string debug_shape_vertex_shader_path = "content/materials/debug_shape.vert";
+		static const std::string debug_shape_fragment_shader_path = "content/materials/debug_shape.frag";
+		static OpenGl_program debug_shape_program(debug_shape_vertex_shader_path, File_management::load_file(debug_shape_vertex_shader_path), debug_shape_fragment_shader_path, File_management::load_file(debug_shape_fragment_shader_path));
+
+		static OpenGl_vertex_buffer_array<OpenGl_vertex_attribute_position3D> debug_shape_vertex_buffer_array;
+		debug_shape_vertex_buffer_array.set_data<OpenGl_vertex_attribute_position3D>(in_lines);
+
+		debug_shape_program.use();
+		debug_shape_program.set_uniform("VP", in_view_projection_matrix);
+		debug_shape_program.set_uniform("color", in_color);
+
+		debug_shape_vertex_buffer_array.bind();
+		glDrawArrays(GL_LINES, 0, in_lines.size());
 	}
 }
 
@@ -260,16 +339,25 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 
 			std::vector<OpenGl_uniform_block_light_instance> relevant_lights;
 			OpenGl_uniform_block_light_instance light;
-			light.m_position = glm::vec4(10.0f, 10.0f, -30.0f, 1.0f);
-			light.m_color = { 1.0f, 0.0f, 0.0f };
-			light.m_intensity = 100.0f;
+			light.m_position_and_unused = glm::vec4(10.0f, 10.0f, -30.0f, 0.0f);
+			light.m_color_and_intensity = { 1.0f, 0.0f, 0.0f, 100.0f };
 
-			//relevant_lights.push_back(light);
+			relevant_lights.push_back(light);
+
+			static float cur_val = 0.0f;
+			cur_val += in_time_delta;
+			light.m_position_and_unused = glm::vec4(10.0f, (glm::cos(cur_val * 2.0f) * 30.0f), 0.0f, 0.0f);
+			light.m_color_and_intensity = { 0.0f, 1.0f, 0.0f, 50.0f };
+
+			relevant_lights.push_back(light);
+
+			sic_private::draw_line(glm::vec3(10.0f, (glm::cos(cur_val * 2.0f) * 30.0f), 0.0f), glm::vec3(10.0f, 10.0f, -30.0f), proj_mat * view_mat, light.m_color_and_intensity);	
+			sic_private::draw_sphere(light.m_position_and_unused, 32.0f, 16.0f, proj_mat* view_mat, light.m_color_and_intensity);
 
 			const ui32 byte_size = sizeof(OpenGl_uniform_block_light_instance) * relevant_lights.size();
 
-			//OpenGl_uniform_block_lights::get().set_data(0, GLint(relevant_lights.size()));
-			//OpenGl_uniform_block_lights::get().set_data_raw(1, 0, byte_size, relevant_lights.data());
+			OpenGl_uniform_block_lights::get().set_data(0, static_cast<GLfloat>(relevant_lights.size()));
+			OpenGl_uniform_block_lights::get().set_data_raw(1, 0, byte_size, relevant_lights.data());
 
 			const Update_list<Render_object_model>& models = std::get<Update_list<Render_object_model>>(scene_it->second);
 			for (const Render_object_model& model : models.m_objects)
@@ -318,7 +406,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 							}
 
 							if (all_texture_loaded)
-								sic_private::draw_mesh(mesh, *mat_to_draw.get(), mvp, view_mat, model_mat, glm::vec3(10.0f, 10.0f, -30.0f));
+								sic_private::draw_mesh(mesh, *mat_to_draw.get(), mvp, model_mat);
 						}
 						else if (mat_to_draw.get_load_state() == Asset_load_state::not_loaded)
 						{
@@ -381,10 +469,10 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 
 				quad_indexbuffer.set_data(indices);
 
-				OpenGl_uniform_block_test::get().set_data(0, glm::vec3(1.0f, 0.0f, 0.0f));
-				OpenGl_uniform_block_test::get().set_data(1, glm::vec3(0.0f, 0.0f, 1.0f));
-
-				quad_program.set_uniform_block(OpenGl_uniform_block_test::get());
+				//OpenGl_uniform_block_test::get().set_data(0, glm::vec3(1.0f, 0.0f, 0.0f));
+				//OpenGl_uniform_block_test::get().set_data(1, glm::vec3(0.0f, 0.0f, 1.0f));
+				//
+				//quad_program.set_uniform_block(OpenGl_uniform_block_test::get());
 			}
 
 			// render to  backbuffer
