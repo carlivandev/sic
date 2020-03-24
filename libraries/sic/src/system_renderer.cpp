@@ -546,14 +546,14 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		const float aspect_ratio = static_cast<float>(current_window_x) / static_cast<float>(current_window_y);
-
 		for (Render_object_view* view : window_to_views_it.second)
 		{
 			auto scene_it = scene_state->m_level_id_to_scene_lut.find(view->m_level_id);
 
 			if (scene_it == scene_state->m_level_id_to_scene_lut.end())
 				continue;
+
+			const float view_aspect_ratio = (current_window_x * view->m_viewport_size.x) / (current_window_y* view->m_viewport_size.y);
 
 			view->m_render_target.value().bind_as_target(0);
 			view->m_render_target.value().clear();
@@ -574,7 +574,7 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 			const glm::mat4x4 proj_mat = glm::perspective
 			(
 				glm::radians(view->m_fov),
-				aspect_ratio,
+				view_aspect_ratio,
 				view->m_near_plane,
 				view->m_far_plane
 			);
@@ -618,10 +618,12 @@ void sic::System_renderer::on_engine_tick(Engine_context&& in_context, float in_
 				if (view == debug_draw_view)
 					continue;
 
+				const float debug_draw_view_aspect_ratio = (current_window_x * debug_draw_view->m_viewport_size.x) / (current_window_y * debug_draw_view->m_viewport_size.y);
+
 				const glm::mat4x4 debug_draw_proj_mat = glm::perspective
 				(
 					glm::radians(debug_draw_view->m_fov),
-					aspect_ratio,
+					debug_draw_view_aspect_ratio,
 					debug_draw_view->m_near_plane,
 					debug_draw_view->m_far_plane
 				);
