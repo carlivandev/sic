@@ -51,7 +51,11 @@ namespace sic
 
 		void look_at(const glm::vec3& in_direction, const glm::vec3& in_up)
 		{
-			m_rotation = glm::quatLookAt(in_direction, in_up);
+			if (in_direction == in_up)
+				m_rotation = glm::quatLookAt(in_direction, glm::normalize(glm::vec3(in_up.x - 0.001f, in_up.y, in_up.z)));
+			else
+				m_rotation = glm::quatLookAt(in_direction, in_up);
+
 			m_rotation = glm::normalize(m_rotation);
 		}
 

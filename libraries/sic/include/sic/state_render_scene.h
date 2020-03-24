@@ -41,7 +41,7 @@ namespace sic
 	{
 		Asset_ref<Asset_model> m_model;
 		std::unordered_map<std::string, Asset_ref<Asset_material>> m_material_overrides;
-		glm::vec3 m_position = { 0.0f, 0.0f, 0.0f };
+		glm::mat4x4 m_orientation = glm::mat4x4(1);
 	};
 
 	enum struct Debug_shape

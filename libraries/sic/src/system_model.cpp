@@ -24,9 +24,11 @@ void sic::System_model::on_created(Engine_context&& in_context)
 				in_out_component.m_render_scene_state->update_object
 				(
 					in_out_component.m_render_object_id,
-					[pos = in_transform.get_translation()](Render_object_model& in_object)
+					[
+						orientation = in_transform.get_matrix()
+					](Render_object_model& in_object)
 					{
-						in_object.m_position = pos;
+						in_object.m_orientation = orientation;
 					}
 				);
 			};
@@ -39,12 +41,12 @@ void sic::System_model::on_created(Engine_context&& in_context)
 				[
 					model = in_out_component.m_model,
 					material_overrides = in_out_component.m_material_overrides,
-					position = transform->get_translation()
+					orientation = transform->get_matrix()
 				](Render_object_model& in_out_object)
 				{
 					in_out_object.m_model = model;
 					in_out_object.m_material_overrides = material_overrides;
-					in_out_object.m_position = position;
+					in_out_object.m_orientation = orientation;
 				}
 			);
 		}
