@@ -12,7 +12,7 @@ namespace sic
 			{
 				Engine_context engine_context = inout_context.get_engine_context();
 
-				State_debug_drawing* debug_drawing_state = engine_context.get_state<State_debug_drawing>();
+				const State_debug_drawing* debug_drawing_state = engine_context.get_state<State_debug_drawing>();
 				State_render_scene* render_scene_state = engine_context.get_state<State_render_scene>();
 
 				render_scene_state->update_object

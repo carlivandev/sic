@@ -64,9 +64,9 @@ namespace sic
 		Window_input_mode m_current_input_mode = Window_input_mode::normal;
 
 		std::optional<glm::vec2> m_cursor_pos_to_set;
-		glm::vec2 m_cursor_pos;
+		glm::vec2 m_cursor_pos = { 0.0f, 0.0f };
 
-		glm::vec2 m_cursor_movement;
+		glm::vec2 m_cursor_movement = { 0.0f, 0.0f };
 	};
 
 	struct Object_window : public Object<Object_window, Component_window> {};
