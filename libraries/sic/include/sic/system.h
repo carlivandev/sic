@@ -23,33 +23,33 @@ namespace sic
 			happens right after a system has been created in a engine
 			useful for creating subsystems, registering types, etc
 		*/
-		virtual void on_created(Engine_context&& in_context) { in_context; }
+		virtual void on_created(Engine_context in_context);
 
 		/*
 		*/
-		virtual void on_shutdown(Engine_context&& in_context) { in_context; }
+		virtual void on_shutdown(Engine_context in_context);
 
 		/*
 			happens after level has finished setting up
 		*/
-		virtual void on_begin_simulation(Level_context&& in_context) const { in_context; }
+		virtual void on_begin_simulation(Level_context in_context) const;
 
 		/*
 			happens after level has called on_begin_simulation
 			called every frame for each root level
 		*/
-		virtual void on_tick(Level_context&& in_context, float in_time_delta) const { in_context; in_time_delta; }
+		virtual void on_tick(Level_context in_context, float in_time_delta) const;
 
 		/*
 			happens when level is destroyed
 		*/
-		virtual void on_end_simulation(Level_context&& in_context) const { in_context; }
+		virtual void on_end_simulation(Level_context in_context) const;
 
 		/*
 			happens after engine has finished setting up
 			called every frame once
 		*/
-		virtual void on_engine_tick(Engine_context&& in_context, float in_time_delta) const { in_context; in_time_delta; }
+		virtual void on_engine_tick(Engine_context in_context, float in_time_delta) const;
 
 		//unsafe cast, see try_cast for safe version
 		template <typename t_to_type, typename t_from_type>
@@ -112,8 +112,8 @@ namespace sic
 		const std::string& name() const { return m_name; }
 
 	protected:
-		void execute_tick(Level_context&& in_context, float in_time_delta) const;
-		void execute_engine_tick(Engine_context&& in_context, float in_time_delta) const;
+		void execute_tick(Level_context in_context, float in_time_delta) const;
+		void execute_engine_tick(Engine_context in_context, float in_time_delta) const;
 
 		std::string m_name;
 		bool m_enabled = true;

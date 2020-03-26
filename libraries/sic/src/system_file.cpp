@@ -25,17 +25,17 @@ void sic::State_filesystem::request_save(std::vector<File_save_request>&& in_req
 	std::move(in_requests.begin(), in_requests.end(), std::back_inserter(m_save_requests));
 }
 
-void sic::System_file::on_created(Engine_context&& in_context)
+void sic::System_file::on_created(Engine_context in_context)
 {
 	in_context.register_state<State_filesystem>("state_filesystem");
 	in_context.get_state<State_filesystem>()->m_worker_pool.spawn(4);
 }
 
-void sic::System_file::on_tick(Level_context&& in_context, float in_time_delta) const
+void sic::System_file::on_tick(Level_context in_context, float in_time_delta) const
 {
 	in_time_delta;
 
-	State_filesystem* file_state = in_context.m_engine.get_state<State_filesystem>();
+	State_filesystem* file_state = in_context.get_engine_context().get_state<State_filesystem>();
 
 	if (!file_state)
 		return;
@@ -85,9 +85,9 @@ void sic::System_file::on_tick(Level_context&& in_context, float in_time_delta) 
 	file_state->m_load_requests.clear();
 }
 
-void sic::System_file::on_end_simulation(Level_context&& in_context) const
+void sic::System_file::on_end_simulation(Level_context in_context) const
 {
-	State_filesystem* file_state = in_context.m_engine.get_state<State_filesystem>();
+	State_filesystem* file_state = in_context.get_engine_context().get_state<State_filesystem>();
 
 	if (!file_state)
 		return;

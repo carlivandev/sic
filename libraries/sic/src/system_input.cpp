@@ -7,12 +7,12 @@
 
 #include "sic/logger.h"
 
-void sic::System_input::on_created(Engine_context&& in_context)
+void sic::System_input::on_created(Engine_context in_context)
 {
 	in_context.register_state<State_input>("input");
 }
 
-void sic::System_input::on_engine_tick(Engine_context&& in_context, float in_time_delta) const
+void sic::System_input::on_engine_tick(Engine_context in_context, float in_time_delta) const
 {
 	in_time_delta;
 
@@ -24,38 +24,41 @@ void sic::System_input::on_engine_tick(Engine_context&& in_context, float in_tim
 	input_state->m_scroll_offset_x = 0.0f;
 	input_state->m_scroll_offset_y = 0.0f;
 
-	for (auto& level : in_context.m_engine.m_levels)
-	{
-		level->for_each<Component_window>
+	in_context.for_each<Level>
 		(
-			[input_state](Component_window& in_component_window_it)
+			[input_state](Level& level)
 			{
-				if (!in_component_window_it.m_window)
-					return;
+				level.for_each<Component_window>
+					(
+						[input_state](Component_window& in_component_window_it)
+						{
+							if (!in_component_window_it.m_window)
+								return;
 
-				if (!in_component_window_it.m_is_focused)
-					return;
+							if (!in_component_window_it.m_is_focused)
+								return;
 
-				input_state->m_scroll_offset_x += in_component_window_it.m_scroll_offset_x;
-				input_state->m_scroll_offset_y += in_component_window_it.m_scroll_offset_y;
+							input_state->m_scroll_offset_x += in_component_window_it.m_scroll_offset_x;
+							input_state->m_scroll_offset_y += in_component_window_it.m_scroll_offset_y;
 
-				in_component_window_it.m_scroll_offset_x = 0.0;
-				in_component_window_it.m_scroll_offset_y = 0.0;
+							in_component_window_it.m_scroll_offset_x = 0.0;
+							in_component_window_it.m_scroll_offset_y = 0.0;
 
-				const i32 first_valid_key = 32;
+							const i32 first_valid_key = 32;
 
-				for (i32 i = first_valid_key; i < GLFW_KEY_LAST; i++)
-					input_state->key_last_frame_down[i] = input_state->key_this_frame_down[i];
+							for (i32 i = first_valid_key; i < GLFW_KEY_LAST; i++)
+								input_state->key_last_frame_down[i] = input_state->key_this_frame_down[i];
 
-				for (i32 i = first_valid_key; i < GLFW_KEY_LAST; i++)
-					input_state->key_this_frame_down[i] = glfwGetKey(in_component_window_it.m_window, i) == GLFW_PRESS;
+							for (i32 i = first_valid_key; i < GLFW_KEY_LAST; i++)
+								input_state->key_this_frame_down[i] = glfwGetKey(in_component_window_it.m_window, i) == GLFW_PRESS;
 
-				for (i32 i = 0; i < GLFW_MOUSE_BUTTON_LAST; i++)
-					input_state->mouse_last_frame_down[i] = input_state->mouse_this_frame_down[i];
+							for (i32 i = 0; i < GLFW_MOUSE_BUTTON_LAST; i++)
+								input_state->mouse_last_frame_down[i] = input_state->mouse_this_frame_down[i];
 
-				for (i32 i = 0; i < GLFW_MOUSE_BUTTON_LAST; i++)
-					input_state->mouse_this_frame_down[i] = glfwGetMouseButton(in_component_window_it.m_window, i) == GLFW_PRESS;
+							for (i32 i = 0; i < GLFW_MOUSE_BUTTON_LAST; i++)
+								input_state->mouse_this_frame_down[i] = glfwGetMouseButton(in_component_window_it.m_window, i) == GLFW_PRESS;
+						}
+				);
 			}
-		);
-	}
+	);
 }

@@ -91,12 +91,12 @@ namespace sic
 	struct System_window : System
 	{
 		//create window, create window state
-		virtual void on_created(Engine_context&& in_context) override;
+		virtual void on_created(Engine_context in_context) override;
 
 		//cleanup
-		virtual void on_shutdown(Engine_context&& in_context);
+		virtual void on_shutdown(Engine_context in_context);
 
 		//poll window events
-		virtual void on_engine_tick(Engine_context&& in_context, float in_time_delta) const override;
+		virtual void on_engine_tick(Engine_context in_context, float in_time_delta) const override;
 	};
 }

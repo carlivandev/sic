@@ -1,5 +1,6 @@
 #pragma once
 #include "engine.h"
+#include "level.h"
 
 namespace sic
 {
@@ -70,6 +71,41 @@ namespace sic
 		void invoke(event_data& event_data_to_send)
 		{
 			m_engine.invoke<t_event_type, event_data>(event_data_to_send);
+		}
+
+		template<typename t_type>
+		__forceinline void for_each(std::function<void(t_type&)> in_func)
+		{
+			if constexpr (std::is_same<t_type, Level>::value)
+			{
+				for (auto& level : m_engine.m_levels)
+					for_each_level(in_func, *level.get());
+			}
+			else
+			{
+				for (auto& level : m_engine.m_levels)
+					level->for_each<t_type>(in_func);
+			}
+		}
+
+		template<typename t_type>
+		__forceinline void for_each(std::function<void(const t_type&)> in_func) const
+		{
+			m_level.for_each<t_type>(in_func);
+		}
+
+		void shutdown()
+		{
+			m_engine.shutdown();
+		}
+
+	private:
+		void for_each_level(std::function<void(Level&)> in_func, Level& inout_level)
+		{
+			in_func(inout_level);
+
+			for (auto& sublevel : inout_level.m_sublevels)
+				for_each_level(in_func, *sublevel.get());
 		}
 
 		Engine& m_engine;

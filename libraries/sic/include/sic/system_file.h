@@ -50,8 +50,8 @@ namespace sic
 
 	struct System_file : System
 	{
-		virtual void on_created(Engine_context&& in_context) override;
-		virtual void on_tick(Level_context&& in_context, float in_time_delta) const override;
-		virtual void on_end_simulation(Level_context&& in_context) const override;
+		virtual void on_created(Engine_context in_context) override;
+		virtual void on_tick(Level_context in_context, float in_time_delta) const override;
+		virtual void on_end_simulation(Level_context in_context) const override;
 	};
 }

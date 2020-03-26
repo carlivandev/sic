@@ -67,7 +67,7 @@ namespace sic
 		void deserialize_instance(const std::vector<byte>& in_serialized_data, t_owner& out_owner)
 		{
 // 			std::stringstream serialized_stream;
-// 			serialized_stream.write(in_serialized_data.data(), in_serialized_data.size());
+// 			serialized_stream.write(in_serialized_data.data(), in_serialized_data.get_max_elements());
 // 
 // 			std::string line;
 // 			while (std::getline(serialized_stream, line))

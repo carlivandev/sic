@@ -3,6 +3,8 @@
 #include "sic/object.h"
 #include "sic/engine_context.h"
 
+#include <algorithm>
+
 namespace sic
 {
 	void Engine::initialize()
@@ -36,7 +38,7 @@ namespace sic
 			m_finished_setup = true;
 
 			//first level always reserved for engine
-			create_level();
+			create_level(nullptr);
 			flush_level_streaming();
 		}
 
@@ -162,13 +164,23 @@ namespace sic
 			system->on_shutdown(Engine_context(*this));
 	}
 
-	void Engine::create_level()
+	void Engine::create_level(Level* in_parent_level)
 	{
 		std::scoped_lock levels_lock(m_levels_mutex);
 
 		assert(m_finished_setup && "Can't create a level before system has finished setup!");
 
-		m_levels_to_add.push_back(std::make_unique<Level>(*this));
+		Level* outermost_level = nullptr;
+
+		if (in_parent_level)
+		{
+			if (in_parent_level->m_outermost_level)
+				outermost_level = in_parent_level->m_outermost_level;
+			else
+				outermost_level = in_parent_level;
+		}
+
+		m_levels_to_add.push_back(std::make_unique<Level>(*this, outermost_level, in_parent_level));
 
 		Level& new_level = *m_levels_to_add.back().get();
 		new_level.m_level_id = m_level_id_ticker++;
@@ -213,17 +225,7 @@ namespace sic
 
 			//first remove levels
 			for (Level* level : m_levels_to_remove)
-			{
-				for (auto& system : m_systems)
-				{
-					if (!is_shutting_down())
-						system->on_end_simulation(Level_context(*this, *level));
-				}
-
-				auto it = std::find_if(m_levels.begin(), m_levels.end(), [level](auto& other_level) {return level == other_level.get(); });
-				if (it != m_levels.end())
-					m_levels.erase(it);
-			}
+				destroy_level_internal(*level);
 
 			m_levels_to_remove.clear();
 		}
@@ -235,12 +237,25 @@ namespace sic
 			//then add new levels
 			for (auto& level : m_levels_to_add)
 			{
-				m_levels.push_back(std::move(level));
+				Level* added_level = nullptr;
+				//is this a sublevel?
+				if (level->m_outermost_level)
+				{
+					level->m_outermost_level->m_sublevels.push_back(std::move(level));
+					added_level = level->m_outermost_level->m_sublevels.back().get();
+				}
+				else
+				{
+					m_levels.push_back(std::move(level));
+					added_level = m_levels.back().get();
+				}
+
+				invoke<event_created<Level>>(*added_level);
 
 				for (auto& system : m_systems)
 				{
 					if (!is_shutting_down())
-						system->on_begin_simulation(Level_context(*this, *m_levels.back().get()));
+						system->on_begin_simulation(Level_context(*this, *added_level));
 				}
 			}
 
@@ -254,5 +269,34 @@ namespace sic
 			m_states.push_back(nullptr);
 
 		return m_states[in_index];
+	}
+
+	void Engine::destroy_level_internal(Level& in_level)
+	{
+		//first, recursively destroy all sublevels
+		const i32 last_sublevel_index = static_cast<i32>(in_level.m_sublevels.size()) - 1;
+
+		for (i32 i = last_sublevel_index; i >= 0; i--)
+			destroy_level_internal(*in_level.m_sublevels[i].get());
+
+		//then destroy in_level
+
+		for (auto& system : m_systems)
+		{
+			if (!is_shutting_down())
+				system->on_end_simulation(Level_context(*this, in_level));
+		}
+
+		invoke<event_destroyed<Level>>(in_level);
+
+		std::vector<std::unique_ptr<Level>>* levels_to_remove_from;
+		if (in_level.m_parent_level)
+			levels_to_remove_from = &in_level.m_parent_level->m_sublevels;
+		else
+			levels_to_remove_from = &m_levels;
+
+		auto it = std::find_if(levels_to_remove_from->begin(), levels_to_remove_from->end(), [&in_level](auto& other_level) {return &in_level == other_level.get(); });
+		if (it != levels_to_remove_from->end())
+			levels_to_remove_from->erase(it);
 	}
 }

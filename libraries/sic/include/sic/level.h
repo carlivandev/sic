@@ -11,7 +11,7 @@ namespace sic
 {
 	struct Level : Noncopyable
 	{
-		Level(Engine& in_engine) : m_engine(in_engine) {}
+		Level(Engine& in_engine, Level* in_outermost_level, Level* in_parent_level) : m_engine(in_engine), m_outermost_level(in_outermost_level) , m_parent_level(in_parent_level) {}
 
 		template <typename t_object>
 		constexpr t_object& create_object();
@@ -30,6 +30,8 @@ namespace sic
 		template <typename t_type>
 		void for_each(std::function<void(const t_type&)> in_func) const;
 
+		bool get_is_root_level() const { return m_outermost_level == nullptr; }
+
 		std::unique_ptr<Component_storage_base>& get_component_storage_at_index(i32 in_index);
 		std::unique_ptr<Object_storage_base>& get_object_storage_at_index(i32 in_index);
 
@@ -39,6 +41,8 @@ namespace sic
 		std::vector<std::unique_ptr<Level>> m_sublevels;
 		Engine& m_engine;
 
+		Level* m_outermost_level = nullptr;
+		Level* m_parent_level = nullptr;
 		i32 m_level_id = -1;
 	};
 

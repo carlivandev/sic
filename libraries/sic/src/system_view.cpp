@@ -2,7 +2,7 @@
 
 #include "sic/state_render_scene.h"
 
-void sic::System_view::on_created(Engine_context&& in_context)
+void sic::System_view::on_created(Engine_context in_context)
 {
 	in_context.register_component_type<Component_view>("component_view", 4);
 	in_context.register_object<Object_view>("view", 4);
@@ -35,7 +35,7 @@ void sic::System_view::on_created(Engine_context&& in_context)
 			in_out_component.m_render_object_id = in_out_component.m_render_scene_state->m_views.create_object
 			(
 				[
-					level_id = in_out_component.get_owner().get_level_id(),
+					level_id = in_out_component.get_owner().get_outermost_level_id(),
 					matrix = transform->get_matrix(),
 					viewport_offset = in_out_component.m_viewport_offset,
 					viewport_size = in_out_component.m_viewport_size,

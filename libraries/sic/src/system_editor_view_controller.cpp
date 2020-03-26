@@ -7,13 +7,13 @@
 #include "glm/gtc/matrix_transform.hpp"
 
 
-void sic::System_editor_view_controller::on_created(Engine_context&& in_context)
+void sic::System_editor_view_controller::on_created(Engine_context in_context)
 {
 	in_context.register_component_type<Component_editor_view_controller>("evcd", 1);
 	in_context.register_object<Object_editor_view_controller>("evc", 1);
 }
 
-void sic::System_editor_view_controller::on_begin_simulation(Level_context&& in_context) const
+void sic::System_editor_view_controller::on_begin_simulation(Level_context in_context) const
 {
 	in_context.for_each<Component_editor_view_controller>
 	(
@@ -38,15 +38,12 @@ void sic::System_editor_view_controller::on_begin_simulation(Level_context&& in_
 	);
 }
 
-void sic::System_editor_view_controller::on_tick(Level_context&& in_context, float in_time_delta) const
+void sic::System_editor_view_controller::on_tick(Level_context in_context, float in_time_delta) const
 {
-	State_input* input_state = in_context.m_engine.get_state<State_input>();
+	State_input* input_state = in_context.get_engine_context().get_state<State_input>();
 
 	if (!input_state)
 		return;
-
-	if (input_state->is_key_pressed(Key::escape))
-		in_context.m_engine.shutdown();
 
 	in_context.for_each<Component_editor_view_controller>
 	(

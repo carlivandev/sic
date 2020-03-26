@@ -26,7 +26,7 @@ namespace sic_private
 	}
 }
 
-void sic::System_asset::on_created(Engine_context&& in_context)
+void sic::System_asset::on_created(Engine_context in_context)
 {
 	in_context.register_state<State_assetsystem>("assetsystem");
 

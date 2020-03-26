@@ -66,8 +66,10 @@ add_headers(SIC_HEADERS
 	system_window.h
 	system_input.h
 	system_view.h
+	debug_draw_helpers.h
 	input.h
 	gl_includes.h
+	opengl_draw_strategies.h
 	opengl_buffer.h
 	opengl_vertex_attributes.h
 	opengl_vertex_buffer_array.h
@@ -76,6 +78,8 @@ add_headers(SIC_HEADERS
 	opengl_texture.h
 	opengl_uniform_block.h
 	opengl_engine_uniform_blocks.h
+	opengl_draw_interface_debug_lines.h
+	renderer_shape_draw_functions.h
 	system_editor_view_controller.h
 	component_view.h
 	system_model.h
@@ -106,10 +110,13 @@ add_sources(SIC_SOURCES
 	system_window.cpp
 	system_input.cpp
 	system_view.cpp
+	debug_draw_helpers.cpp
 	input.cpp
 	opengl_render_target.cpp
 	opengl_program.cpp
 	opengl_texture.cpp
+	opengl_draw_interface_debug_lines.cpp
+	renderer_shape_draw_functions.cpp
 	system_editor_view_controller.cpp
 	component_view.cpp
 	system_model.cpp

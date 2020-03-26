@@ -4,7 +4,7 @@
 #include "sic/state_render_scene.h"
 #include "sic/system_window.h"
 
-void sic::System_renderer_state_swapper::on_engine_tick(Engine_context&& in_context, float in_time_delta) const
+void sic::System_renderer_state_swapper::on_engine_tick(Engine_context in_context, float in_time_delta) const
 {
 	in_time_delta;
 

@@ -220,6 +220,6 @@ namespace sic
 
 	struct System_asset : System
 	{
-		virtual void on_created(Engine_context&& in_context) override;
+		virtual void on_created(Engine_context in_context) override;
 	};
 }

@@ -10,18 +10,18 @@ namespace sic
 	struct Event_base : Noncopyable
 	{
 		virtual ~Event_base() = default;
-		virtual void invoke(Engine_context&& in_out_context, void* in_data) = 0;
+		virtual void invoke(Engine_context in_out_context, void* in_data) = 0;
 	};
 
 	template <typename t_data_to_send>
 	struct Event : public Event_base
 	{
-		void invoke(Engine_context&& in_out_context, void* in_data) override
+		void invoke(Engine_context in_out_context, void* in_data) override
 		{
 			invoke(std::move(in_out_context), *reinterpret_cast<t_data_to_send*>(in_data));
 		}
 
-		void invoke(Engine_context&& in_out_context, t_data_to_send& in_data)
+		void invoke(Engine_context in_out_context, t_data_to_send& in_data)
 		{
 			for (i32 i = 0; i < m_listeners.size(); i++)
 			{

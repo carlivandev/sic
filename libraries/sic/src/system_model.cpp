@@ -5,7 +5,7 @@
 #include "sic/system_renderer.h"
 #include "sic/state_render_scene.h"
 
-void sic::System_model::on_created(Engine_context&& in_context)
+void sic::System_model::on_created(Engine_context in_context)
 {
 	in_context.register_component_type<Component_model>("model_component");
 
@@ -37,7 +37,7 @@ void sic::System_model::on_created(Engine_context&& in_context)
 
 			in_out_component.m_render_object_id = in_out_component.m_render_scene_state->create_object<Render_object_model>
 			(
-				in_out_component.get_owner().get_level_id(),
+				in_out_component.get_owner().get_outermost_level_id(),
 				[
 					model = in_out_component.m_model,
 					material_overrides = in_out_component.m_material_overrides,

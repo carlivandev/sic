@@ -98,7 +98,8 @@ namespace sic
 	private:
 		constexpr void make_instance(Level_context& inout_level)
 		{
-			m_level_id = inout_level.m_level.m_level_id;
+			m_level_id = inout_level.get_level_id();
+			m_outermost_level_id = inout_level.get_outermost_level_id();
 
 			(create_component<t_component>(inout_level), ...);
 			(invoke_post_creation_event<t_component>(inout_level), ...);

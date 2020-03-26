@@ -2,6 +2,7 @@
 #include "sic/level.h"
 #include "sic/bucket_allocator_view.h"
 #include "sic/object.h"
+#include "sic/engine_context.h"
 
 namespace sic
 {
@@ -9,6 +10,9 @@ namespace sic
 	
 	struct Level_context
 	{
+		template <typename t_subtype, typename ...t_component>
+		friend struct Object;
+
 		Level_context(Engine& inout_engine, Level& inout_level) : m_engine(inout_engine), m_level(inout_level){}
 
 		template <typename t_object>
@@ -34,6 +38,12 @@ namespace sic
 			m_level.for_each<t_type>(in_func);
 		}
 
+		Engine_context get_engine_context() const { return m_engine; }
+		
+		i32 get_outermost_level_id() const { return m_level.m_outermost_level != nullptr ? m_level.m_outermost_level->m_level_id : get_level_id(); }
+		i32 get_level_id() const { return m_level.m_level_id; }
+
+	private:
 		Engine& m_engine;
 		Level& m_level;
 	};

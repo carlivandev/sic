@@ -34,6 +34,8 @@ namespace sic
 
 	struct Engine : Noncopyable
 	{
+		friend struct Engine_context;
+
 		void initialize();
 
 		void simulate();
@@ -74,7 +76,7 @@ namespace sic
 		template <typename t_type>
 		constexpr Typeinfo* get_typeinfo();
 
-		void create_level();
+		void create_level(Level* in_parent_level);
 		void destroy_level(Level& inout_level);
 
 		template <typename t_event_type, typename t_functor>
@@ -86,7 +88,9 @@ namespace sic
 		void refresh_time_delta();
 		void flush_level_streaming();
 
+	private:
 		std::unique_ptr<State>& get_state_at_index(i32 in_index);
+		void destroy_level_internal(Level& in_level);
 
 		std::vector<std::unique_ptr<System>> m_systems;
 		std::vector<std::unique_ptr<State>> m_states;
