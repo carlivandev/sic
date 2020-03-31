@@ -20,6 +20,56 @@ namespace sic_private
 		SIC_LOG_E(g_log_renderer, "glfw error[{0}]: {1}", in_error_code, in_message);
 	}
 
+	void gl_debug_message_callback(GLenum source,
+		GLenum type,
+		GLuint id,
+		GLenum severity,
+		GLsizei length,
+		const GLchar* message,
+		const void* userParam) {
+
+		std::cout << "---------------------opengl-callback-start------------" << std::endl;
+		std::cout << "message: " << message << std::endl;
+		std::cout << "type: ";
+		switch (type) {
+		case GL_DEBUG_TYPE_ERROR:
+			std::cout << "ERROR";
+			break;
+		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+			std::cout << "DEPRECATED_BEHAVIOR";
+			break;
+		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+			std::cout << "UNDEFINED_BEHAVIOR";
+			break;
+		case GL_DEBUG_TYPE_PORTABILITY:
+			std::cout << "PORTABILITY";
+			break;
+		case GL_DEBUG_TYPE_PERFORMANCE:
+			std::cout << "PERFORMANCE";
+			break;
+		case GL_DEBUG_TYPE_OTHER:
+			std::cout << "OTHER";
+			break;
+		}
+		std::cout << std::endl;
+
+		std::cout << "id: " << id << std::endl;
+		std::cout << "severity: ";
+		switch (severity) {
+		case GL_DEBUG_SEVERITY_LOW:
+			std::cout << "LOW";
+			break;
+		case GL_DEBUG_SEVERITY_MEDIUM:
+			std::cout << "MEDIUM";
+			break;
+		case GL_DEBUG_SEVERITY_HIGH:
+			std::cout << "HIGH";
+			break;
+		}
+		std::cout << std::endl;
+		std::cout << "---------------------opengl-callback-end--------------" << std::endl;
+	}
+
 	void window_resized(GLFWwindow* in_window, i32 in_width, i32 in_height)
 	{
 		Component_window* wdw = static_cast<Component_window*>(glfwGetWindowUserPointer(in_window));
@@ -61,8 +111,6 @@ void sic::System_window::on_created(Engine_context in_context)
 		return;
 	}
 
-	glfwSetErrorCallback(&sic_private::glfw_error);
-
 	in_context.create_subsystem<System_view>(*this);
 
 	in_context.register_component_type<Component_window>("component_window", 4);
@@ -78,6 +126,45 @@ void sic::System_window::on_created(Engine_context in_context)
 				window_state->push_window_to_destroy(window.m_window);
 		}
 	);
+
+	State_window& window_state = *in_context.get_state<State_window>();
+	
+	glfwWindowHint(GLFW_SAMPLES, 4); // 4x antialiasing
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); // We want OpenGL 3.3
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL
+	glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+
+	window_state.m_resource_context = glfwCreateWindow(1, 1, "resource_context", NULL, nullptr);
+
+	if (window_state.m_resource_context == NULL)
+	{
+		SIC_LOG_E(g_log_renderer, "Failed to open GLFW window. GPU not 3.3 compatible.");
+		glfwTerminate();
+		return;
+	}
+	glfwMakeContextCurrent(window_state.m_resource_context);
+	glewExperimental = true; // Needed in core profile
+
+	if (glewInit() != GLEW_OK)
+	{
+		SIC_LOG_E(g_log_renderer, "Failed to initialize GLEW.");
+		return;
+	}
+
+	glfwSetErrorCallback(&sic_private::glfw_error);
+
+	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+	glDebugMessageCallback(&sic_private::gl_debug_message_callback, nullptr);
+	GLuint unusedIds = 0;
+	glDebugMessageControl(GL_DONT_CARE,
+		GL_DONT_CARE,
+		GL_DONT_CARE,
+		0,
+		&unusedIds,
+		true);
+
 }
 
 void sic::System_window::on_shutdown(Engine_context)
@@ -89,6 +176,7 @@ void sic::System_window::on_engine_tick(Engine_context in_context, float in_time
 {
 	in_time_delta;
 
+	//TODO: this should have array of all the windows, windows should NOT be objects in levels because destroying 
 	State_window* window_state = in_context.get_state<State_window>();
 
 	if (!window_state)
@@ -100,11 +188,11 @@ void sic::System_window::on_engine_tick(Engine_context in_context, float in_time
 	
 	in_context.for_each<Level>
 	(
-		[] (Level& level)
+		[window_state] (Level& level)
 		{
 			level.for_each<Component_window>
 			(
-				[](Component_window & window)
+				[window_state](Component_window& window)
 				{
 					if (window.m_window)
 						return;
@@ -114,8 +202,10 @@ void sic::System_window::on_engine_tick(Engine_context in_context, float in_time
 					glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 					glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
 					glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL
+					glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+					//glfwWindowHint(GLFW_DECORATED, 0);
 
-					window.m_window = glfwCreateWindow(window.m_dimensions.x, window.m_dimensions.y, "sic_test_game", NULL, NULL);
+					window.m_window = glfwCreateWindow(window.m_dimensions.x, window.m_dimensions.y, "sic_test_game", NULL, window_state->m_resource_context);
 
 					if (window.m_window == NULL)
 					{
@@ -137,12 +227,26 @@ void sic::System_window::on_engine_tick(Engine_context in_context, float in_time
 						return;
 					}
 
+					glfwSetErrorCallback(&sic_private::glfw_error);
+
+					glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+					glDebugMessageCallback(&sic_private::gl_debug_message_callback, nullptr);
+					GLuint unusedIds = 0;
+					glDebugMessageControl(GL_DONT_CARE,
+						GL_DONT_CARE,
+						GL_DONT_CARE,
+						0,
+						&unusedIds,
+						true);
+
 					// Enable depth test
 					glEnable(GL_DEPTH_TEST);
 					// Accept fragment if it closer to the camera than the former one
 					glDepthFunc(GL_LESS);
 
 					glEnable(GL_CULL_FACE);
+
+					//glfwSwapInterval(0);
 
 					// Ensure we can capture the escape key being pressed below
 					glfwSetInputMode(window.m_window, GLFW_STICKY_KEYS, GL_TRUE);

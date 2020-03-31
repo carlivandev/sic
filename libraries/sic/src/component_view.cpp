@@ -11,7 +11,7 @@ void sic::Component_view::set_window(Object_window* in_window)
 
 	if (cw.m_window)
 	{
-		m_render_scene_state->m_views.update_object
+		m_render_scene_state->update_object
 		(
 			m_render_object_id,
 			[window = cw.m_window](Render_object_view& inout_view)
@@ -26,7 +26,7 @@ void sic::Component_view::set_window(Object_window* in_window)
 		m_on_window_created_handle.m_function =
 		[this](GLFWwindow* window)
 		{
-			m_render_scene_state->m_views.update_object
+			m_render_scene_state->update_object
 			(
 				m_render_object_id,
 				[window](Render_object_view& inout_view)
@@ -42,7 +42,7 @@ void sic::Component_view::set_viewport_dimensions(const glm::ivec2& in_viewport_
 {
 	m_viewport_dimensions = in_viewport_dimensions;
 
-	m_render_scene_state->m_views.update_object
+	m_render_scene_state->update_object
 	(
 		m_render_object_id,
 		[in_viewport_dimensions](Render_object_view& inout_view)
@@ -57,7 +57,7 @@ void sic::Component_view::set_viewport_offset(const glm::vec2& in_viewport_offse
 {
 	m_viewport_offset = in_viewport_offset;
 
-	m_render_scene_state->m_views.update_object
+	m_render_scene_state->update_object
 	(
 		m_render_object_id,
 		[in_viewport_offset](Render_object_view& inout_view)
@@ -71,7 +71,7 @@ void sic::Component_view::set_viewport_size(const glm::vec2& in_viewport_size)
 {
 	m_viewport_size = in_viewport_size;
 
-	m_render_scene_state->m_views.update_object
+	m_render_scene_state->update_object
 	(
 		m_render_object_id,
 		[in_viewport_size](Render_object_view& inout_view)
@@ -85,7 +85,7 @@ void sic::Component_view::set_fov(float in_fov)
 {
 	m_fov = in_fov;
 
-	m_render_scene_state->m_views.update_object
+	m_render_scene_state->update_object
 	(
 		m_render_object_id,
 		[in_fov](Render_object_view& inout_view)
@@ -100,7 +100,7 @@ void sic::Component_view::set_near_and_far_plane(float in_near, float in_far)
 	m_near_plane = in_near;
 	m_far_plane = in_far;
 
-	m_render_scene_state->m_views.update_object
+	m_render_scene_state->update_object
 	(
 		m_render_object_id,
 		[in_near, in_far](Render_object_view& inout_view)
@@ -115,7 +115,7 @@ void sic::Component_view::set_clear_color(const glm::vec4& in_clear_color)
 {
 	m_clear_color = in_clear_color;
 
-	m_render_scene_state->m_views.update_object
+	m_render_scene_state->update_object
 	(
 		m_render_object_id,
 		[in_clear_color](Render_object_view& inout_view)

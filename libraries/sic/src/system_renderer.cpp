@@ -172,8 +172,8 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		return;
 
 	State_window* window_state = in_context.get_state<State_window>();
-
-	glfwMakeContextCurrent(window_state->m_main_window->get<Component_window>().m_window);
+	
+	glfwMakeContextCurrent(window_state->m_resource_context);
 	
 	assetsystem_state->do_post_load<Asset_texture>
 	(
@@ -245,40 +245,104 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 
 	std::unordered_map<GLFWwindow*, std::vector<Render_object_view*>> window_to_views_lut;
 
-	for (Render_object_view& view : scene_state->m_views.m_objects)
+	static std::unordered_map<GLFWwindow*, std::unique_ptr<Render_object_window>> context_to_window_data_lut;
+	
+	for (auto&& level_to_scene_it : scene_state->m_level_id_to_scene_lut)
 	{
-		if (!view.m_window_render_on)
-			continue;
+		Update_list<Render_object_view>& views = std::get<Update_list<Render_object_view>>(level_to_scene_it.second);
 
-		window_to_views_lut[view.m_window_render_on].push_back(&view);
+		for (Render_object_view& view : views.m_objects)
+		{
+			if (!view.m_window_render_on)
+				continue;
+
+			auto window_data_it = context_to_window_data_lut.find(view.m_window_render_on);
+
+			if (window_data_it == context_to_window_data_lut.end())
+			{
+				glfwMakeContextCurrent(view.m_window_render_on);
+				context_to_window_data_lut[view.m_window_render_on] = std::make_unique<Render_object_window>(view.m_window_render_on);
+			}
+
+			//we have to initialize fbo on main context cause it is not shared
+			glfwMakeContextCurrent(window_state->m_resource_context);
+
+			sic::i32 current_window_x, current_window_y;
+			glfwGetWindowSize(view.m_window_render_on, &current_window_x, &current_window_y);
+
+			auto& window_data = context_to_window_data_lut[view.m_window_render_on];
+			if (window_data->m_render_target.has_value())
+			{
+				if (window_data->m_render_target.value().get_dimensions().x != current_window_x ||
+					window_data->m_render_target.value().get_dimensions().y != current_window_y)
+				{
+					window_data->m_render_target.value().resize({ current_window_x, current_window_y });
+				}
+			}
+			else
+			{
+				window_data->m_render_target.emplace(glm::ivec2{ current_window_x, current_window_y }, false);
+			}
+
+			window_to_views_lut[view.m_window_render_on].push_back(&view);
+		}
 	}
 
 	for (auto& window_to_views_it : window_to_views_lut)
 	{
 		glfwMakeContextCurrent(window_to_views_it.first);
 
-		sic::i32 current_window_x, current_window_y;
-		glfwGetWindowSize(window_to_views_it.first, &current_window_x, &current_window_y);
-
-		if (current_window_x == 0 || current_window_y == 0)
-			continue;
-
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+		glfwMakeContextCurrent(window_state->m_resource_context);
+		auto& window_data = context_to_window_data_lut[window_to_views_it.first];
+		window_data->m_render_target.value().clear();
+	}
+	
+	for (auto& window_to_views_it : window_to_views_lut)
+	{
+		GLFWwindow* render_window = window_to_views_it.first;
+
+		glfwMakeContextCurrent(window_state->m_resource_context);
+
+		// Enable depth test
+		glEnable(GL_DEPTH_TEST);
+		// Accept fragment if it closer to the camera than the former one
+		glDepthFunc(GL_LESS);
+
+		glEnable(GL_CULL_FACE);
+
+		sic::i32 current_window_x, current_window_y;
+		glfwGetWindowSize(render_window, &current_window_x, &current_window_y);
+
+		if (current_window_x == 0 || current_window_y == 0)
+			continue;
+		
 		for (Render_object_view* view : window_to_views_it.second)
 		{
+			GLenum err;
+
 			auto scene_it = scene_state->m_level_id_to_scene_lut.find(view->m_level_id);
 
 			if (scene_it == scene_state->m_level_id_to_scene_lut.end())
 				continue;
 
-			const float view_aspect_ratio = (current_window_x * view->m_viewport_size.x) / (current_window_y* view->m_viewport_size.y);
+			const float view_aspect_ratio = (current_window_x * view->m_viewport_size.x) / (current_window_y * view->m_viewport_size.y);
+
+			glm::ivec2 view_dimensions = view->m_render_target.value().get_dimensions();
+			const glm::ivec2 target_dimensions = { current_window_x * view->m_viewport_size.x, current_window_y * view->m_viewport_size.y };
+
+			if (view_dimensions.x != target_dimensions.x ||
+				view_dimensions.y != target_dimensions.y)
+			{
+				view->m_render_target.value().resize(target_dimensions);
+				view_dimensions = target_dimensions;
+			}
 
 			view->m_render_target.value().bind_as_target(0);
 			view->m_render_target.value().clear();
-			const glm::ivec2& view_dimensions = view->m_render_target.value().get_dimensions();
 
 			glViewport
 			(
@@ -291,6 +355,9 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 			// Set the list of draw buffers.
 			GLenum draw_buffers[1] = { GL_COLOR_ATTACHMENT0 };
 			glDrawBuffers(1, draw_buffers); // "1" is the size of DrawBuffers
+
+			while ((err = glGetError()) != GL_NO_ERROR)
+				SIC_LOG_E(g_log_renderer, "OpenGL error: {0}", gluErrorString(err));
 
 			const glm::mat4x4 proj_mat = glm::perspective
 			(
@@ -306,6 +373,9 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 			OpenGl_uniform_block_view::get().set_data(0, view_mat);
 			OpenGl_uniform_block_view::get().set_data(1, proj_mat);
 			OpenGl_uniform_block_view::get().set_data(2, view_proj_mat);
+
+			while ((err = glGetError()) != GL_NO_ERROR)
+				SIC_LOG_E(g_log_renderer, "OpenGL error: {0}", gluErrorString(err));
 
 			const glm::vec3 first_light_pos = glm::vec3(10.0f, 10.0f, -30.0f);
 
@@ -427,6 +497,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 
 			draw_interface_debug_lines.end_frame();
 
+			
 			static bool one_shot = false;
 
 			const std::string quad_vertex_shader_path = "content/materials/pass_through.vert";
@@ -464,7 +535,9 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 				1 2
 				0 3
 				*/
-				std::vector<unsigned int> indices = {
+				
+				std::vector<unsigned int> indices =
+				{
 					0, 2, 1,
 					0, 3, 2
 				};
@@ -477,8 +550,10 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 				quad_indexbuffer.set_data(indices);
 			}
 
-			// render to  backbuffer
-			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			context_to_window_data_lut[render_window]->m_render_target.value().bind_as_target(0);
+
+			while ((err = glGetError()) != GL_NO_ERROR)
+				SIC_LOG_E(g_log_renderer, "OpenGL error: {0}", gluErrorString(err));
 
 			glViewport
 			(
@@ -488,17 +563,26 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 				static_cast<GLsizei>(current_window_y * view->m_viewport_size.y)
 			);
 
+			while ((err = glGetError()) != GL_NO_ERROR)
+				SIC_LOG_E(g_log_renderer, "OpenGL error: {0}", gluErrorString(err));
+
 			quad_program.use();
 
 			GLuint tex_loc_id = quad_program.get_uniform_location("uniform_texture");
 
-			view->m_render_target.value().m_texture.bind(tex_loc_id, 0);
+			view->m_render_target.value().bind_as_texture(tex_loc_id, 0);
 
 			quad_vertex_buffer_array.bind();
 			quad_indexbuffer.bind();
 
 			OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(quad_indexbuffer.get_max_elements()), 0);
 		}
+	}
+	
+	for (auto& window_to_views_it : window_to_views_lut)
+	{
+		glfwMakeContextCurrent(window_to_views_it.first);
+		context_to_window_data_lut[window_to_views_it.first]->draw_to_backbuffer();
 
 		glfwSwapBuffers(window_to_views_it.first);
 	}

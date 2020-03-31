@@ -7,6 +7,10 @@
 #include "sic/opengl_render_target.h"
 #include "sic/opengl_draw_interface_debug_lines.h"
 #include "sic/renderer_shape_draw_functions.h"
+#include "sic/opengl_program.h"
+#include "sic/opengl_buffer.h"
+#include "sic/opengl_draw_strategies.h"
+#include "sic/file_management.h"
 
 #include "glm/mat4x4.hpp"
 #include "glm/vec2.hpp"
@@ -175,6 +179,90 @@ namespace sic
 		}
 	};
 
+	struct Render_object_window
+	{
+		const std::string quad_vertex_shader_path = "content/materials/pass_through.vert";
+		const std::string quad_fragment_shader_path = "content/materials/simple_texture.frag";
+
+		Render_object_window(GLFWwindow* in_context) :
+			m_context(in_context),
+			m_quad_program(quad_vertex_shader_path, File_management::load_file(quad_vertex_shader_path), quad_fragment_shader_path, File_management::load_file(quad_fragment_shader_path)),
+			m_quad_indexbuffer(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW)
+		{
+			const std::vector<GLfloat> positions = {
+				-1.0f, -1.0f,
+				-1.0f, 1.0f,
+				1.0f, 1.0f,
+				1.0f, -1.0f
+			};
+
+			const std::vector<GLfloat> tex_coords =
+			{
+				0.0f, 0.0f,
+				0.0f, 1.0f,
+				1.0f, 1.0f,
+				1.0f, 0.0f
+			};
+
+			/*
+			1 2
+			0 3
+			*/
+			std::vector<unsigned int> indices = {
+				0, 2, 1,
+				0, 3, 2
+			};
+
+			m_quad_vertex_buffer_array.bind();
+
+			m_quad_vertex_buffer_array.set_data<OpenGl_vertex_attribute_position2D>(positions);
+			m_quad_vertex_buffer_array.set_data<OpenGl_vertex_attribute_texcoord>(tex_coords);
+
+			m_quad_indexbuffer.set_data(indices);
+		}
+
+		void draw_to_backbuffer()
+		{
+			sic::i32 current_window_x, current_window_y;
+			glfwGetWindowSize(m_context, &current_window_x, &current_window_y);
+
+			if (current_window_x == 0 || current_window_y == 0)
+				return;
+
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+			glViewport
+			(
+				0,
+				0,
+				static_cast<GLsizei>(current_window_x),
+				static_cast<GLsizei>(current_window_y)
+			);
+
+			m_quad_program.use();
+
+			GLuint tex_loc_id = m_quad_program.get_uniform_location("uniform_texture");
+
+			m_render_target.value().bind_as_texture(tex_loc_id, 0);
+
+			m_quad_vertex_buffer_array.bind();
+			m_quad_indexbuffer.bind();
+
+			OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(m_quad_indexbuffer.get_max_elements()), 0);
+		}
+
+		GLFWwindow* m_context = nullptr;
+		std::optional<OpenGl_render_target> m_render_target;
+		OpenGl_program m_quad_program;
+		OpenGl_vertex_buffer_array
+			<
+			OpenGl_vertex_attribute_position2D,
+			OpenGl_vertex_attribute_texcoord
+			> m_quad_vertex_buffer_array;
+
+		OpenGl_buffer m_quad_indexbuffer;
+	};
+
 	template <typename t_type>
 	struct Render_object_id
 	{
@@ -190,6 +278,7 @@ namespace sic
 		using Render_scene_level =
 			std::tuple
 			<
+			Update_list<Render_object_view>,
 			Update_list<Render_object_model>,
 			Update_list<Render_object_debug_drawer>
 			>;
@@ -236,8 +325,6 @@ namespace sic
 			Update_list<t_type>& list = std::get<Update_list<t_type>>(m_level_id_to_scene_lut.find(in_object_id.m_level_id)->second);
 			list.destroy_object(in_object_id.m_id);
 		}
-
-		Update_list<Render_object_view> m_views;
 
 	protected:
 		void flush_updates();

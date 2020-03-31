@@ -51,7 +51,7 @@ namespace sic
 
 		glm::vec4 m_clear_color = { 0.0f, 0.0f, 0.0f, 0.0f };
 
-		Update_list_id<Render_object_view> m_render_object_id;
+		Render_object_id<Render_object_view> m_render_object_id;
 		Component_transform::On_updated::Handle m_on_updated_handle;
 		Component_window::On_Window_Created::Handle m_on_window_created_handle;
 	};

@@ -12,14 +12,14 @@ void sic::System_view::on_created(Engine_context in_context)
 		[](Engine_context& in_out_context, Component_view& in_out_component)
 		{
 			Component_transform* transform = in_out_component.get_owner().find<Component_transform>();
-			assert(transform && "view component requires a Transform attached!");
+			assert(transform && "view component requires a Component_transform attached!");
 
 			in_out_component.m_render_scene_state = in_out_context.get_state<State_render_scene>();
 
 			in_out_component.m_on_updated_handle.m_function =
 			[&in_out_component](const Component_transform& in_transform)
 			{
-				in_out_component.m_render_scene_state->m_views.update_object
+				in_out_component.m_render_scene_state->update_object
 				(
 					in_out_component.m_render_object_id,
 					[matrix = in_transform.get_matrix()]
@@ -32,8 +32,9 @@ void sic::System_view::on_created(Engine_context in_context)
 			
 			transform->m_on_updated.bind(in_out_component.m_on_updated_handle);
 
-			in_out_component.m_render_object_id = in_out_component.m_render_scene_state->m_views.create_object
+			in_out_component.m_render_object_id = in_out_component.m_render_scene_state->create_object<Render_object_view>
 			(
+				in_out_component.get_owner().get_outermost_level_id(),
 				[
 					level_id = in_out_component.get_owner().get_outermost_level_id(),
 					matrix = transform->get_matrix(),
@@ -58,7 +59,7 @@ void sic::System_view::on_created(Engine_context in_context)
 	(
 		[](Engine_context&, Component_view& in_out_component)
 		{
-			in_out_component.m_render_scene_state->m_views.destroy_object(in_out_component.m_render_object_id);
+			in_out_component.m_render_scene_state->destroy_object(in_out_component.m_render_object_id);
 		}
 	);
 }

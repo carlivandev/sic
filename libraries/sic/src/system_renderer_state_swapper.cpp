@@ -21,7 +21,7 @@ void sic::System_renderer_state_swapper::on_engine_tick(Engine_context in_contex
 	if (!window_state->m_main_window)
 		return;
 
-	glfwMakeContextCurrent(window_state->m_main_window->get<Component_window>().m_window);
+	glfwMakeContextCurrent(window_state->m_resource_context);
 
 	scene_state->flush_updates();
 }

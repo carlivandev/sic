@@ -21,7 +21,6 @@ namespace sic
 		hidden
 	};
 
-
 	struct Component_window : public Component
 	{
 		struct On_Window_Created : Delegate<GLFWwindow*> {};
@@ -82,7 +81,7 @@ namespace sic
 		}
 
 		Object_window* m_main_window = nullptr;
-
+		GLFWwindow* m_resource_context = nullptr;
 	private:
 		std::vector<GLFWwindow*> m_windows_to_destroy;
 		std::mutex m_mutex;
