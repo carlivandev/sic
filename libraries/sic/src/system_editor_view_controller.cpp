@@ -24,7 +24,7 @@ void sic::System_editor_view_controller::on_tick(Level_context in_context, float
 			if (!evc.m_view_to_control)
 				return;
 
-			Window_interface* wd = evc.m_view_to_control->get_window();
+			Window_proxy* wd = evc.m_view_to_control->get_window();
 
 			if (!wd)
 				return;

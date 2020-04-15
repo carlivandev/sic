@@ -3,7 +3,7 @@
 #include "sic/state_render_scene.h"
 #include "sic/system_window.h"
 
-void sic::Component_view::set_window(Window_interface* in_window)
+void sic::Component_view::set_window(Window_proxy* in_window)
 {
 	if (m_window)
 		m_window->m_on_destroyed.unbind(m_on_window_destroyed_handle);

@@ -17,7 +17,7 @@ namespace sic
 	{
 		friend struct System_view;
 
-		void set_window(Window_interface* in_window);
+		void set_window(Window_proxy* in_window);
 
 		//pixel size
 		void set_viewport_dimensions(const glm::ivec2& in_viewport_dimensions);
@@ -31,11 +31,11 @@ namespace sic
 
 		void set_clear_color(const glm::vec4& in_clear_color);
 
-		Window_interface* get_window() const { return m_window; }
+		Window_proxy* get_window() const { return m_window; }
 
 	private:
 		State_render_scene* m_render_scene_state = nullptr;
-		Window_interface* m_window = nullptr;
+		Window_proxy* m_window = nullptr;
 
 		//pixel size
 		glm::ivec2 m_viewport_dimensions = { 4, 4 };
@@ -52,7 +52,7 @@ namespace sic
 
 		Render_object_id<Render_object_view> m_render_object_id;
 		Component_transform::On_updated::Handle m_on_updated_handle;
-		Window_interface::On_destroyed::Handle m_on_window_destroyed_handle;
+		Window_proxy::On_destroyed::Handle m_on_window_destroyed_handle;
 	};
 
 	struct Object_view : public Object<Object_view, Component_view, Component_transform> {};

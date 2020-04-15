@@ -23,7 +23,7 @@ void sic::System_input::on_engine_tick(Engine_context in_context, float in_time_
 	input_state.m_scroll_offset_x = 0.0f;
 	input_state.m_scroll_offset_y = 0.0f;
 
-	Window_interface* focused_window = window_state.get_focused_window();
+	Window_proxy* focused_window = window_state.get_focused_window();
 
 	if (!focused_window)
 		return;

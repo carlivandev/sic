@@ -25,7 +25,7 @@ namespace sic
 		disabled,
 		hidden
 	};
-	struct Window_interface : Noncopyable
+	struct Window_proxy : Noncopyable
 	{
 		struct On_destroyed : Delegate<> {};
 
@@ -65,15 +65,15 @@ namespace sic
 	{
 		friend struct System_window;
 
-		Window_interface& create_window(Engine_context in_context, const std::string& in_name, const glm::ivec2& in_dimensions);
+		Window_proxy& create_window(Engine_context in_context, const std::string& in_name, const glm::ivec2& in_dimensions);
 		void destroy_window(Engine_context in_context, const std::string& in_name);
 
-		Window_interface* get_focused_window() const;
+		Window_proxy* get_focused_window() const;
 
-		Window_interface* m_main_window_interface = nullptr;
+		Window_proxy* m_main_window_interface = nullptr;
 		GLFWwindow* m_resource_context = nullptr;
 	private:
-		std::unordered_map<std::string, std::unique_ptr<Window_interface>> m_window_name_to_interfaces_lut;
+		std::unordered_map<std::string, std::unique_ptr<Window_proxy>> m_window_name_to_interfaces_lut;
 		std::mutex m_mutex;
 	};
 

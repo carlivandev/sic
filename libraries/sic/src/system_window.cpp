@@ -107,7 +107,7 @@ namespace sic
 
 		static void window_resized(GLFWwindow* in_window, i32 in_width, i32 in_height)
 		{
-			Window_interface* wdw = static_cast<Window_interface*>(glfwGetWindowUserPointer(in_window));
+			Window_proxy* wdw = static_cast<Window_proxy*>(glfwGetWindowUserPointer(in_window));
 
 			if (!wdw)
 				return;
@@ -117,7 +117,7 @@ namespace sic
 
 		static void window_focused(GLFWwindow* in_window, int in_focused)
 		{
-			Window_interface* wdw = static_cast<Window_interface*>(glfwGetWindowUserPointer(in_window));
+			Window_proxy* wdw = static_cast<Window_proxy*>(glfwGetWindowUserPointer(in_window));
 
 			if (!wdw)
 				return;
@@ -127,7 +127,7 @@ namespace sic
 
 		static void window_scrolled(GLFWwindow* in_window, double in_xoffset, double in_yoffset)
 		{
-			Window_interface* wdw = static_cast<Window_interface*>(glfwGetWindowUserPointer(in_window));
+			Window_proxy* wdw = static_cast<Window_proxy*>(glfwGetWindowUserPointer(in_window));
 
 			if (!wdw)
 				return;
@@ -210,7 +210,7 @@ void sic::System_window::on_engine_tick(Engine_context in_context, float in_time
 	if (!scene_state)
 		return;
 
-	Window_interface* focused_window = window_state->get_focused_window();
+	Window_proxy* focused_window = window_state->get_focused_window();
 
 	glfwMakeContextCurrent(window_state->m_resource_context);
 	glfwPollEvents();
@@ -256,7 +256,7 @@ void sic::System_window::on_engine_tick(Engine_context in_context, float in_time
 
 				if (to_destroy_it != window_state->m_window_name_to_interfaces_lut.end())
 				{
-					Window_interface* to_destroy = to_destroy_it->second.get();
+					Window_proxy* to_destroy = to_destroy_it->second.get();
 					to_destroy->m_on_destroyed.invoke();
 
 					Update_list_id<Render_object_window>& id = to_destroy->m_window_id;
@@ -279,7 +279,7 @@ void sic::System_window::on_engine_tick(Engine_context in_context, float in_time
 	glfwMakeContextCurrent(nullptr);
 }
 
-sic::Window_interface& sic::State_window::create_window(Engine_context in_context, const std::string& in_name, const glm::ivec2& in_dimensions)
+sic::Window_proxy& sic::State_window::create_window(Engine_context in_context, const std::string& in_name, const glm::ivec2& in_dimensions)
 {
 	std::scoped_lock lock(m_mutex);
 
@@ -290,7 +290,7 @@ sic::Window_interface& sic::State_window::create_window(Engine_context in_contex
 	if (window_interface_ptr.get())
 		return *window_interface_ptr;
 
-	window_interface_ptr = std::make_unique<Window_interface>();
+	window_interface_ptr = std::make_unique<Window_proxy>();
 	auto window_interface_ptr_raw = window_interface_ptr.get();
 
 	if (m_main_window_interface == nullptr)
@@ -414,11 +414,11 @@ void sic::State_window::destroy_window(Engine_context in_context, const std::str
 	m_window_name_to_interfaces_lut.erase(window_interface_ptr);
 }
 
-sic::Window_interface* sic::State_window::get_focused_window() const
+sic::Window_proxy* sic::State_window::get_focused_window() const
 {
 	for (auto&& it : m_window_name_to_interfaces_lut)
 	{
-		Window_interface* wd = it.second.get();
+		Window_proxy* wd = it.second.get();
 		
 		if (wd && wd->m_is_focused)
 			return wd;
@@ -426,7 +426,7 @@ sic::Window_interface* sic::State_window::get_focused_window() const
 	return nullptr;
 }
 
-void sic::Window_interface::set_dimensions(const glm::ivec2& in_dimensions)
+void sic::Window_proxy::set_dimensions(const glm::ivec2& in_dimensions)
 {
 	m_dimensions = in_dimensions;
 
@@ -449,7 +449,7 @@ void sic::Window_interface::set_dimensions(const glm::ivec2& in_dimensions)
 	);
 }
 
-void sic::Window_interface::set_cursor_position(const glm::vec2& in_cursor_position)
+void sic::Window_proxy::set_cursor_position(const glm::vec2& in_cursor_position)
 {
 	m_cursor_position = in_cursor_position;
 
@@ -465,7 +465,7 @@ void sic::Window_interface::set_cursor_position(const glm::vec2& in_cursor_posit
 	);
 }
 
-void sic::Window_interface::set_input_mode(Window_input_mode in_input_mode)
+void sic::Window_proxy::set_input_mode(Window_input_mode in_input_mode)
 {
 	m_input_mode = in_input_mode;
 
