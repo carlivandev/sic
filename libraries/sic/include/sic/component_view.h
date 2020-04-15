@@ -12,13 +12,12 @@
 namespace sic
 {
 	struct State_render_scene;
-	struct Object_window;
 
 	struct Component_view : public Component
 	{
 		friend struct System_view;
 
-		void set_window(Object_window* in_window);
+		void set_window(Window_interface* in_window);
 
 		//pixel size
 		void set_viewport_dimensions(const glm::ivec2& in_viewport_dimensions);
@@ -32,11 +31,11 @@ namespace sic
 
 		void set_clear_color(const glm::vec4& in_clear_color);
 
-		Object_window* get_window() const { return m_window_render_on; }
+		Window_interface* get_window() const { return m_window; }
 
 	private:
 		State_render_scene* m_render_scene_state = nullptr;
-		Object_window* m_window_render_on = nullptr;
+		Window_interface* m_window = nullptr;
 
 		//pixel size
 		glm::ivec2 m_viewport_dimensions = { 4, 4 };
@@ -53,7 +52,7 @@ namespace sic
 
 		Render_object_id<Render_object_view> m_render_object_id;
 		Component_transform::On_updated::Handle m_on_updated_handle;
-		Component_window::On_Window_Created::Handle m_on_window_created_handle;
+		Window_interface::On_destroyed::Handle m_on_window_destroyed_handle;
 	};
 
 	struct Object_view : public Object<Object_view, Component_view, Component_transform> {};

@@ -7,100 +7,135 @@
 #include "sic/system_model.h"
 #include "sic/component_transform.h"
 #include "sic/logger.h"
+#include "sic/state_render_scene.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
-namespace sic_private
+namespace sic
 {
-	using namespace sic;
-
-	void glfw_error(int in_error_code, const char* in_message)
+	struct System_window_functions
 	{
-		SIC_LOG_E(g_log_renderer, "glfw error[{0}]: {1}", in_error_code, in_message);
-	}
-
-	void gl_debug_message_callback(GLenum source,
-		GLenum type,
-		GLuint id,
-		GLenum severity,
-		GLsizei length,
-		const GLchar* message,
-		const void* userParam) {
-
-		std::cout << "---------------------opengl-callback-start------------" << std::endl;
-		std::cout << "message: " << message << std::endl;
-		std::cout << "type: ";
-		switch (type) {
-		case GL_DEBUG_TYPE_ERROR:
-			std::cout << "ERROR";
-			break;
-		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
-			std::cout << "DEPRECATED_BEHAVIOR";
-			break;
-		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
-			std::cout << "UNDEFINED_BEHAVIOR";
-			break;
-		case GL_DEBUG_TYPE_PORTABILITY:
-			std::cout << "PORTABILITY";
-			break;
-		case GL_DEBUG_TYPE_PERFORMANCE:
-			std::cout << "PERFORMANCE";
-			break;
-		case GL_DEBUG_TYPE_OTHER:
-			std::cout << "OTHER";
-			break;
+		static void glfw_error(int in_error_code, const char* in_message)
+		{
+			SIC_LOG_E(g_log_renderer, "glfw error[{0}]: {1}", in_error_code, in_message);
 		}
-		std::cout << std::endl;
 
-		std::cout << "id: " << id << std::endl;
-		std::cout << "severity: ";
-		switch (severity) {
-		case GL_DEBUG_SEVERITY_LOW:
-			std::cout << "LOW";
-			break;
-		case GL_DEBUG_SEVERITY_MEDIUM:
-			std::cout << "MEDIUM";
-			break;
-		case GL_DEBUG_SEVERITY_HIGH:
-			std::cout << "HIGH";
-			break;
+		static void gl_debug_message_callback
+		(
+			GLenum in_source,
+			GLenum in_type,
+			GLuint in_id,
+			GLenum in_severity,
+			GLsizei in_length,
+			const GLchar* in_message,
+			const void* in_user_param
+		)
+		{
+			in_source;
+			in_length;
+			in_user_param;
+
+			const char* format_string =
+				"OpenGl_message:\n"
+				"Message: {0}\n"
+				"Type: {1}\n"
+				"ID: {2}\n"
+				"Severity: {3}\n"
+				;
+
+			std::string type_string;
+
+			switch (in_type)
+			{
+			case GL_DEBUG_TYPE_ERROR:
+				type_string = "ERROR";
+				break;
+			case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+				type_string = "DEPRECATED_BEHAVIOR";
+				break;
+			case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+				type_string = "UNDEFINED_BEHAVIOR";
+				break;
+			case GL_DEBUG_TYPE_PORTABILITY:
+				type_string = "PORTABILITY";
+				break;
+			case GL_DEBUG_TYPE_PERFORMANCE:
+				type_string = "PERFORMANCE";
+				break;
+			case GL_DEBUG_TYPE_OTHER:
+				type_string = "OTHER";
+				break;
+			}
+
+			std::string severity_string;
+
+			switch (in_severity)
+			{
+			case GL_DEBUG_SEVERITY_LOW:
+				severity_string = "LOW";
+				break;
+			case GL_DEBUG_SEVERITY_MEDIUM:
+				severity_string = "MEDIUM";
+				break;
+			case GL_DEBUG_SEVERITY_HIGH:
+				severity_string = "HIGH";
+				break;
+			default:
+				severity_string = "OTHER";
+				break;
+			}
+
+			switch (in_type)
+			{
+			case GL_DEBUG_TYPE_ERROR:
+			case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+				SIC_LOG_E(g_log_renderer, format_string, in_message, type_string, in_id, severity_string);
+				break;
+			case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+			case GL_DEBUG_TYPE_PORTABILITY:
+			case GL_DEBUG_TYPE_PERFORMANCE:
+				SIC_LOG_W(g_log_renderer, format_string, in_message, type_string, in_id, severity_string);
+				break;
+			case GL_DEBUG_TYPE_OTHER:
+				SIC_LOG(g_log_renderer_verbose, format_string, in_message, type_string, in_id, severity_string);
+				break;
+			default:
+				break;
+			}
 		}
-		std::cout << std::endl;
-		std::cout << "---------------------opengl-callback-end--------------" << std::endl;
-	}
 
-	void window_resized(GLFWwindow* in_window, i32 in_width, i32 in_height)
-	{
-		Component_window* wdw = static_cast<Component_window*>(glfwGetWindowUserPointer(in_window));
+		static void window_resized(GLFWwindow* in_window, i32 in_width, i32 in_height)
+		{
+			Window_interface* wdw = static_cast<Window_interface*>(glfwGetWindowUserPointer(in_window));
 
-		if (!wdw)
-			return;
+			if (!wdw)
+				return;
 
-		wdw->m_dimensions.x = in_width;
-		wdw->m_dimensions.y = in_height;
-	}
+			wdw->m_dimensions = { in_width, in_height };
+		}
 
-	void window_focused(GLFWwindow* in_window, int in_focused)
-	{
-		Component_window* wdw = static_cast<Component_window*>(glfwGetWindowUserPointer(in_window));
+		static void window_focused(GLFWwindow* in_window, int in_focused)
+		{
+			Window_interface* wdw = static_cast<Window_interface*>(glfwGetWindowUserPointer(in_window));
 
-		if (!wdw)
-			return;
+			if (!wdw)
+				return;
 
-		wdw->m_is_focused = in_focused != 0;
-	}
+			wdw->m_is_focused = in_focused != 0;
+		}
 
-	void window_scrolled(GLFWwindow* in_window, double in_xoffset, double in_yoffset)
-	{
-		Component_window* wdw = static_cast<Component_window*>(glfwGetWindowUserPointer(in_window));
+		static void window_scrolled(GLFWwindow* in_window, double in_xoffset, double in_yoffset)
+		{
+			Window_interface* wdw = static_cast<Window_interface*>(glfwGetWindowUserPointer(in_window));
 
-		if (!wdw)
-			return;
+			if (!wdw)
+				return;
 
-		wdw->m_scroll_offset_x += in_xoffset;
-		wdw->m_scroll_offset_y += in_yoffset;
-	}
+			wdw->m_scroll_offset_x += in_xoffset;
+			wdw->m_scroll_offset_y += in_yoffset;
+		}
+	};
 }
 
 void sic::System_window::on_created(Engine_context in_context)
@@ -113,19 +148,7 @@ void sic::System_window::on_created(Engine_context in_context)
 
 	in_context.create_subsystem<System_view>(*this);
 
-	in_context.register_component_type<Component_window>("component_window", 4);
-	in_context.register_object<Object_window>("window", 4, 1);
-
 	in_context.register_state<State_window>("state_window");
-
-	in_context.listen<event_destroyed<Component_window>>
-	(
-		[window_state = in_context.get_state<State_window>()](Engine_context&, Component_window& window)
-		{
-			if (window.m_window)
-				window_state->push_window_to_destroy(window.m_window);
-		}
-	);
 
 	State_window& window_state = *in_context.get_state<State_window>();
 	
@@ -153,10 +176,10 @@ void sic::System_window::on_created(Engine_context in_context)
 		return;
 	}
 
-	glfwSetErrorCallback(&sic_private::glfw_error);
+	glfwSetErrorCallback(&System_window_functions::glfw_error);
 
 	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-	glDebugMessageCallback(&sic_private::gl_debug_message_callback, nullptr);
+	glDebugMessageCallback(&System_window_functions::gl_debug_message_callback, nullptr);
 	GLuint unusedIds = 0;
 	glDebugMessageControl(GL_DONT_CARE,
 		GL_DONT_CARE,
@@ -182,165 +205,293 @@ void sic::System_window::on_engine_tick(Engine_context in_context, float in_time
 	if (!window_state)
 		return;
 
-	for (GLFWwindow* window : window_state->m_windows_to_destroy)
-		glfwDestroyWindow(window);
+	State_render_scene* scene_state = in_context.get_state<State_render_scene>();
 
-	
-	in_context.for_each<Level>
-	(
-		[window_state] (Level& level)
+	if (!scene_state)
+		return;
+
+	Window_interface* focused_window = window_state->get_focused_window();
+
+	glfwMakeContextCurrent(window_state->m_resource_context);
+	glfwPollEvents();
+
+	if (focused_window)
+	{
+		glm::dvec2 new_pos;
+
+		const Render_object_window* focused_window_ro = scene_state->m_windows.find_object(focused_window->m_window_id);
+		if (focused_window_ro)
 		{
-			level.for_each<Component_window>
-			(
-				[window_state](Component_window& window)
-				{
-					if (window.m_window)
-						return;
+			glfwGetCursorPos(focused_window_ro->m_context, &new_pos.x, &new_pos.y);
 
-					glfwWindowHint(GLFW_SAMPLES, 4); // 4x antialiasing
-					glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); // We want OpenGL 3.3
-					glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-					glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
-					glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL
-					glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-					//glfwWindowHint(GLFW_DECORATED, 0);
+			const glm::vec2 prev_pos = focused_window->m_cursor_position;
 
-					window.m_window = glfwCreateWindow(window.m_dimensions.x, window.m_dimensions.y, "sic_test_game", NULL, window_state->m_resource_context);
+			focused_window->m_cursor_position = new_pos;
 
-					if (window.m_window == NULL)
-					{
-						SIC_LOG_E(g_log_renderer, "Failed to open GLFW window. GPU not 3.3 compatible.");
-						glfwTerminate();
-						return;
-					}
-
-					glfwSetWindowUserPointer(window.m_window, &window);
-					glfwSetWindowSizeCallback(window.m_window, &sic_private::window_resized);
-					glfwSetWindowFocusCallback(window.m_window, &sic_private::window_focused);
-					glfwSetScrollCallback(window.m_window, &sic_private::window_scrolled);
-
-					glfwMakeContextCurrent(window.m_window); // Initialize GLEW
-					glewExperimental = true; // Needed in core profile
-					if (glewInit() != GLEW_OK)
-					{
-						SIC_LOG_E(g_log_renderer, "Failed to initialize GLEW.");
-						return;
-					}
-
-					glfwSetErrorCallback(&sic_private::glfw_error);
-
-					glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-					glDebugMessageCallback(&sic_private::gl_debug_message_callback, nullptr);
-					GLuint unusedIds = 0;
-					glDebugMessageControl(GL_DONT_CARE,
-						GL_DONT_CARE,
-						GL_DONT_CARE,
-						0,
-						&unusedIds,
-						true);
-
-					// Enable depth test
-					glEnable(GL_DEPTH_TEST);
-					// Accept fragment if it closer to the camera than the former one
-					glDepthFunc(GL_LESS);
-
-					glEnable(GL_CULL_FACE);
-
-					//glfwSwapInterval(0);
-
-					// Ensure we can capture the escape key being pressed below
-					glfwSetInputMode(window.m_window, GLFW_STICKY_KEYS, GL_TRUE);
-
-					window.m_on_window_created.invoke(window.m_window);
-
-					glfwMakeContextCurrent(nullptr);
-				}
-			);
+			if (focused_window->m_needs_cursor_reset)
+			{
+				focused_window->m_cursor_movement = { 0.0f, 0.0f };
+				focused_window->m_needs_cursor_reset = false;
+			}
+			else
+			{
+				focused_window->m_cursor_movement = focused_window->m_cursor_position - prev_pos;
+			}
 		}
-	);
+	}
 
-	in_context.for_each<Level>
-	(
-		[&in_context, window_state](Level& level)
+	for (Render_object_window& window : scene_state->m_windows.m_objects)
+	{
+		if (glfwWindowShouldClose(window.m_context) != 0)
 		{
-			level.for_each<Component_window>
-			(
-				[&in_context, window_state, &level](Component_window & window)
+			const Render_object_window* main_window = scene_state->m_windows.find_object(window_state->m_main_window_interface->m_window_id);
+			
+			if (main_window == &window)
+			{
+				in_context.shutdown();
+			}
+			else
+			{
+				auto to_destroy_it = window_state->m_window_name_to_interfaces_lut.find(window.m_name);
+
+				if (to_destroy_it != window_state->m_window_name_to_interfaces_lut.end())
 				{
-					sic::i32 current_window_x, current_window_y;
-					glfwGetWindowSize(window.m_window, &current_window_x, &current_window_y);
+					Window_interface* to_destroy = to_destroy_it->second.get();
+					to_destroy->m_on_destroyed.invoke();
 
-					if (window.m_dimensions.x != current_window_x ||
-						window.m_dimensions.y != current_window_y)
-					{
-						//handle resize
-						glfwSetWindowSize(window.m_window, window.m_dimensions.x, window.m_dimensions.y);
-					}
+					Update_list_id<Render_object_window>& id = to_destroy->m_window_id;
+					scene_state->m_windows.destroy_object(id);
 
-					if (window.m_cursor_pos_to_set.has_value())
-					{
-						window.m_cursor_pos = window.m_cursor_pos_to_set.value();
-						glfwSetCursorPos(window.m_window, window.m_cursor_pos.x, window.m_cursor_pos.y);
-
-						window.m_cursor_pos_to_set.reset();
-					}
-
-					bool needs_cursor_reset = false;
-
-					if (window.m_input_mode_to_set.has_value())
-					{
-						if (window.m_current_input_mode != Window_input_mode::disabled &&
-							window.m_input_mode_to_set.value() == Window_input_mode::disabled)
-							needs_cursor_reset = true;
-
-						window.m_current_input_mode = window.m_input_mode_to_set.value();
-						window.m_input_mode_to_set.reset();
-
-						switch (window.m_current_input_mode)
-						{
-						case Window_input_mode::normal:
-							glfwSetInputMode(window.m_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-							break;
-						case Window_input_mode::disabled:
-							glfwSetInputMode(window.m_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-							break;
-						case Window_input_mode::hidden:
-							glfwSetInputMode(window.m_window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-							break;
-						default:
-							break;
-						}
-					}
-
-					glfwPollEvents();
-
-					double cursor_x, cursor_y;
-					glfwGetCursorPos(window.m_window, &cursor_x, &cursor_y);
-
-					if (needs_cursor_reset)
-					{
-						window.m_cursor_movement = { 0.0f, 0.0f };
-					}
-					else
-					{
-						window.m_cursor_movement.x = static_cast<float>(cursor_x) - window.m_cursor_pos.x;
-						window.m_cursor_movement.y = static_cast<float>(cursor_y) - window.m_cursor_pos.y;
-					}
-
-					window.m_cursor_pos.x = static_cast<float>(cursor_x);
-					window.m_cursor_pos.y = static_cast<float>(cursor_y);
-
-					if (glfwWindowShouldClose(window.m_window) != 0)
-					{
-						if (&(window_state->m_main_window->get<Component_window>()) == &window)
-							in_context.shutdown();
-						else
-							level.destroy_object(window.get_owner());
-					}
+					window_state->m_window_name_to_interfaces_lut.erase(to_destroy_it);
 				}
-			);
+			}
 		}
-	);
+		else
+		{
+			glm::ivec2 window_dimensions;
+			glfwGetWindowSize(window.m_context, &window_dimensions.x, &window_dimensions.y);
+
+			if (window.m_render_target.value().get_dimensions() != window_dimensions)
+				window.m_render_target.value().resize(window_dimensions);
+		}
+	}
 
 	glfwMakeContextCurrent(nullptr);
+}
+
+sic::Window_interface& sic::State_window::create_window(Engine_context in_context, const std::string& in_name, const glm::ivec2& in_dimensions)
+{
+	std::scoped_lock lock(m_mutex);
+
+	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
+
+	auto& window_interface_ptr = m_window_name_to_interfaces_lut[in_name];
+
+	if (window_interface_ptr.get())
+		return *window_interface_ptr;
+
+	window_interface_ptr = std::make_unique<Window_interface>();
+	auto window_interface_ptr_raw = window_interface_ptr.get();
+
+	if (m_main_window_interface == nullptr)
+		m_main_window_interface = window_interface_ptr_raw;
+
+	window_interface_ptr_raw->m_dimensions = in_dimensions;
+	window_interface_ptr_raw->m_engine_context = in_context;
+	window_interface_ptr_raw->m_window_id = scene_state.m_windows.create_object
+	(
+		[window_interface_ptr_raw, in_name, in_dimensions, resource_context = m_resource_context](Render_object_window& in_out_window)
+		{
+			glfwWindowHint(GLFW_SAMPLES, 4); // 4x antialiasing
+			glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); // We want OpenGL 3.3
+			glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+			glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
+			glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL
+			glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
+			//glfwWindowHint(GLFW_DECORATED, 0);
+
+			in_out_window.m_context = glfwCreateWindow(in_dimensions.x, in_dimensions.y, in_name.c_str(), NULL, resource_context);
+			in_out_window.m_name = in_name;
+
+			if (in_out_window.m_context == NULL)
+			{
+				SIC_LOG_E(g_log_renderer, "Failed to open GLFW window. GPU not 3.3 compatible.");
+				glfwTerminate();
+				return;
+			}
+
+			glfwSetWindowUserPointer(in_out_window.m_context, window_interface_ptr_raw);
+			glfwSetWindowSizeCallback(in_out_window.m_context, &System_window_functions::window_resized);
+			glfwSetWindowFocusCallback(in_out_window.m_context, &System_window_functions::window_focused);
+			glfwSetScrollCallback(in_out_window.m_context, &System_window_functions::window_scrolled);
+
+			glfwMakeContextCurrent(in_out_window.m_context); // Initialize GLEW
+			glewExperimental = true; // Needed in core profile
+			if (glewInit() != GLEW_OK)
+			{
+				SIC_LOG_E(g_log_renderer, "Failed to initialize GLEW.");
+				return;
+			}
+
+			glfwSetErrorCallback(&System_window_functions::glfw_error);
+
+			glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+			glDebugMessageCallback(&System_window_functions::gl_debug_message_callback, nullptr);
+			GLuint unusedIds = 0;
+			glDebugMessageControl(GL_DONT_CARE,
+				GL_DONT_CARE,
+				GL_DONT_CARE,
+				0,
+				&unusedIds,
+				true);
+
+			glEnable(GL_DEBUG_OUTPUT);
+
+			//glfwSwapInterval(0);
+
+			// Ensure we can capture the escape key being pressed below
+			glfwSetInputMode(in_out_window.m_context, GLFW_STICKY_KEYS, GL_TRUE);
+
+			in_out_window.m_quad_vertex_buffer_array.emplace();
+
+			const std::string quad_vertex_shader_path = "content/materials/pass_through.vert";
+			const std::string quad_fragment_shader_path = "content/materials/simple_texture.frag";
+
+			in_out_window.m_quad_program.emplace(quad_vertex_shader_path, File_management::load_file(quad_vertex_shader_path), quad_fragment_shader_path, File_management::load_file(quad_fragment_shader_path));
+			in_out_window.m_quad_indexbuffer.emplace(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW);
+			const std::vector<GLfloat> positions = {
+				-1.0f, -1.0f,
+				-1.0f, 1.0f,
+				1.0f, 1.0f,
+				1.0f, -1.0f
+			};
+
+			const std::vector<GLfloat> tex_coords =
+			{
+				0.0f, 0.0f,
+				0.0f, 1.0f,
+				1.0f, 1.0f,
+				1.0f, 0.0f
+			};
+
+			/*
+			1 2
+			0 3
+			*/
+			std::vector<unsigned int> indices = {
+				0, 2, 1,
+				0, 3, 2
+			};
+
+			in_out_window.m_quad_vertex_buffer_array.value().bind();
+
+			in_out_window.m_quad_vertex_buffer_array.value().set_data<OpenGl_vertex_attribute_position2D>(positions);
+			in_out_window.m_quad_vertex_buffer_array.value().set_data<OpenGl_vertex_attribute_texcoord>(tex_coords);
+
+			in_out_window.m_quad_indexbuffer.value().set_data(indices);
+
+			//we have to initialize fbo on main context cause it is not shared
+			glfwMakeContextCurrent(resource_context);
+			in_out_window.m_render_target.emplace(in_dimensions, false);
+		}
+	);
+
+	return *window_interface_ptr;
+}
+
+void sic::State_window::destroy_window(Engine_context in_context, const std::string& in_name)
+{
+	std::scoped_lock lock(m_mutex);
+
+	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
+
+	auto window_interface_ptr = m_window_name_to_interfaces_lut.find(in_name);
+
+	if (window_interface_ptr == m_window_name_to_interfaces_lut.end())
+		return;
+
+	scene_state.m_windows.destroy_object(window_interface_ptr->second->m_window_id);
+	m_window_name_to_interfaces_lut.erase(window_interface_ptr);
+}
+
+sic::Window_interface* sic::State_window::get_focused_window() const
+{
+	for (auto&& it : m_window_name_to_interfaces_lut)
+	{
+		Window_interface* wd = it.second.get();
+		
+		if (wd && wd->m_is_focused)
+			return wd;
+	}
+	return nullptr;
+}
+
+void sic::Window_interface::set_dimensions(const glm::ivec2& in_dimensions)
+{
+	m_dimensions = in_dimensions;
+
+	State_render_scene& scene_state = m_engine_context.get_state_checked<State_render_scene>();
+	auto resource_context = m_engine_context.get_state_checked<State_window>().m_resource_context;
+
+	scene_state.m_windows.update_object
+	(
+		m_window_id,
+		[resource_context, in_dimensions](Render_object_window& inout_window)
+		{
+			glfwMakeContextCurrent(resource_context);
+
+			if (inout_window.m_render_target.value().get_dimensions() != in_dimensions)
+			{
+				glfwSetWindowSize(inout_window.m_context, in_dimensions.x, in_dimensions.y);
+				inout_window.m_render_target.value().resize(in_dimensions);
+			}
+		}
+	);
+}
+
+void sic::Window_interface::set_cursor_position(const glm::vec2& in_cursor_position)
+{
+	m_cursor_position = in_cursor_position;
+
+	State_render_scene& scene_state = m_engine_context.get_state_checked<State_render_scene>();
+
+	scene_state.m_windows.update_object
+	(
+		m_window_id,
+		[in_cursor_position](Render_object_window& inout_window)
+		{
+			glfwSetCursorPos(inout_window.m_context, in_cursor_position.x, in_cursor_position.y);
+		}
+	);
+}
+
+void sic::Window_interface::set_input_mode(Window_input_mode in_input_mode)
+{
+	m_input_mode = in_input_mode;
+
+	State_render_scene& scene_state = m_engine_context.get_state_checked<State_render_scene>();
+
+	scene_state.m_windows.update_object
+	(
+		m_window_id,
+		[this, in_input_mode](Render_object_window& inout_window)
+		{
+			switch (in_input_mode)
+			{
+			case Window_input_mode::normal:
+				glfwSetInputMode(inout_window.m_context, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+				break;
+			case Window_input_mode::disabled:
+				glfwSetInputMode(inout_window.m_context, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+				break;
+			case Window_input_mode::hidden:
+				glfwSetInputMode(inout_window.m_context, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+				break;
+			default:
+				break;
+			}
+
+			m_needs_cursor_reset = true;
+		}
+	);
 }

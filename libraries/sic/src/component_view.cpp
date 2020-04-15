@@ -3,39 +3,41 @@
 #include "sic/state_render_scene.h"
 #include "sic/system_window.h"
 
-void sic::Component_view::set_window(Object_window* in_window)
+void sic::Component_view::set_window(Window_interface* in_window)
 {
-	m_window_render_on = in_window;
+	if (m_window)
+		m_window->m_on_destroyed.unbind(m_on_window_destroyed_handle);
 
-	Component_window& cw = in_window->get<Component_window>();
+	m_window = in_window;
 
-	if (cw.m_window)
+	if (m_window)
 	{
-		m_render_scene_state->update_object
-		(
-			m_render_object_id,
-			[window = cw.m_window](Render_object_view& inout_view)
-			{
-				inout_view.m_window_render_on = window;
-			}
-		);
-	}
-	else
-	{
-		cw.m_on_window_created.bind(m_on_window_created_handle);
-		m_on_window_created_handle.m_function =
-		[this](GLFWwindow* window)
+		m_on_window_destroyed_handle.m_function = [this, in_window]()
 		{
 			m_render_scene_state->update_object
 			(
 				m_render_object_id,
-				[window](Render_object_view& inout_view)
+				[](Render_object_view& inout_view)
 				{
-					inout_view.m_window_render_on = window;
+					inout_view.m_window_id.reset();
 				}
 			);
 		};
+
+		m_window->m_on_destroyed.bind(m_on_window_destroyed_handle);
 	}
+
+	m_render_scene_state->update_object
+	(
+		m_render_object_id,
+		[window = in_window](Render_object_view& inout_view)
+		{
+			if (window)
+				inout_view.m_window_id = window->m_window_id;
+			else
+				inout_view.m_window_id.reset();
+		}
+	);
 }
 
 void sic::Component_view::set_viewport_dimensions(const glm::ivec2& in_viewport_dimensions)

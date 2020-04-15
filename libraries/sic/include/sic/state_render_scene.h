@@ -11,6 +11,7 @@
 #include "sic/opengl_buffer.h"
 #include "sic/opengl_draw_strategies.h"
 #include "sic/file_management.h"
+#include "sic/type_restrictions.h"
 
 #include "glm/mat4x4.hpp"
 #include "glm/vec2.hpp"
@@ -25,11 +26,118 @@ namespace sic
 {
 	struct Asset_model;
 	struct Asset_material;
-	struct Object_window;
+
+	struct Render_object_window : Noncopyable
+	{
+		Render_object_window() = default;
+
+		Render_object_window(Render_object_window&& in_other) noexcept
+		{
+			free_resources();
+
+			m_context = in_other.m_context;
+			m_name = std::move(in_other.m_name);
+			m_render_target = std::move(in_other.m_render_target);
+			m_quad_program = std::move(in_other.m_quad_program);
+			m_quad_vertex_buffer_array = std::move(in_other.m_quad_vertex_buffer_array);
+			m_quad_indexbuffer = std::move(in_other.m_quad_indexbuffer);
+
+			in_other.m_context = nullptr;
+		}
+
+		Render_object_window& operator=(Render_object_window&& in_other) noexcept
+		{
+			free_resources();
+
+			m_context = in_other.m_context;
+			m_name = std::move(in_other.m_name);
+			m_render_target = std::move(in_other.m_render_target);
+			m_quad_program = std::move(in_other.m_quad_program);
+			m_quad_vertex_buffer_array = std::move(in_other.m_quad_vertex_buffer_array);
+			m_quad_indexbuffer = std::move(in_other.m_quad_indexbuffer);
+
+			in_other.m_context = nullptr;
+
+			return *this;
+		}
+
+		void draw_to_backbuffer()
+		{
+			sic::i32 current_window_x, current_window_y;
+			glfwGetWindowSize(m_context, &current_window_x, &current_window_y);
+
+			if (current_window_x == 0 || current_window_y == 0)
+				return;
+
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+			glViewport
+			(
+				0,
+				0,
+				static_cast<GLsizei>(current_window_x),
+				static_cast<GLsizei>(current_window_y)
+			);
+
+			m_quad_program.value().use();
+
+			GLuint tex_loc_id = m_quad_program.value().get_uniform_location("uniform_texture");
+
+			m_render_target.value().bind_as_texture(tex_loc_id, 0);
+
+			m_quad_vertex_buffer_array.value().bind();
+			m_quad_indexbuffer.value().bind();
+
+			OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(m_quad_indexbuffer.value().get_max_elements()), 0);
+		}
+
+		~Render_object_window()
+		{
+			free_resources();
+		}
+
+		void free_resources()
+		{
+			if (m_context)
+			{
+				GLFWwindow* resource_context = glfwGetCurrentContext();
+				//need destroy RT on resource context
+				m_render_target.reset();
+
+				//and rest on window context
+				glfwMakeContextCurrent(m_context);
+
+				m_quad_vertex_buffer_array.reset();
+				m_quad_program.reset();
+				m_quad_indexbuffer.reset();
+
+				glfwDestroyWindow(m_context);
+				m_context = nullptr;
+
+				glfwMakeContextCurrent(resource_context);
+			}
+		}
+
+		GLFWwindow* m_context = nullptr;
+		std::string m_name;
+		std::optional<OpenGl_render_target> m_render_target;
+		std::optional<OpenGl_program> m_quad_program;
+		std::optional
+			<
+				OpenGl_vertex_buffer_array
+				<
+				OpenGl_vertex_attribute_position2D,
+				OpenGl_vertex_attribute_texcoord
+				>
+			> m_quad_vertex_buffer_array;
+
+		std::optional<OpenGl_buffer> m_quad_indexbuffer;
+	};
 
 	struct Render_object_view : Noncopyable
 	{
 		GLFWwindow* m_window_render_on = nullptr;
+		Update_list_id<Render_object_window> m_window_id;
 
 		glm::mat4x4 m_view_orientation = glm::mat4x4(1);
 
@@ -179,90 +287,6 @@ namespace sic
 		}
 	};
 
-	struct Render_object_window
-	{
-		const std::string quad_vertex_shader_path = "content/materials/pass_through.vert";
-		const std::string quad_fragment_shader_path = "content/materials/simple_texture.frag";
-
-		Render_object_window(GLFWwindow* in_context) :
-			m_context(in_context),
-			m_quad_program(quad_vertex_shader_path, File_management::load_file(quad_vertex_shader_path), quad_fragment_shader_path, File_management::load_file(quad_fragment_shader_path)),
-			m_quad_indexbuffer(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW)
-		{
-			const std::vector<GLfloat> positions = {
-				-1.0f, -1.0f,
-				-1.0f, 1.0f,
-				1.0f, 1.0f,
-				1.0f, -1.0f
-			};
-
-			const std::vector<GLfloat> tex_coords =
-			{
-				0.0f, 0.0f,
-				0.0f, 1.0f,
-				1.0f, 1.0f,
-				1.0f, 0.0f
-			};
-
-			/*
-			1 2
-			0 3
-			*/
-			std::vector<unsigned int> indices = {
-				0, 2, 1,
-				0, 3, 2
-			};
-
-			m_quad_vertex_buffer_array.bind();
-
-			m_quad_vertex_buffer_array.set_data<OpenGl_vertex_attribute_position2D>(positions);
-			m_quad_vertex_buffer_array.set_data<OpenGl_vertex_attribute_texcoord>(tex_coords);
-
-			m_quad_indexbuffer.set_data(indices);
-		}
-
-		void draw_to_backbuffer()
-		{
-			sic::i32 current_window_x, current_window_y;
-			glfwGetWindowSize(m_context, &current_window_x, &current_window_y);
-
-			if (current_window_x == 0 || current_window_y == 0)
-				return;
-
-			glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-			glViewport
-			(
-				0,
-				0,
-				static_cast<GLsizei>(current_window_x),
-				static_cast<GLsizei>(current_window_y)
-			);
-
-			m_quad_program.use();
-
-			GLuint tex_loc_id = m_quad_program.get_uniform_location("uniform_texture");
-
-			m_render_target.value().bind_as_texture(tex_loc_id, 0);
-
-			m_quad_vertex_buffer_array.bind();
-			m_quad_indexbuffer.bind();
-
-			OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(m_quad_indexbuffer.get_max_elements()), 0);
-		}
-
-		GLFWwindow* m_context = nullptr;
-		std::optional<OpenGl_render_target> m_render_target;
-		OpenGl_program m_quad_program;
-		OpenGl_vertex_buffer_array
-			<
-			OpenGl_vertex_attribute_position2D,
-			OpenGl_vertex_attribute_texcoord
-			> m_quad_vertex_buffer_array;
-
-		OpenGl_buffer m_quad_indexbuffer;
-	};
-
 	template <typename t_type>
 	struct Render_object_id
 	{
@@ -325,6 +349,8 @@ namespace sic
 			Update_list<t_type>& list = std::get<Update_list<t_type>>(m_level_id_to_scene_lut.find(in_object_id.m_level_id)->second);
 			list.destroy_object(in_object_id.m_id);
 		}
+
+		Update_list<Render_object_window> m_windows;
 
 	protected:
 		void flush_updates();

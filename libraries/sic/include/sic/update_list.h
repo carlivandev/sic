@@ -2,6 +2,7 @@
 #include "sic/double_buffer.h"
 
 #include <vector>
+#include <unordered_map>
 #include <mutex>
 
 namespace sic
@@ -24,6 +25,16 @@ namespace sic
 		template <typename t>
 		friend struct Update_list;
 		Update_list_id() = default;
+
+		void reset()
+		{
+			m_id = -1;
+		}
+
+		bool is_valid() const
+		{
+			return m_id != -1;
+		}
 
 	private:
 		Update_list_id(i32 in_id) : m_id(in_id) {}
@@ -50,8 +61,17 @@ namespace sic
 
 		void flush_updates();
 
+		//only safe from data reciever
+		t_object_type* find_object(Update_list_id<t_object_type> in_object_id);
+
+		//only safe from data reciever
 		std::vector<t_object_type> m_objects;
-		std::vector<size_t> m_objects_free_indices;
+
+	private:
+		std::unordered_map<size_t, i32> m_id_to_index_lut;
+		std::unordered_map<i32, size_t> m_index_to_id_lut;
+
+		std::vector<size_t> m_objects_free_ids;
 
 		std::mutex m_update_lock;
 
@@ -64,39 +84,39 @@ namespace sic
 	{
 		std::scoped_lock lock(m_update_lock);
 
-		size_t new_idx = 0;
+		size_t new_id = 0;
 
-		if (m_objects_free_indices.empty())
+		if (m_objects_free_ids.empty())
 		{
-			new_idx = m_current_create_id++;
+			new_id = m_current_create_id++;
 		}
 		else
 		{
-			new_idx = m_objects_free_indices.back();
-			m_objects_free_indices.pop_back();
+			new_id = m_objects_free_ids.back();
+			m_objects_free_ids.pop_back();
 		}
 
-		Update_list_id<t_object_type> new_id(static_cast<i32>(new_idx));
+		Update_list_id<t_object_type> new_update_list_id(static_cast<i32>(new_id));
 
 		m_object_data_updates.write
 		(
-			[in_update_callback, new_id](std::vector<Update>& in_out_updates)
+			[in_update_callback, new_update_list_id](std::vector<Update>& in_out_updates)
 			{
-				in_out_updates.push_back({ in_update_callback, new_id, List_update_type::create });
+				in_out_updates.push_back({ in_update_callback, new_update_list_id, List_update_type::create });
 			}
 		);
 
-		return new_id;
+		return new_update_list_id;
 	}
 
 	template<typename t_object_type>
 	inline void Update_list<t_object_type>::destroy_object(Update_list_id<t_object_type> in_id)
 	{
-		assert(in_id.m_id != -1 && "Invalid object ID!");
+		assert(in_id.is_valid() && "Invalid object ID!");
 
 		std::scoped_lock lock(m_update_lock);
 
-		m_objects_free_indices.push_back(in_id.m_id);
+		m_objects_free_ids.push_back(in_id.m_id);
 
 		m_object_data_updates.write
 		(
@@ -109,7 +129,9 @@ namespace sic
 	template<typename t_object_type>
 	inline void Update_list<t_object_type>::update_object(Update_list_id<t_object_type> in_object_id, typename Update::Callback&& in_update_callback)
 	{
-		assert(in_object_id.m_id != -1 && "Invalid object ID!");
+		assert(in_object_id.is_valid() && "Invalid object ID!");
+
+		std::scoped_lock lock(m_update_lock);
 
 		m_object_data_updates.write
 		(
@@ -133,24 +155,34 @@ namespace sic
 				{
 					if (update_instance.m_type == List_update_type::create)
 					{
-						if (m_objects.size() >= update_instance.m_object_id.m_id)
-						{
-							m_objects.emplace_back();
-							assert(m_objects.size() - 1 == update_instance.m_object_id.m_id && "When adding an object to end of array it should always match with the ID!");
-						}
-						else
-						{
-							new (&m_objects[update_instance.m_object_id.m_id]) t_object_type();
-						}
+						m_objects.emplace_back();
+
+						const i32 last_idx = static_cast<i32>(m_objects.size()) - 1;
+
+						m_id_to_index_lut[update_instance.m_object_id.m_id] = last_idx;
+						m_index_to_id_lut[last_idx] = update_instance.m_object_id.m_id;
 					}
 					else if (update_instance.m_type == List_update_type::destroy)
 					{
-						m_objects[update_instance.m_object_id.m_id].~t_object_type();
-						m_objects_free_indices.push_back(update_instance.m_object_id.m_id);
+						const i32 remove_idx = m_id_to_index_lut[update_instance.m_object_id.m_id];
+						const i32 last_idx = static_cast<i32>(m_objects.size()) - 1;
+
+						if (remove_idx < last_idx)
+						{
+							std::swap(m_objects[remove_idx], m_objects.back());
+
+							const size_t last_id = m_index_to_id_lut[last_idx];
+
+							m_id_to_index_lut[last_id] = remove_idx;
+							m_index_to_id_lut[remove_idx] = last_id;
+						}
+
+						m_id_to_index_lut[update_instance.m_object_id.m_id] = -1;
+						m_objects.pop_back();
 					}
 					
 					if (update_instance.m_callback)
-						update_instance.m_callback(m_objects[update_instance.m_object_id.m_id]);
+						update_instance.m_callback(m_objects[m_id_to_index_lut.find(update_instance.m_object_id.m_id)->second]);
 				}
 			}
 		);
@@ -164,5 +196,15 @@ namespace sic
 		);
 
 		m_current_create_id = m_objects.size();
+	}
+	template<typename t_object_type>
+	inline t_object_type* Update_list<t_object_type>::find_object(Update_list_id<t_object_type> in_object_id)
+	{
+		auto it = m_id_to_index_lut.find(in_object_id.m_id);
+
+		if (it == m_id_to_index_lut.end() || it->second == -1)
+			return nullptr;
+
+		return &m_objects[it->second];
 	}
 }

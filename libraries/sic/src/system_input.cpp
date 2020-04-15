@@ -16,49 +16,40 @@ void sic::System_input::on_engine_tick(Engine_context in_context, float in_time_
 {
 	in_time_delta;
 
-	State_input* input_state = in_context.get_state<State_input>();
+	State_input& input_state = in_context.get_state_checked<State_input>();
+	State_window& window_state = in_context.get_state_checked<State_window>();
+	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
 
-	if (!input_state)
+	input_state.m_scroll_offset_x = 0.0f;
+	input_state.m_scroll_offset_y = 0.0f;
+
+	Window_interface* focused_window = window_state.get_focused_window();
+
+	if (!focused_window)
 		return;
 
-	input_state->m_scroll_offset_x = 0.0f;
-	input_state->m_scroll_offset_y = 0.0f;
+	Render_object_window* window_ro = scene_state.m_windows.find_object(focused_window->m_window_id);
 
-	in_context.for_each<Level>
-		(
-			[input_state](Level& level)
-			{
-				level.for_each<Component_window>
-					(
-						[input_state](Component_window& in_component_window_it)
-						{
-							if (!in_component_window_it.m_window)
-								return;
+	if (!window_ro)
+		return;
 
-							if (!in_component_window_it.m_is_focused)
-								return;
+	input_state.m_scroll_offset_x += focused_window->m_scroll_offset_x;
+	input_state.m_scroll_offset_y += focused_window->m_scroll_offset_y;
 
-							input_state->m_scroll_offset_x += in_component_window_it.m_scroll_offset_x;
-							input_state->m_scroll_offset_y += in_component_window_it.m_scroll_offset_y;
+	focused_window->m_scroll_offset_x = 0.0;
+	focused_window->m_scroll_offset_y = 0.0;
+	
+	const i32 first_valid_key = 32;
 
-							in_component_window_it.m_scroll_offset_x = 0.0;
-							in_component_window_it.m_scroll_offset_y = 0.0;
+	for (i32 i = first_valid_key; i < GLFW_KEY_LAST; i++)
+		input_state.key_last_frame_down[i] = input_state.key_this_frame_down[i];
 
-							const i32 first_valid_key = 32;
+	for (i32 i = first_valid_key; i < GLFW_KEY_LAST; i++)
+		input_state.key_this_frame_down[i] = glfwGetKey(window_ro->m_context, i) == GLFW_PRESS;
 
-							for (i32 i = first_valid_key; i < GLFW_KEY_LAST; i++)
-								input_state->key_last_frame_down[i] = input_state->key_this_frame_down[i];
+	for (i32 i = 0; i < GLFW_MOUSE_BUTTON_LAST; i++)
+		input_state.mouse_last_frame_down[i] = input_state.mouse_this_frame_down[i];
 
-							for (i32 i = first_valid_key; i < GLFW_KEY_LAST; i++)
-								input_state->key_this_frame_down[i] = glfwGetKey(in_component_window_it.m_window, i) == GLFW_PRESS;
-
-							for (i32 i = 0; i < GLFW_MOUSE_BUTTON_LAST; i++)
-								input_state->mouse_last_frame_down[i] = input_state->mouse_this_frame_down[i];
-
-							for (i32 i = 0; i < GLFW_MOUSE_BUTTON_LAST; i++)
-								input_state->mouse_this_frame_down[i] = glfwGetMouseButton(in_component_window_it.m_window, i) == GLFW_PRESS;
-						}
-				);
-			}
-	);
+	for (i32 i = 0; i < GLFW_MOUSE_BUTTON_LAST; i++)
+		input_state.mouse_this_frame_down[i] = glfwGetMouseButton(window_ro->m_context, i) == GLFW_PRESS;
 }

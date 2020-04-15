@@ -48,6 +48,9 @@ namespace sic
 
 			Handle& operator=(Handle&& in_other)
 			{
+				if (m_delegate)
+					m_delegate->unbind(*this);
+
 				if (in_other.m_delegate)
 				{
 					in_other.m_delegate->bind(*this);
@@ -59,6 +62,9 @@ namespace sic
 
 			Handle& operator=(const Handle& in_other)
 			{
+				if (m_delegate)
+					m_delegate->unbind(*this);
+
 				if (in_other.m_delegate)
 					in_other.m_delegate->bind(*this);
 
@@ -131,6 +137,17 @@ namespace sic
 			{
 				if (it)
 					std::apply(it->m_function, in_params);
+			}
+		}
+
+		void invoke()
+		{
+			std::scoped_lock lock(m_mutex);
+
+			for (Handle* it : m_handles)
+			{
+				if (it)
+					it->m_function();
 			}
 		}
 

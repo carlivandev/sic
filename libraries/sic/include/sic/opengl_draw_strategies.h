@@ -10,7 +10,7 @@ namespace sic
 	{
 		static void draw(GLint in_first, GLsizei in_count)
 		{
-			glDrawArrays(t_mode, in_first, in_count);
+			SIC_GL_CHECK(glDrawArrays(t_mode, in_first, in_count));
 		}
 	};
 
@@ -19,7 +19,7 @@ namespace sic
 	{
 		static void draw(GLsizei in_count, const void* in_indices)
 		{
-			glDrawElements(t_mode, in_count, t_type, in_indices);
+			SIC_GL_CHECK(glDrawElements(t_mode, in_count, t_type, in_indices));
 		}
 	};
 

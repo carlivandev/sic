@@ -243,9 +243,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 	std::vector<Asset_ref<Asset_material>> materials_to_load;
 	std::vector<Asset_ref<Asset_model>> models_to_load;
 
-	std::unordered_map<GLFWwindow*, std::vector<Render_object_view*>> window_to_views_lut;
-
-	static std::unordered_map<GLFWwindow*, std::unique_ptr<Render_object_window>> context_to_window_data_lut;
+	std::unordered_map<Render_object_window*, std::vector<Render_object_view*>> window_to_views_lut;
 	
 	for (auto&& level_to_scene_it : scene_state->m_level_id_to_scene_lut)
 	{
@@ -253,57 +251,29 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 
 		for (Render_object_view& view : views.m_objects)
 		{
-			if (!view.m_window_render_on)
+			Render_object_window* window = scene_state->m_windows.find_object(view.m_window_id);
+			if (!window)
 				continue;
 
-			auto window_data_it = context_to_window_data_lut.find(view.m_window_render_on);
-
-			if (window_data_it == context_to_window_data_lut.end())
-			{
-				glfwMakeContextCurrent(view.m_window_render_on);
-				context_to_window_data_lut[view.m_window_render_on] = std::make_unique<Render_object_window>(view.m_window_render_on);
-			}
-
-			//we have to initialize fbo on main context cause it is not shared
-			glfwMakeContextCurrent(window_state->m_resource_context);
-
-			sic::i32 current_window_x, current_window_y;
-			glfwGetWindowSize(view.m_window_render_on, &current_window_x, &current_window_y);
-
-			auto& window_data = context_to_window_data_lut[view.m_window_render_on];
-			if (window_data->m_render_target.has_value())
-			{
-				if (window_data->m_render_target.value().get_dimensions().x != current_window_x ||
-					window_data->m_render_target.value().get_dimensions().y != current_window_y)
-				{
-					window_data->m_render_target.value().resize({ current_window_x, current_window_y });
-				}
-			}
-			else
-			{
-				window_data->m_render_target.emplace(glm::ivec2{ current_window_x, current_window_y }, false);
-			}
-
-			window_to_views_lut[view.m_window_render_on].push_back(&view);
+			window_to_views_lut[window].push_back(&view);
 		}
 	}
 
 	for (auto& window_to_views_it : window_to_views_lut)
 	{
-		glfwMakeContextCurrent(window_to_views_it.first);
+		glfwMakeContextCurrent(window_to_views_it.first->m_context);
 
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glfwMakeContextCurrent(window_state->m_resource_context);
-		auto& window_data = context_to_window_data_lut[window_to_views_it.first];
-		window_data->m_render_target.value().clear();
+		window_to_views_it.first->m_render_target.value().clear();
 	}
 	
 	for (auto& window_to_views_it : window_to_views_lut)
 	{
-		GLFWwindow* render_window = window_to_views_it.first;
+		GLFWwindow* render_window = window_to_views_it.first->m_context;
 
 		glfwMakeContextCurrent(window_state->m_resource_context);
 
@@ -322,8 +292,6 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		
 		for (Render_object_view* view : window_to_views_it.second)
 		{
-			GLenum err;
-
 			auto scene_it = scene_state->m_level_id_to_scene_lut.find(view->m_level_id);
 
 			if (scene_it == scene_state->m_level_id_to_scene_lut.end())
@@ -354,10 +322,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 
 			// Set the list of draw buffers.
 			GLenum draw_buffers[1] = { GL_COLOR_ATTACHMENT0 };
-			glDrawBuffers(1, draw_buffers); // "1" is the size of DrawBuffers
-
-			while ((err = glGetError()) != GL_NO_ERROR)
-				SIC_LOG_E(g_log_renderer, "OpenGL error: {0}", gluErrorString(err));
+			SIC_GL_CHECK(glDrawBuffers(1, draw_buffers)); // "1" is the size of DrawBuffers
 
 			const glm::mat4x4 proj_mat = glm::perspective
 			(
@@ -373,9 +338,6 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 			OpenGl_uniform_block_view::get().set_data(0, view_mat);
 			OpenGl_uniform_block_view::get().set_data(1, proj_mat);
 			OpenGl_uniform_block_view::get().set_data(2, view_proj_mat);
-
-			while ((err = glGetError()) != GL_NO_ERROR)
-				SIC_LOG_E(g_log_renderer, "OpenGL error: {0}", gluErrorString(err));
 
 			const glm::vec3 first_light_pos = glm::vec3(10.0f, 10.0f, -30.0f);
 
@@ -550,21 +512,15 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 				quad_indexbuffer.set_data(indices);
 			}
 
-			context_to_window_data_lut[render_window]->m_render_target.value().bind_as_target(0);
+			window_to_views_it.first->m_render_target.value().bind_as_target(0);
 
-			while ((err = glGetError()) != GL_NO_ERROR)
-				SIC_LOG_E(g_log_renderer, "OpenGL error: {0}", gluErrorString(err));
-
-			glViewport
+			SIC_GL_CHECK(glViewport
 			(
 				static_cast<GLsizei>((current_window_x * view->m_viewport_offset.x)),
 				static_cast<GLsizei>(current_window_y * view->m_viewport_offset.y),
 				static_cast<GLsizei>((current_window_x * view->m_viewport_size.x)),
 				static_cast<GLsizei>(current_window_y * view->m_viewport_size.y)
-			);
-
-			while ((err = glGetError()) != GL_NO_ERROR)
-				SIC_LOG_E(g_log_renderer, "OpenGL error: {0}", gluErrorString(err));
+			));
 
 			quad_program.use();
 
@@ -581,10 +537,10 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 	
 	for (auto& window_to_views_it : window_to_views_lut)
 	{
-		glfwMakeContextCurrent(window_to_views_it.first);
-		context_to_window_data_lut[window_to_views_it.first]->draw_to_backbuffer();
+		glfwMakeContextCurrent(window_to_views_it.first->m_context);
+		window_to_views_it.first->draw_to_backbuffer();
 
-		glfwSwapBuffers(window_to_views_it.first);
+		glfwSwapBuffers(window_to_views_it.first->m_context);
 	}
 
 	glfwMakeContextCurrent(nullptr);

@@ -38,7 +38,8 @@ namespace sic
 			m_level.for_each<t_type>(in_func);
 		}
 
-		Engine_context get_engine_context() const { return m_engine; }
+		Engine_context get_engine_context() { return m_engine; }
+		const Engine_context get_engine_context() const { return m_engine; }
 		
 		i32 get_outermost_level_id() const { return m_level.m_outermost_level != nullptr ? m_level.m_outermost_level->m_level_id : get_level_id(); }
 		i32 get_level_id() const { return m_level.m_level_id; }
