@@ -136,7 +136,6 @@ namespace sic
 
 	struct Render_object_view : Noncopyable
 	{
-		GLFWwindow* m_window_render_on = nullptr;
 		Update_list_id<Render_object_window> m_window_id;
 
 		glm::mat4x4 m_view_orientation = glm::mat4x4(1);
@@ -246,9 +245,14 @@ namespace sic
 			glm::mat4x4 m_projection_matrix = glm::mat4x4(1);
 		};
 
-		void draw_shapes(OpenGl_draw_interface_debug_lines& in_out_draw_interface, float in_time_delta)
+		void draw_shapes(OpenGl_draw_interface_debug_lines& in_out_draw_interface)
 		{
-			std::apply([this, &in_out_draw_interface, in_time_delta](auto&& ... in_args) {(draw_shapes_of_type(in_args, in_out_draw_interface, in_time_delta), ...); }, m_shapes);
+			std::apply([this, &in_out_draw_interface](auto&& ... in_args) {(draw_shapes_of_type(in_args, in_out_draw_interface), ...); }, m_shapes);
+		}
+
+		void update_shape_lifetimes(float in_time_delta)
+		{
+			std::apply([this, in_time_delta](auto && ... in_args) {(update_shape_lifetimes_of_type(in_args, in_time_delta), ...); }, m_shapes);
 		}
 
 		std::tuple
@@ -263,13 +267,19 @@ namespace sic
 
 	private:
 		template <typename t_type>
-		void draw_shapes_of_type(std::vector<t_type>& in_out_shapes, OpenGl_draw_interface_debug_lines& in_out_draw_interface, float in_time_delta)
+		void draw_shapes_of_type(std::vector<t_type>& in_out_shapes, OpenGl_draw_interface_debug_lines& in_out_draw_interface)
+		{
+			for (t_type& shape : in_out_shapes)
+				shape.draw(in_out_draw_interface);
+		}
+
+		template <typename t_type>
+		void update_shape_lifetimes_of_type(std::vector<t_type>& in_out_shapes, float in_time_delta)
 		{
 			size_t i = 0;
 			while (i < in_out_shapes.size())
 			{
 				t_type& shape = in_out_shapes[i];
-				shape.draw(in_out_draw_interface);
 				shape.m_lifetime -= in_time_delta;
 
 				if (shape.m_lifetime <= 0.0f)

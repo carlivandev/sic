@@ -26,6 +26,11 @@ namespace sic
 		virtual void on_created(Engine_context in_context);
 
 		/*
+			happens after all systems have been created and engine is ready to start ticking, useful for finalizing states
+		*/
+		virtual void on_engine_finalized(Engine_context in_context) const;
+
+		/*
 		*/
 		virtual void on_shutdown(Engine_context in_context);
 
@@ -112,6 +117,7 @@ namespace sic
 		const std::string& name() const { return m_name; }
 
 	protected:
+		void execute_engine_finalized(Engine_context in_context) const;
 		void execute_tick(Level_context in_context, float in_time_delta) const;
 		void execute_engine_tick(Engine_context in_context, float in_time_delta) const;
 

@@ -6,6 +6,10 @@ void sic::System::on_created(Engine_context)
 {
 }
 
+void sic::System::on_engine_finalized(Engine_context) const
+{
+}
+
 void sic::System::on_shutdown(Engine_context)
 {
 }
@@ -24,6 +28,14 @@ void sic::System::on_end_simulation(Level_context) const
 
 void sic::System::on_engine_tick(Engine_context, float) const
 {
+}
+
+void sic::System::execute_engine_finalized(Engine_context in_context) const
+{
+	on_engine_finalized(in_context);
+
+	for (System* subsystem : m_subsystems)
+		subsystem->execute_engine_finalized(in_context);
 }
 
 void sic::System::execute_tick(Level_context in_context, float in_time_delta) const

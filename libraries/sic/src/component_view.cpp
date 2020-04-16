@@ -126,3 +126,22 @@ void sic::Component_view::set_clear_color(const glm::vec4& in_clear_color)
 		}
 	);
 }
+
+glm::mat4 sic::Component_view::calculate_projection_matrix() const
+{
+	if (!m_window)
+		return glm::mat4(1);
+
+	const glm::vec2 window_dimensions = m_window->get_dimensions();
+	const float view_aspect_ratio = (window_dimensions.x * m_viewport_size.x) / (window_dimensions.y * m_viewport_size.y);
+
+	const glm::mat4x4 proj_mat = glm::perspective
+	(
+		glm::radians(m_fov),
+		view_aspect_ratio,
+		m_near_plane,
+		m_far_plane
+	);
+
+	return proj_mat;
+}

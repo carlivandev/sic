@@ -33,6 +33,8 @@ namespace sic
 
 		Window_proxy* get_window() const { return m_window; }
 
+		glm::mat4 calculate_projection_matrix() const;
+
 	private:
 		State_render_scene* m_render_scene_state = nullptr;
 		Window_proxy* m_window = nullptr;

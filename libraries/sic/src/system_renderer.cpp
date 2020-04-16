@@ -53,12 +53,12 @@ namespace sic_private
 			out_texture.m_texture_data.reset();
 	}
 
-	void init_material(Asset_material& out_material)
+	void init_material(State_renderer_resources& inout_resource_state, Asset_material& out_material)
 	{
 		out_material.m_program.emplace(out_material.m_vertex_shader_path, out_material.m_vertex_shader_code, out_material.m_fragment_shader_path, out_material.m_fragment_shader_code);
 
-		out_material.m_program.value().set_uniform_block(OpenGl_uniform_block_view::get());
-		out_material.m_program.value().set_uniform_block(OpenGl_uniform_block_lights::get());
+		out_material.m_program.value().set_uniform_block(inout_resource_state.m_uniform_block_view.value());
+		out_material.m_program.value().set_uniform_block(inout_resource_state.m_uniform_block_lights.value());
 	}
 
 	void init_mesh(Asset_model::Mesh& inout_mesh)
@@ -121,21 +121,22 @@ void sic::System_renderer::on_created(Engine_context in_context)
 {
 	in_context.register_state<State_render_scene>("state_render_scene");
 	in_context.register_state<State_debug_drawing>("state_debug_drawing");
-	
+	in_context.register_state<State_renderer_resources>("State_renderer_resources");
+
 	in_context.listen<event_created<Level>>
 	(
 		[](Engine_context& in_out_context, Level& in_out_level)
 		{
 			if (in_out_level.get_is_root_level())
 			{
-				State_render_scene* render_scene_state = in_out_context.get_state<State_render_scene>();
-				State_debug_drawing* debug_drawing_state = in_out_context.get_state<State_debug_drawing>();
+				State_render_scene& render_scene_state = in_out_context.get_state_checked<State_render_scene>();
+				State_debug_drawing& debug_drawing_state = in_out_context.get_state_checked<State_debug_drawing>();
 
 				//only create new render scenes for each root level
-				render_scene_state->add_level(in_out_level.m_level_id);
+				render_scene_state.add_level(in_out_level.m_level_id);
 				//only create debug drawer on root levels
-				Render_object_id<Render_object_debug_drawer> obj_id = render_scene_state->create_object<Render_object_debug_drawer>(in_out_level.m_level_id, nullptr);
-				debug_drawing_state->m_level_id_to_debug_drawer_ids[in_out_level.m_level_id] = obj_id;
+				Render_object_id<Render_object_debug_drawer> obj_id = render_scene_state.create_object<Render_object_debug_drawer>(in_out_level.m_level_id, nullptr);
+				debug_drawing_state.m_level_id_to_debug_drawer_ids[in_out_level.m_level_id] = obj_id;
 			}
 		}
 	);
@@ -146,36 +147,97 @@ void sic::System_renderer::on_created(Engine_context in_context)
 		{
 			if (in_out_level.get_is_root_level())
 			{
-				State_render_scene* render_scene_state = in_out_context.get_state<State_render_scene>();
-				State_debug_drawing* debug_drawing_state = in_out_context.get_state<State_debug_drawing>();
+				State_render_scene& render_scene_state = in_out_context.get_state_checked<State_render_scene>();
+				State_debug_drawing& debug_drawing_state = in_out_context.get_state_checked<State_debug_drawing>();
 
-				auto drawer_id_it = debug_drawing_state->m_level_id_to_debug_drawer_ids.find(in_out_level.m_level_id);
+				auto drawer_id_it = debug_drawing_state.m_level_id_to_debug_drawer_ids.find(in_out_level.m_level_id);
 				//only create debug drawer on root levels
-				render_scene_state->destroy_object(drawer_id_it->second);
+				render_scene_state.destroy_object(drawer_id_it->second);
 
-				debug_drawing_state->m_level_id_to_debug_drawer_ids.erase(drawer_id_it);
+				debug_drawing_state.m_level_id_to_debug_drawer_ids.erase(drawer_id_it);
 
 				//only create new render scenes for each root level
-				render_scene_state->remove_level(in_out_level.m_level_id);
+				render_scene_state.remove_level(in_out_level.m_level_id);
 			}
 		}
 	);
+}
+
+void sic::System_renderer::on_engine_finalized(Engine_context in_context) const
+{
+	State_window& window_state = in_context.get_state_checked<State_window>();
+	glfwMakeContextCurrent(window_state.m_resource_context);
+
+	State_renderer_resources& resources = in_context.get_state_checked<State_renderer_resources>();
+
+	resources.m_uniform_block_view.emplace();
+	resources.m_uniform_block_lights.emplace();
+
+	State_debug_drawing& debug_drawer_state = in_context.get_state_checked<State_debug_drawing>();
+	debug_drawer_state.m_draw_interface_debug_lines.emplace(resources.m_uniform_block_view.value());
+
+	const char* pass_through_vertex_shader_path = "content/materials/pass_through.vert";
+	const char* simple_texture_fragment_shader_path = "content/materials/simple_texture.frag";
+
+	resources.m_pass_through_program.emplace
+	(
+		pass_through_vertex_shader_path,
+		File_management::load_file(pass_through_vertex_shader_path),
+		simple_texture_fragment_shader_path,
+		File_management::load_file(simple_texture_fragment_shader_path)
+	);
+
+	resources.m_quad_vertex_buffer_array.emplace();
+	resources.m_quad_indexbuffer.emplace(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW);
+	const std::vector<GLfloat> positions =
+	{
+		-1.0f, -1.0f,
+		-1.0f, 1.0f,
+		1.0f, 1.0f,
+		1.0f, -1.0f
+	};
+
+	const std::vector<GLfloat> tex_coords =
+	{
+		0.0f, 0.0f,
+		0.0f, 1.0f,
+		1.0f, 1.0f,
+		1.0f, 0.0f
+	};
+
+	/*
+	1 2
+	0 3
+	*/
+
+	std::vector<unsigned int> indices =
+	{
+		0, 2, 1,
+		0, 3, 2
+	};
+
+	resources.m_quad_vertex_buffer_array.value().bind();
+
+	resources.m_quad_vertex_buffer_array.value().set_data<OpenGl_vertex_attribute_position2D>(positions);
+	resources.m_quad_vertex_buffer_array.value().set_data<OpenGl_vertex_attribute_texcoord>(tex_coords);
+
+	resources.m_quad_indexbuffer.value().set_data(indices);
+	
 }
 
 void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_time_delta) const
 {
 	in_time_delta;
 
-	State_assetsystem* assetsystem_state = in_context.get_state<State_assetsystem>();
+	State_assetsystem& assetsystem_state = in_context.get_state_checked<State_assetsystem>();
+	State_window& window_state = in_context.get_state_checked<State_window>();
+	State_debug_drawing& debug_drawer_state = in_context.get_state_checked<State_debug_drawing>();
+	State_renderer_resources& renderer_resources_state = in_context.get_state_checked<State_renderer_resources>();
+	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
 
-	if (!assetsystem_state)
-		return;
-
-	State_window* window_state = in_context.get_state<State_window>();
+	glfwMakeContextCurrent(window_state.m_resource_context);
 	
-	glfwMakeContextCurrent(window_state->m_resource_context);
-	
-	assetsystem_state->do_post_load<Asset_texture>
+	assetsystem_state.do_post_load<Asset_texture>
 	(
 		[](Asset_texture& in_texture)
 		{
@@ -184,16 +246,16 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		}
 	);
 
-	assetsystem_state->do_post_load<Asset_material>
+	assetsystem_state.do_post_load<Asset_material>
 	(
-		[](Asset_material& in_material)
+		[&renderer_resources_state](Asset_material& in_material)
 		{
 			//do opengl load
-			sic_private::init_material(in_material);
+			sic_private::init_material(renderer_resources_state, in_material);
 		}
 	);
 
-	assetsystem_state->do_post_load<Asset_model>
+	assetsystem_state.do_post_load<Asset_model>
 	(
 		[](Asset_model& in_model)
 		{
@@ -203,7 +265,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		}
 	);
 
-	assetsystem_state->do_pre_unload<Asset_texture>
+	assetsystem_state.do_pre_unload<Asset_texture>
 	(
 		[](Asset_texture& in_texture)
 		{
@@ -214,7 +276,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		}
 	);
 
-	assetsystem_state->do_pre_unload<Asset_material>
+	assetsystem_state.do_pre_unload<Asset_material>
 	(
 		[](Asset_material& in_material)
 		{
@@ -222,7 +284,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		}
 	);
 
-	assetsystem_state->do_pre_unload<Asset_model>
+	assetsystem_state.do_pre_unload<Asset_model>
 	(
 		[](Asset_model& in_model)
 		{
@@ -234,24 +296,19 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		}
 	);
 
-	State_render_scene* scene_state = in_context.get_state<State_render_scene>();
-
-	if (!scene_state)
-		return;
-
 	std::vector<Asset_ref<Asset_texture>> textures_to_load;
 	std::vector<Asset_ref<Asset_material>> materials_to_load;
 	std::vector<Asset_ref<Asset_model>> models_to_load;
 
 	std::unordered_map<Render_object_window*, std::vector<Render_object_view*>> window_to_views_lut;
 	
-	for (auto&& level_to_scene_it : scene_state->m_level_id_to_scene_lut)
+	for (auto&& level_to_scene_it : scene_state.m_level_id_to_scene_lut)
 	{
 		Update_list<Render_object_view>& views = std::get<Update_list<Render_object_view>>(level_to_scene_it.second);
 
 		for (Render_object_view& view : views.m_objects)
 		{
-			Render_object_window* window = scene_state->m_windows.find_object(view.m_window_id);
+			Render_object_window* window = scene_state.m_windows.find_object(view.m_window_id);
 			if (!window)
 				continue;
 
@@ -267,7 +324,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		glfwMakeContextCurrent(window_state->m_resource_context);
+		glfwMakeContextCurrent(window_state.m_resource_context);
 		window_to_views_it.first->m_render_target.value().clear();
 	}
 	
@@ -275,7 +332,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 	{
 		GLFWwindow* render_window = window_to_views_it.first->m_context;
 
-		glfwMakeContextCurrent(window_state->m_resource_context);
+		glfwMakeContextCurrent(window_state.m_resource_context);
 
 		// Enable depth test
 		glEnable(GL_DEPTH_TEST);
@@ -292,9 +349,9 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		
 		for (Render_object_view* view : window_to_views_it.second)
 		{
-			auto scene_it = scene_state->m_level_id_to_scene_lut.find(view->m_level_id);
+			auto scene_it = scene_state.m_level_id_to_scene_lut.find(view->m_level_id);
 
-			if (scene_it == scene_state->m_level_id_to_scene_lut.end())
+			if (scene_it == scene_state.m_level_id_to_scene_lut.end())
 				continue;
 
 			const float view_aspect_ratio = (current_window_x * view->m_viewport_size.x) / (current_window_y * view->m_viewport_size.y);
@@ -335,9 +392,9 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 			const glm::mat4x4 view_mat = glm::inverse(view->m_view_orientation);
 			const glm::mat4x4 view_proj_mat = proj_mat * view_mat;
 
-			OpenGl_uniform_block_view::get().set_data(0, view_mat);
-			OpenGl_uniform_block_view::get().set_data(1, proj_mat);
-			OpenGl_uniform_block_view::get().set_data(2, view_proj_mat);
+			renderer_resources_state.m_uniform_block_view.value().set_data(0, view_mat);
+			renderer_resources_state.m_uniform_block_view.value().set_data(1, proj_mat);
+			renderer_resources_state.m_uniform_block_view.value().set_data(2, view_proj_mat);
 
 			const glm::vec3 first_light_pos = glm::vec3(10.0f, 10.0f, -30.0f);
 
@@ -357,46 +414,10 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 
 			relevant_lights.push_back(light);
 
-			static OpenGl_draw_interface_debug_lines draw_interface_debug_lines;
-			draw_interface_debug_lines.begin_frame();
-
-			sic::renderer_shape_draw_functions::draw_line(draw_interface_debug_lines, second_light_pos, first_light_pos, light.m_color_and_intensity);
-			sic::renderer_shape_draw_functions::draw_sphere(draw_interface_debug_lines, light.m_position_and_unused, 32.0f, 16, light.m_color_and_intensity);
-
-			sic::renderer_shape_draw_functions::draw_cube(draw_interface_debug_lines, light.m_position_and_unused, glm::vec3(32.0f, 32.0f, 32.0f), glm::quat(glm::vec3(0.0f, 0.0f, cur_val)), light.m_color_and_intensity);
-
-			sic::renderer_shape_draw_functions::draw_cone(draw_interface_debug_lines, first_light_pos, glm::normalize(second_light_pos - first_light_pos), 32.0f, glm::radians(45.0f), glm::radians(45.0f), 16, light.m_color_and_intensity);
-
-			sic::renderer_shape_draw_functions::draw_capsule(draw_interface_debug_lines, first_light_pos, 20.0f, 10.0f, glm::quat(glm::vec3(0.0f, 0.0f, cur_val)), glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
-
-			for (size_t i = 0; i < 100; i++)
-			{
-				sic::renderer_shape_draw_functions::draw_capsule(draw_interface_debug_lines, glm::vec3(i * 10.0f, 0.0f, 0.0f), 20.0f, 10.0f, glm::quat(glm::vec3(0.0f, 0.0f, cur_val)), glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
-			}
-
-			for (Render_object_view* debug_draw_view : window_to_views_it.second)
-			{
-				if (view == debug_draw_view)
-					continue;
-
-				const float debug_draw_view_aspect_ratio = (current_window_x * debug_draw_view->m_viewport_size.x) / (current_window_y * debug_draw_view->m_viewport_size.y);
-
-				const glm::mat4x4 debug_draw_proj_mat = glm::perspective
-				(
-					glm::radians(debug_draw_view->m_fov),
-					debug_draw_view_aspect_ratio,
-					debug_draw_view->m_near_plane,
-					debug_draw_view->m_far_plane
-				);
-				
-				const glm::mat4x4 debug_draw_view_frustum_to_world = debug_draw_view->m_view_orientation * glm::inverse(debug_draw_proj_mat);
-				sic::renderer_shape_draw_functions::draw_frustum(draw_interface_debug_lines, debug_draw_view_frustum_to_world, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
-			}
-			
 			const ui32 byte_size = static_cast<ui32>(sizeof(OpenGl_uniform_block_light_instance) * relevant_lights.size());
 
-			OpenGl_uniform_block_lights::get().set_data(0, static_cast<GLfloat>(relevant_lights.size()));
-			OpenGl_uniform_block_lights::get().set_data_raw(1, 0, byte_size, relevant_lights.data());
+			renderer_resources_state.m_uniform_block_lights.value().set_data(0, static_cast<GLfloat>(relevant_lights.size()));
+			renderer_resources_state.m_uniform_block_lights.value().set_data_raw(1, 0, byte_size, relevant_lights.data());
 
 			const Update_list<Render_object_model>& models = std::get<Update_list<Render_object_model>>(scene_it->second);
 			for (const Render_object_model& model : models.m_objects)
@@ -451,66 +472,14 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 					models_to_load.push_back(model.m_model);
 			}
 
+			debug_drawer_state.m_draw_interface_debug_lines.value().begin_frame();
+
 			Update_list<Render_object_debug_drawer>& debug_drawers = std::get<Update_list<Render_object_debug_drawer>>(scene_it->second);
+
 			for (Render_object_debug_drawer& debug_drawer : debug_drawers.m_objects)
-			{
-				debug_drawer.draw_shapes(draw_interface_debug_lines, in_time_delta / static_cast<float>(window_to_views_it.second.size()));
-			}
+				debug_drawer.draw_shapes(debug_drawer_state.m_draw_interface_debug_lines.value());
 
-			draw_interface_debug_lines.end_frame();
-
-			
-			static bool one_shot = false;
-
-			const std::string quad_vertex_shader_path = "content/materials/pass_through.vert";
-			const std::string quad_fragment_shader_path = "content/materials/simple_texture.frag";
-			static OpenGl_program quad_program(quad_vertex_shader_path, File_management::load_file(quad_vertex_shader_path), quad_fragment_shader_path, File_management::load_file(quad_fragment_shader_path));
-
-			static OpenGl_vertex_buffer_array
-				<
-				OpenGl_vertex_attribute_position2D,
-				OpenGl_vertex_attribute_texcoord
-				> quad_vertex_buffer_array;
-
-			static OpenGl_buffer quad_indexbuffer(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW);
-
-			if (!one_shot)
-			{
-				one_shot = true;
-
-				const std::vector<GLfloat> positions = {
-					-1.0f, -1.0f,
-					-1.0f, 1.0f,
-					1.0f, 1.0f,
-					1.0f, -1.0f
-				};
-
-				const std::vector<GLfloat> tex_coords =
-				{
-					0.0f, 0.0f,
-					0.0f, 1.0f,
-					1.0f, 1.0f,
-					1.0f, 0.0f
-				};
-
-				/*
-				1 2
-				0 3
-				*/
-				
-				std::vector<unsigned int> indices =
-				{
-					0, 2, 1,
-					0, 3, 2
-				};
-
-				quad_vertex_buffer_array.bind();
-
-				quad_vertex_buffer_array.set_data<OpenGl_vertex_attribute_position2D>(positions);
-				quad_vertex_buffer_array.set_data<OpenGl_vertex_attribute_texcoord>(tex_coords);
-
-				quad_indexbuffer.set_data(indices);
-			}
+			debug_drawer_state.m_draw_interface_debug_lines.value().end_frame();
 
 			window_to_views_it.first->m_render_target.value().bind_as_target(0);
 
@@ -522,16 +491,16 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 				static_cast<GLsizei>(current_window_y * view->m_viewport_size.y)
 			));
 
-			quad_program.use();
+			renderer_resources_state.m_pass_through_program.value().use();
 
-			GLuint tex_loc_id = quad_program.get_uniform_location("uniform_texture");
+			GLuint tex_loc_id = renderer_resources_state.m_pass_through_program.value().get_uniform_location("uniform_texture");
 
 			view->m_render_target.value().bind_as_texture(tex_loc_id, 0);
 
-			quad_vertex_buffer_array.bind();
-			quad_indexbuffer.bind();
+			renderer_resources_state.m_quad_vertex_buffer_array.value().bind();
+			renderer_resources_state.m_quad_indexbuffer.value().bind();
 
-			OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(quad_indexbuffer.get_max_elements()), 0);
+			OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(renderer_resources_state.m_quad_indexbuffer.value().get_max_elements()), 0);
 		}
 	}
 	
@@ -543,9 +512,19 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		glfwSwapBuffers(window_to_views_it.first->m_context);
 	}
 
+	glfwMakeContextCurrent(window_state.m_resource_context);
+	
+	for (auto&& scene_it : scene_state.m_level_id_to_scene_lut)
+	{
+		Update_list<Render_object_debug_drawer>& debug_drawers = std::get<Update_list<Render_object_debug_drawer>>(scene_it.second);
+
+		for (Render_object_debug_drawer& debug_drawer : debug_drawers.m_objects)
+			debug_drawer.update_shape_lifetimes(in_time_delta);
+	}
+
 	glfwMakeContextCurrent(nullptr);
 
-	assetsystem_state->load_batch(in_context, std::move(textures_to_load));
-	assetsystem_state->load_batch(in_context, std::move(materials_to_load));
-	assetsystem_state->load_batch(in_context, std::move(models_to_load));
+	assetsystem_state.load_batch(in_context, std::move(textures_to_load));
+	assetsystem_state.load_batch(in_context, std::move(materials_to_load));
+	assetsystem_state.load_batch(in_context, std::move(models_to_load));
 }

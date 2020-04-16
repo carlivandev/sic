@@ -35,6 +35,9 @@ namespace sic
 
 		if (!m_finished_setup)
 		{
+			for (auto&& system : m_systems)
+				system->execute_engine_finalized(Engine_context(*this));
+
 			m_finished_setup = true;
 
 			//first level always reserved for engine
