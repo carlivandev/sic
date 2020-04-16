@@ -32,7 +32,7 @@ namespace sic
 
 		/*
 		*/
-		virtual void on_shutdown(Engine_context in_context);
+		virtual void on_shutdown(Engine_context in_context) const;
 
 		/*
 			happens after level has finished setting up

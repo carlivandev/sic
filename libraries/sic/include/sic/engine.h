@@ -36,7 +36,7 @@ namespace sic
 	{
 		friend struct Engine_context;
 
-		void initialize();
+		void finalize();
 
 		void simulate();
 		void prepare_threadpool();

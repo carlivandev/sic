@@ -1,4 +1,6 @@
 #include "sic/debug_draw_helpers.h"
+
+#include "sic/state_render_scene.h"
 #include "sic/system_renderer.h"
 
 namespace sic

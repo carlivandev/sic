@@ -10,7 +10,7 @@ void sic::System::on_engine_finalized(Engine_context) const
 {
 }
 
-void sic::System::on_shutdown(Engine_context)
+void sic::System::on_shutdown(Engine_context) const
 {
 }
 

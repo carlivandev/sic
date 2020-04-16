@@ -1,7 +1,6 @@
 #include "sic/system_renderer.h"
 #include "sic/component_transform.h"
 
-#include "sic/asset_types.h"
 #include "sic/system_window.h"
 #include "sic/component_view.h"
 #include "sic/logger.h"
@@ -20,102 +19,6 @@
 #include "glm/gtc/type_ptr.hpp"
 
 #include "stb/stb_image.h"
-
-namespace sic_private
-{
-	using namespace sic;
-
-	void init_texture(Asset_texture& out_texture)
-	{
-		i32 gl_texture_format = 0;
-
-		switch (out_texture.m_format)
-		{
-		case Texture_format::gray:
-			gl_texture_format = GL_R;
-			break;
-		case Texture_format::gray_a:
-			gl_texture_format = GL_RG;
-			break;
-		case Texture_format::rgb:
-			gl_texture_format = GL_RGB;
-			break;
-		case Texture_format::rgb_a:
-			gl_texture_format = GL_RGBA;
-			break;
-		default:
-			break;
-		}
-
-		out_texture.m_texture.emplace(glm::ivec2(out_texture.m_width, out_texture.m_height), gl_texture_format, GL_LINEAR, GL_LINEAR_MIPMAP_LINEAR, out_texture.m_texture_data.get());
-
-		if (out_texture.m_free_texture_data_after_setup)
-			out_texture.m_texture_data.reset();
-	}
-
-	void init_material(State_renderer_resources& inout_resource_state, Asset_material& out_material)
-	{
-		out_material.m_program.emplace(out_material.m_vertex_shader_path, out_material.m_vertex_shader_code, out_material.m_fragment_shader_path, out_material.m_fragment_shader_code);
-
-		out_material.m_program.value().set_uniform_block(inout_resource_state.m_uniform_block_view.value());
-		out_material.m_program.value().set_uniform_block(inout_resource_state.m_uniform_block_lights.value());
-	}
-
-	void init_mesh(Asset_model::Mesh& inout_mesh)
-	{
-		auto& vertex_buffer_array = inout_mesh.m_vertex_buffer_array.emplace();
-		vertex_buffer_array.bind();
-
-		vertex_buffer_array.set_data<OpenGl_vertex_attribute_position3D>(inout_mesh.m_positions);
-		vertex_buffer_array.set_data<OpenGl_vertex_attribute_normal>(inout_mesh.m_normals);
-		vertex_buffer_array.set_data<OpenGl_vertex_attribute_texcoord>(inout_mesh.m_texcoords);
-		vertex_buffer_array.set_data<OpenGl_vertex_attribute_tangent>(inout_mesh.m_tangents);
-		vertex_buffer_array.set_data<OpenGl_vertex_attribute_bitangent>(inout_mesh.m_bitangents);
-
-		auto& index_buffer = inout_mesh.m_index_buffer.emplace(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW);
-		index_buffer.set_data(inout_mesh.m_indices);
-	}
-
-	void draw_mesh(const Asset_model::Mesh& in_mesh, const Asset_material& in_material, const glm::mat4& in_mvp, const glm::mat4& in_model_matrix)
-	{
-		auto& program = in_material.m_program.value();
-		program.use();
-
-		program.set_uniform("MVP", in_mvp);
-		program.set_uniform("model_matrix", in_model_matrix);
-
-		ui32 texture_param_idx = 0;
-
-		for (auto& texture_param : in_material.m_texture_parameters)
-		{
-			//in future we want to render an error texture instead
-			if (!texture_param.m_texture.is_valid())
-				continue;
-
-			const i32 uniform_loc = in_material.m_program.value().get_uniform_location(texture_param.m_name.c_str());
-
-			//error handle this
-			if (uniform_loc == -1)
-			{
-				SIC_LOG_E(g_log_renderer_verbose,
-					"Texture parameter: {0}, not found in material with shaders: {1} and {2}",
-					texture_param.m_name.c_str(), in_material.m_vertex_shader_path.c_str(), in_material.m_fragment_shader_path.c_str());
-				continue;
-			}
-
-			texture_param.m_texture.get()->m_texture.value().bind(uniform_loc, texture_param_idx);
-			++texture_param_idx;
-		}
-
-		// draw mesh
-		in_mesh.m_vertex_buffer_array.value().bind();
-		in_mesh.m_index_buffer.value().bind();
-
-		OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(in_mesh.m_index_buffer.value().get_max_elements()), 0);
-
-		glActiveTexture(GL_TEXTURE0);
-	}
-}
 
 void sic::System_renderer::on_created(Engine_context in_context)
 {
@@ -242,7 +145,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		[](Asset_texture& in_texture)
 		{
 			//do opengl load
-			sic_private::init_texture(in_texture);
+			initialize_texture(in_texture);
 		}
 	);
 
@@ -251,7 +154,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		[&renderer_resources_state](Asset_material& in_material)
 		{
 			//do opengl load
-			sic_private::init_material(renderer_resources_state, in_material);
+			initialize_material(renderer_resources_state, in_material);
 		}
 	);
 
@@ -261,7 +164,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		{
 			//do opengl load
 			for (auto&& mesh : in_model.m_meshes)
-				sic_private::init_mesh(mesh);
+				initialize_mesh(mesh);
 		}
 	);
 
@@ -460,7 +363,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 							}
 
 							if (all_texture_loaded)
-								sic_private::draw_mesh(mesh, *mat_to_draw.get(), mvp, model.m_orientation);
+								render_mesh(mesh, *mat_to_draw.get(), mvp, model.m_orientation);
 						}
 						else if (mat_to_draw.get_load_state() == Asset_load_state::not_loaded)
 						{
@@ -504,13 +407,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		}
 	}
 	
-	for (auto& window_to_views_it : window_to_views_lut)
-	{
-		glfwMakeContextCurrent(window_to_views_it.first->m_context);
-		window_to_views_it.first->draw_to_backbuffer();
-
-		glfwSwapBuffers(window_to_views_it.first->m_context);
-	}
+	render_views_to_window_backbuffers(window_to_views_lut);
 
 	glfwMakeContextCurrent(window_state.m_resource_context);
 	
@@ -527,4 +424,106 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 	assetsystem_state.load_batch(in_context, std::move(textures_to_load));
 	assetsystem_state.load_batch(in_context, std::move(materials_to_load));
 	assetsystem_state.load_batch(in_context, std::move(models_to_load));
+}
+
+void sic::System_renderer::render_mesh(const Asset_model::Mesh& in_mesh, const Asset_material& in_material, const glm::mat4& in_mvp, const glm::mat4& in_model_matrix) const
+{
+	auto& program = in_material.m_program.value();
+	program.use();
+
+	program.set_uniform("MVP", in_mvp);
+	program.set_uniform("model_matrix", in_model_matrix);
+
+	ui32 texture_param_idx = 0;
+
+	for (auto& texture_param : in_material.m_texture_parameters)
+	{
+		//in future we want to render an error texture instead
+		if (!texture_param.m_texture.is_valid())
+			continue;
+
+		const i32 uniform_loc = in_material.m_program.value().get_uniform_location(texture_param.m_name.c_str());
+
+		//error handle this
+		if (uniform_loc == -1)
+		{
+			SIC_LOG_E(g_log_renderer_verbose,
+				"Texture parameter: {0}, not found in material with shaders: {1} and {2}",
+				texture_param.m_name.c_str(), in_material.m_vertex_shader_path.c_str(), in_material.m_fragment_shader_path.c_str());
+			continue;
+		}
+
+		texture_param.m_texture.get()->m_texture.value().bind(uniform_loc, texture_param_idx);
+		++texture_param_idx;
+	}
+
+	// draw mesh
+	in_mesh.m_vertex_buffer_array.value().bind();
+	in_mesh.m_index_buffer.value().bind();
+
+	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(in_mesh.m_index_buffer.value().get_max_elements()), 0);
+
+	glActiveTexture(GL_TEXTURE0);
+}
+
+void sic::System_renderer::render_views_to_window_backbuffers(const std::unordered_map<sic::Render_object_window*, std::vector<sic::Render_object_view*>>& in_window_to_view_lut) const
+{
+	for (auto& window_to_views_it : in_window_to_view_lut)
+	{
+		glfwMakeContextCurrent(window_to_views_it.first->m_context);
+		window_to_views_it.first->draw_to_backbuffer();
+
+		glfwSwapBuffers(window_to_views_it.first->m_context);
+	}
+}
+
+void sic::System_renderer::initialize_texture(Asset_texture& out_texture)
+{
+	i32 gl_texture_format = 0;
+
+	switch (out_texture.m_format)
+	{
+	case Texture_format::gray:
+		gl_texture_format = GL_R;
+		break;
+	case Texture_format::gray_a:
+		gl_texture_format = GL_RG;
+		break;
+	case Texture_format::rgb:
+		gl_texture_format = GL_RGB;
+		break;
+	case Texture_format::rgb_a:
+		gl_texture_format = GL_RGBA;
+		break;
+	default:
+		break;
+	}
+
+	out_texture.m_texture.emplace(glm::ivec2(out_texture.m_width, out_texture.m_height), gl_texture_format, GL_LINEAR, GL_LINEAR_MIPMAP_LINEAR, out_texture.m_texture_data.get());
+
+	if (out_texture.m_free_texture_data_after_setup)
+		out_texture.m_texture_data.reset();
+}
+
+void sic::System_renderer::initialize_material(const State_renderer_resources& in_resource_state, Asset_material& out_material)
+{
+	out_material.m_program.emplace(out_material.m_vertex_shader_path, out_material.m_vertex_shader_code, out_material.m_fragment_shader_path, out_material.m_fragment_shader_code);
+
+	out_material.m_program.value().set_uniform_block(in_resource_state.m_uniform_block_view.value());
+	out_material.m_program.value().set_uniform_block(in_resource_state.m_uniform_block_lights.value());
+}
+
+void sic::System_renderer::initialize_mesh(Asset_model::Mesh& inout_mesh)
+{
+	auto& vertex_buffer_array = inout_mesh.m_vertex_buffer_array.emplace();
+	vertex_buffer_array.bind();
+
+	vertex_buffer_array.set_data<OpenGl_vertex_attribute_position3D>(inout_mesh.m_positions);
+	vertex_buffer_array.set_data<OpenGl_vertex_attribute_normal>(inout_mesh.m_normals);
+	vertex_buffer_array.set_data<OpenGl_vertex_attribute_texcoord>(inout_mesh.m_texcoords);
+	vertex_buffer_array.set_data<OpenGl_vertex_attribute_tangent>(inout_mesh.m_tangents);
+	vertex_buffer_array.set_data<OpenGl_vertex_attribute_bitangent>(inout_mesh.m_bitangents);
+
+	auto& index_buffer = inout_mesh.m_index_buffer.emplace(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW);
+	index_buffer.set_data(inout_mesh.m_indices);
 }

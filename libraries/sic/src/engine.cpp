@@ -7,7 +7,7 @@
 
 namespace sic
 {
-	void Engine::initialize()
+	void Engine::finalize()
 	{
 		assert(!m_initialized && "");
 
@@ -15,6 +15,13 @@ namespace sic
 		m_is_shutting_down = false;
 
 		refresh_time_delta();
+
+		prepare_threadpool();
+
+		m_finished_setup = true;
+
+		for (auto&& system : m_systems)
+			system->execute_engine_finalized(Engine_context(*this));
 	}
 
 	void Engine::simulate()
@@ -26,24 +33,6 @@ namespace sic
 
 		if (!m_initialized)
 			return;
-
-		if (!m_has_prepared_threadpool)
-		{
-			prepare_threadpool();
-			m_has_prepared_threadpool = true;
-		}
-
-		if (!m_finished_setup)
-		{
-			for (auto&& system : m_systems)
-				system->execute_engine_finalized(Engine_context(*this));
-
-			m_finished_setup = true;
-
-			//first level always reserved for engine
-			create_level(nullptr);
-			flush_level_streaming();
-		}
 
 		if (!is_shutting_down())
 			tick();

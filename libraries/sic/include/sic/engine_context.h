@@ -104,6 +104,16 @@ namespace sic
 			m_level.for_each<t_type>(in_func);
 		}
 
+		void create_level(Level* in_parent_level)
+		{
+			m_engine->create_level(in_parent_level);
+		}
+
+		void destroy_level(Level& inout_level)
+		{
+			m_engine->destroy_level(inout_level);
+		}
+
 		void shutdown()
 		{
 			m_engine->shutdown();

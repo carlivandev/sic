@@ -414,6 +414,16 @@ void sic::State_window::destroy_window(Engine_context in_context, const std::str
 	m_window_name_to_interfaces_lut.erase(window_interface_ptr);
 }
 
+sic::Window_proxy* sic::State_window::find_window(const char* in_name) const
+{
+	auto it = m_window_name_to_interfaces_lut.find(in_name);
+
+	if (it == m_window_name_to_interfaces_lut.end())
+		return nullptr;
+
+	return it->second.get();
+}
+
 sic::Window_proxy* sic::State_window::get_focused_window() const
 {
 	for (auto&& it : m_window_name_to_interfaces_lut)

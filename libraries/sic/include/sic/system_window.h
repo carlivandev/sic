@@ -68,6 +68,7 @@ namespace sic
 		Window_proxy& create_window(Engine_context in_context, const std::string& in_name, const glm::ivec2& in_dimensions);
 		void destroy_window(Engine_context in_context, const std::string& in_name);
 
+		Window_proxy* find_window(const char* in_name) const;
 		Window_proxy* get_focused_window() const;
 
 		Window_proxy* m_main_window_interface = nullptr;
