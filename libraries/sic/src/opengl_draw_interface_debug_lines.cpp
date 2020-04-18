@@ -26,6 +26,9 @@ void sic::OpenGl_draw_interface_debug_lines::begin_frame()
 
 void sic::OpenGl_draw_interface_debug_lines::draw_line(const glm::vec3& in_start, const glm::vec3& in_end, const glm::vec4& in_color)
 {
+	if (m_line_point_current - 1 == &m_line_points.back())
+		flush();
+
 	*m_line_point_current = in_start;
 	++m_line_point_current;
 
@@ -37,9 +40,6 @@ void sic::OpenGl_draw_interface_debug_lines::draw_line(const glm::vec3& in_start
 
 	*m_line_color_current = in_color;
 	++m_line_color_current;
-
-	if (m_line_point_current - 1 == &m_line_points.back())
-		flush();
 }
 
 void sic::OpenGl_draw_interface_debug_lines::end_frame()

@@ -134,7 +134,6 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 
 	State_assetsystem& assetsystem_state = in_context.get_state_checked<State_assetsystem>();
 	State_window& window_state = in_context.get_state_checked<State_window>();
-	State_debug_drawing& debug_drawer_state = in_context.get_state_checked<State_debug_drawing>();
 	State_renderer_resources& renderer_resources_state = in_context.get_state_checked<State_renderer_resources>();
 	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
 
@@ -199,9 +198,21 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		}
 	);
 
-	std::vector<Asset_ref<Asset_texture>> textures_to_load;
-	std::vector<Asset_ref<Asset_material>> materials_to_load;
-	std::vector<Asset_ref<Asset_model>> models_to_load;
+	//clear all window backbuffers
+	for (auto&& window : scene_state.m_windows.m_objects)
+	{
+		if (!window.m_context)
+			continue;
+
+		glfwMakeContextCurrent(window.m_context);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		glfwMakeContextCurrent(window_state.m_resource_context);
+		window.m_render_target.value().clear();
+	}
 
 	std::unordered_map<Render_object_window*, std::vector<Render_object_view*>> window_to_views_lut;
 	
@@ -218,24 +229,22 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 			window_to_views_lut[window].push_back(&view);
 		}
 	}
-
-	for (auto& window_to_views_it : window_to_views_lut)
-	{
-		glfwMakeContextCurrent(window_to_views_it.first->m_context);
-
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		glfwMakeContextCurrent(window_state.m_resource_context);
-		window_to_views_it.first->m_render_target.value().clear();
-	}
 	
+	std::vector<Asset_ref<Asset_texture>> textures_to_load;
+	std::vector<Asset_ref<Asset_material>> materials_to_load;
+	std::vector<Asset_ref<Asset_model>> models_to_load;
+
 	for (auto& window_to_views_it : window_to_views_lut)
 	{
-		GLFWwindow* render_window = window_to_views_it.first->m_context;
-
 		glfwMakeContextCurrent(window_state.m_resource_context);
+
+		sic::i32 current_window_x, current_window_y;
+		glfwGetWindowSize(window_to_views_it.first->m_context, &current_window_x, &current_window_y);
+
+		if (current_window_x == 0 || current_window_y == 0)
+			continue;
+
+		
 
 		// Enable depth test
 		glEnable(GL_DEPTH_TEST);
@@ -243,168 +252,9 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		glDepthFunc(GL_LESS);
 
 		glEnable(GL_CULL_FACE);
-
-		sic::i32 current_window_x, current_window_y;
-		glfwGetWindowSize(render_window, &current_window_x, &current_window_y);
-
-		if (current_window_x == 0 || current_window_y == 0)
-			continue;
 		
 		for (Render_object_view* view : window_to_views_it.second)
-		{
-			auto scene_it = scene_state.m_level_id_to_scene_lut.find(view->m_level_id);
-
-			if (scene_it == scene_state.m_level_id_to_scene_lut.end())
-				continue;
-
-			const float view_aspect_ratio = (current_window_x * view->m_viewport_size.x) / (current_window_y * view->m_viewport_size.y);
-
-			glm::ivec2 view_dimensions = view->m_render_target.value().get_dimensions();
-			const glm::ivec2 target_dimensions = { current_window_x * view->m_viewport_size.x, current_window_y * view->m_viewport_size.y };
-
-			if (view_dimensions.x != target_dimensions.x ||
-				view_dimensions.y != target_dimensions.y)
-			{
-				view->m_render_target.value().resize(target_dimensions);
-				view_dimensions = target_dimensions;
-			}
-
-			view->m_render_target.value().bind_as_target(0);
-			view->m_render_target.value().clear();
-
-			glViewport
-			(
-				0,
-				0,
-				view_dimensions.x,
-				view_dimensions.y
-			);
-
-			// Set the list of draw buffers.
-			GLenum draw_buffers[1] = { GL_COLOR_ATTACHMENT0 };
-			SIC_GL_CHECK(glDrawBuffers(1, draw_buffers)); // "1" is the size of DrawBuffers
-
-			const glm::mat4x4 proj_mat = glm::perspective
-			(
-				glm::radians(view->m_fov),
-				view_aspect_ratio,
-				view->m_near_plane,
-				view->m_far_plane
-			);
-
-			const glm::mat4x4 view_mat = glm::inverse(view->m_view_orientation);
-			const glm::mat4x4 view_proj_mat = proj_mat * view_mat;
-
-			renderer_resources_state.m_uniform_block_view.value().set_data(0, view_mat);
-			renderer_resources_state.m_uniform_block_view.value().set_data(1, proj_mat);
-			renderer_resources_state.m_uniform_block_view.value().set_data(2, view_proj_mat);
-
-			const glm::vec3 first_light_pos = glm::vec3(10.0f, 10.0f, -30.0f);
-
-			static float cur_val = 0.0f;
-			cur_val += in_time_delta;
-			const glm::vec3 second_light_pos = glm::vec3(10.0f, (glm::cos(cur_val * 2.0f) * 30.0f), 0.0f);
-
-			std::vector<OpenGl_uniform_block_light_instance> relevant_lights;
-			OpenGl_uniform_block_light_instance light;
-			light.m_position_and_unused = glm::vec4(first_light_pos, 0.0f);
-			light.m_color_and_intensity = { 1.0f, 0.0f, 0.0f, 100.0f };
-
-			relevant_lights.push_back(light);
-
-			light.m_position_and_unused = glm::vec4(second_light_pos, 0.0f);
-			light.m_color_and_intensity = { 0.0f, 1.0f, 0.0f, 50.0f };
-
-			relevant_lights.push_back(light);
-
-			const ui32 byte_size = static_cast<ui32>(sizeof(OpenGl_uniform_block_light_instance) * relevant_lights.size());
-
-			renderer_resources_state.m_uniform_block_lights.value().set_data(0, static_cast<GLfloat>(relevant_lights.size()));
-			renderer_resources_state.m_uniform_block_lights.value().set_data_raw(1, 0, byte_size, relevant_lights.data());
-
-			const Update_list<Render_object_model>& models = std::get<Update_list<Render_object_model>>(scene_it->second);
-			for (const Render_object_model& model : models.m_objects)
-			{
-				if (!model.m_model.is_valid())
-					continue;
-
-				if (model.m_model.get_load_state() == Asset_load_state::loaded)
-				{
-					Asset_model* model_asset = model.m_model.get();
-
-					const glm::mat4 mvp = proj_mat * view_mat * model.m_orientation;
-
-					const ui64 mesh_count = model_asset->m_meshes.size();
-
-					for (i32 mesh_idx = 0; mesh_idx < mesh_count; mesh_idx++)
-					{
-						auto& mesh = model_asset->m_meshes[mesh_idx];
-
-						auto material_override_it = model.m_material_overrides.find(mesh.m_material_slot);
-
-						const Asset_ref<Asset_material>& mat_to_draw = material_override_it != model.m_material_overrides.end() ? material_override_it->second : model_asset->get_material(mesh_idx);
-						if (!mat_to_draw.is_valid())
-							continue;
-
-						if (mat_to_draw.get_load_state() == Asset_load_state::loaded)
-						{
-							bool all_texture_loaded = true;
-
-							for (Asset_material::Texture_parameter& texture_param : mat_to_draw.get()->m_texture_parameters)
-							{
-								if (texture_param.m_texture.is_valid())
-								{
-									if (texture_param.m_texture.get_load_state() == Asset_load_state::not_loaded)
-										textures_to_load.push_back(texture_param.m_texture);
-
-									if (texture_param.m_texture.get_load_state() != Asset_load_state::loaded)
-										all_texture_loaded = false;
-								}
-							}
-
-							if (all_texture_loaded)
-								render_mesh(mesh, *mat_to_draw.get(), mvp, model.m_orientation);
-						}
-						else if (mat_to_draw.get_load_state() == Asset_load_state::not_loaded)
-						{
-							materials_to_load.push_back(mat_to_draw);
-						}
-					}
-				}
-				else if (model.m_model.get_load_state() == Asset_load_state::not_loaded)
-					models_to_load.push_back(model.m_model);
-			}
-
-			debug_drawer_state.m_draw_interface_debug_lines.value().begin_frame();
-
-			Update_list<Render_object_debug_drawer>& debug_drawers = std::get<Update_list<Render_object_debug_drawer>>(scene_it->second);
-
-			for (Render_object_debug_drawer& debug_drawer : debug_drawers.m_objects)
-				debug_drawer.draw_shapes(debug_drawer_state.m_draw_interface_debug_lines.value());
-
-			debug_drawer_state.m_draw_interface_debug_lines.value().end_frame();
-
-			window_to_views_it.first->m_render_target.value().bind_as_target(0);
-
-			SIC_GL_CHECK(glViewport
-			(
-				static_cast<GLsizei>((current_window_x * view->m_viewport_offset.x)),
-				static_cast<GLsizei>(current_window_y * view->m_viewport_offset.y),
-				static_cast<GLsizei>((current_window_x * view->m_viewport_size.x)),
-				static_cast<GLsizei>(current_window_y * view->m_viewport_size.y)
-			));
-
-			renderer_resources_state.m_pass_through_program.value().use();
-
-			GLuint tex_loc_id = renderer_resources_state.m_pass_through_program.value().get_uniform_location("uniform_texture");
-
-			view->m_render_target.value().bind_as_texture(tex_loc_id, 0);
-
-			renderer_resources_state.m_quad_vertex_buffer_array.value().bind();
-			renderer_resources_state.m_quad_indexbuffer.value().bind();
-
-			OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(renderer_resources_state.m_quad_indexbuffer.value().get_max_elements()), 0);
-		}
+			render_view(in_context, *window_to_views_it.first, *view, textures_to_load, materials_to_load, models_to_load);
 	}
 	
 	render_views_to_window_backbuffers(window_to_views_lut);
@@ -424,6 +274,173 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 	assetsystem_state.load_batch(in_context, std::move(textures_to_load));
 	assetsystem_state.load_batch(in_context, std::move(materials_to_load));
 	assetsystem_state.load_batch(in_context, std::move(models_to_load));
+}
+
+void sic::System_renderer::render_view(
+	Engine_context in_context, const Render_object_window& in_window, Render_object_view& inout_view,
+	std::vector<Asset_ref<Asset_texture>>& out_textures_to_load,
+	std::vector<Asset_ref<Asset_material>>& out_materials_to_load,
+	std::vector<Asset_ref<Asset_model>>& out_models_to_load) const
+{
+	State_debug_drawing& debug_drawer_state = in_context.get_state_checked<State_debug_drawing>();
+	State_renderer_resources& renderer_resources_state = in_context.get_state_checked<State_renderer_resources>();
+	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
+
+	sic::i32 current_window_x, current_window_y;
+	glfwGetWindowSize(in_window.m_context, &current_window_x, &current_window_y);
+
+	auto scene_it = scene_state.m_level_id_to_scene_lut.find(inout_view.m_level_id);
+
+	if (scene_it == scene_state.m_level_id_to_scene_lut.end())
+		return;
+
+	const float view_aspect_ratio = (current_window_x * inout_view.m_viewport_size.x) / (current_window_y * inout_view.m_viewport_size.y);
+
+	glm::ivec2 view_dimensions = inout_view.m_render_target.value().get_dimensions();
+	const glm::ivec2 target_dimensions = { current_window_x * inout_view.m_viewport_size.x, current_window_y * inout_view.m_viewport_size.y };
+
+	if (view_dimensions.x != target_dimensions.x ||
+		view_dimensions.y != target_dimensions.y)
+	{
+		inout_view.m_render_target.value().resize(target_dimensions);
+		view_dimensions = target_dimensions;
+	}
+
+	inout_view.m_render_target.value().bind_as_target(0);
+	inout_view.m_render_target.value().clear();
+
+	glViewport
+	(
+		0,
+		0,
+		view_dimensions.x,
+		view_dimensions.y
+	);
+
+	// Set the list of draw buffers.
+	GLenum draw_buffers[1] = { GL_COLOR_ATTACHMENT0 };
+	SIC_GL_CHECK(glDrawBuffers(1, draw_buffers)); // "1" is the size of DrawBuffers
+
+	const glm::mat4x4 proj_mat = glm::perspective
+	(
+		glm::radians(inout_view.m_fov),
+		view_aspect_ratio,
+		inout_view.m_near_plane,
+		inout_view.m_far_plane
+	);
+
+	const glm::mat4x4 view_mat = glm::inverse(inout_view.m_view_orientation);
+	const glm::mat4x4 view_proj_mat = proj_mat * view_mat;
+
+	renderer_resources_state.m_uniform_block_view.value().set_data(0, view_mat);
+	renderer_resources_state.m_uniform_block_view.value().set_data(1, proj_mat);
+	renderer_resources_state.m_uniform_block_view.value().set_data(2, view_proj_mat);
+
+	const glm::vec3 first_light_pos = glm::vec3(10.0f, 10.0f, -30.0f);
+
+	static float cur_val = 0.0f;
+	cur_val += 0.0016f;
+	const glm::vec3 second_light_pos = glm::vec3(10.0f, (glm::cos(cur_val * 2.0f) * 30.0f), 0.0f);
+
+	std::vector<OpenGl_uniform_block_light_instance> relevant_lights;
+	OpenGl_uniform_block_light_instance light;
+	light.m_position_and_unused = glm::vec4(first_light_pos, 0.0f);
+	light.m_color_and_intensity = { 1.0f, 0.0f, 0.0f, 100.0f };
+
+	relevant_lights.push_back(light);
+
+	light.m_position_and_unused = glm::vec4(second_light_pos, 0.0f);
+	light.m_color_and_intensity = { 0.0f, 1.0f, 0.0f, 50.0f };
+
+	relevant_lights.push_back(light);
+
+	const ui32 byte_size = static_cast<ui32>(sizeof(OpenGl_uniform_block_light_instance) * relevant_lights.size());
+
+	renderer_resources_state.m_uniform_block_lights.value().set_data(0, static_cast<GLfloat>(relevant_lights.size()));
+	renderer_resources_state.m_uniform_block_lights.value().set_data_raw(1, 0, byte_size, relevant_lights.data());
+
+	const Update_list<Render_object_model> & models = std::get<Update_list<Render_object_model>>(scene_it->second);
+	for (const Render_object_model& model : models.m_objects)
+	{
+		if (!model.m_model.is_valid())
+			continue;
+
+		if (model.m_model.get_load_state() == Asset_load_state::loaded)
+		{
+			Asset_model* model_asset = model.m_model.get();
+
+			const glm::mat4 mvp = proj_mat * view_mat * model.m_orientation;
+
+			const ui64 mesh_count = model_asset->m_meshes.size();
+
+			for (i32 mesh_idx = 0; mesh_idx < mesh_count; mesh_idx++)
+			{
+				auto& mesh = model_asset->m_meshes[mesh_idx];
+
+				auto material_override_it = model.m_material_overrides.find(mesh.m_material_slot);
+
+				const Asset_ref<Asset_material>& mat_to_draw = material_override_it != model.m_material_overrides.end() ? material_override_it->second : model_asset->get_material(mesh_idx);
+				if (!mat_to_draw.is_valid())
+					continue;
+
+				if (mat_to_draw.get_load_state() == Asset_load_state::loaded)
+				{
+					bool all_texture_loaded = true;
+
+					for (Asset_material::Texture_parameter& texture_param : mat_to_draw.get()->m_texture_parameters)
+					{
+						if (texture_param.m_texture.is_valid())
+						{
+							if (texture_param.m_texture.get_load_state() == Asset_load_state::not_loaded)
+								out_textures_to_load.push_back(texture_param.m_texture);
+
+							if (texture_param.m_texture.get_load_state() != Asset_load_state::loaded)
+								all_texture_loaded = false;
+						}
+					}
+
+					if (all_texture_loaded)
+						render_mesh(mesh, *mat_to_draw.get(), mvp, model.m_orientation);
+				}
+				else if (mat_to_draw.get_load_state() == Asset_load_state::not_loaded)
+				{
+					out_materials_to_load.push_back(mat_to_draw);
+				}
+			}
+		}
+		else if (model.m_model.get_load_state() == Asset_load_state::not_loaded)
+			out_models_to_load.push_back(model.m_model);
+	}
+
+	debug_drawer_state.m_draw_interface_debug_lines.value().begin_frame();
+
+	Update_list<Render_object_debug_drawer>& debug_drawers = std::get<Update_list<Render_object_debug_drawer>>(scene_it->second);
+
+	for (Render_object_debug_drawer& debug_drawer : debug_drawers.m_objects)
+		debug_drawer.draw_shapes(debug_drawer_state.m_draw_interface_debug_lines.value());
+
+	debug_drawer_state.m_draw_interface_debug_lines.value().end_frame();
+
+	in_window.m_render_target.value().bind_as_target(0);
+
+	SIC_GL_CHECK(glViewport
+	(
+		static_cast<GLsizei>((current_window_x * inout_view.m_viewport_offset.x)),
+		static_cast<GLsizei>(current_window_y * inout_view.m_viewport_offset.y),
+		static_cast<GLsizei>((current_window_x * inout_view.m_viewport_size.x)),
+		static_cast<GLsizei>(current_window_y * inout_view.m_viewport_size.y)
+	));
+
+	renderer_resources_state.m_pass_through_program.value().use();
+
+	GLuint tex_loc_id = renderer_resources_state.m_pass_through_program.value().get_uniform_location("uniform_texture");
+
+	inout_view.m_render_target.value().bind_as_texture(tex_loc_id, 0);
+
+	renderer_resources_state.m_quad_vertex_buffer_array.value().bind();
+	renderer_resources_state.m_quad_indexbuffer.value().bind();
+
+	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(renderer_resources_state.m_quad_indexbuffer.value().get_max_elements()), 0);
 }
 
 void sic::System_renderer::render_mesh(const Asset_model::Mesh& in_mesh, const Asset_material& in_material, const glm::mat4& in_mvp, const glm::mat4& in_model_matrix) const

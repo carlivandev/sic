@@ -46,6 +46,14 @@ namespace sic
 		virtual void on_engine_tick(Engine_context in_context, float in_time_delta) const override;
 
 	private:
+		void render_view
+		(
+			Engine_context in_context, const Render_object_window& in_window, Render_object_view& inout_view,
+			std::vector<Asset_ref<Asset_texture>>& out_textures_to_load,
+			std::vector<Asset_ref<Asset_material>>& out_materials_to_load,
+			std::vector<Asset_ref<Asset_model>>& out_models_to_load
+		) const;
+
 		void render_mesh(const Asset_model::Mesh& in_mesh, const Asset_material& in_material, const glm::mat4& in_mvp, const glm::mat4& in_model_matrix) const;
 		void render_views_to_window_backbuffers(const std::unordered_map<sic::Render_object_window*, std::vector<sic::Render_object_view*>>& in_window_to_view_lut) const;
 
