@@ -26,16 +26,16 @@ namespace sic
 			m_level.destroy_object(in_object_to_destroy);
 		}
 
-		template<typename t_type>
-		__forceinline void for_each(std::function<void(t_type&)> in_func)
+		template<typename T_type>
+		__forceinline void for_each(std::function<void(T_type&)> in_func)
 		{
-			m_level.for_each<t_type>(in_func);
+			m_level.for_each<T_type>(in_func);
 		}
 
-		template<typename t_type>
-		__forceinline void for_each(std::function<void(const t_type&)> in_func) const
+		template<typename T_type>
+		__forceinline void for_each(std::function<void(const T_type&)> in_func) const
 		{
-			m_level.for_each<t_type>(in_func);
+			m_level.for_each<T_type>(in_func);
 		}
 
 		Engine_context get_engine_context() { return m_engine; }

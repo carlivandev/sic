@@ -15,6 +15,14 @@ namespace sic
 			serialize(in, *this);
 		}
 
+		template <typename t_data_type>
+		void write_memcpy(const t_data_type& in)
+		{
+			serialize_memcpy(in, *this);
+		}
+
+		void write_raw(unsigned char* in_buffer, ui32 in_buffer_bytesize);
+
 		std::string m_bytes;
 	};
 
@@ -28,12 +36,24 @@ namespace sic
 			deserialize(*this, out);
 		}
 
+		template <typename t_data_type>
+		void read_memcpy(t_data_type& out)
+		{
+			deserialize_memcpy(*this, out);
+		}
+
+		void read_raw(unsigned char*& out_buffer, ui32& out_buffer_bytesize);
+
 		std::string m_bytes;
 		ui32 m_offset = 0;
 	};
 
+	void serialize_raw(unsigned char* in_buffer, ui32 in_buffer_bytesize, Serialize_stream& out_stream);
+
+	void deserialize_raw(Deserialize_stream& in_stream, unsigned char*& out_buffer, ui32& out_buffer_bytesize);
+
 	template <typename t_data_type>
-	void serialize(const t_data_type& in_to_serialize, Serialize_stream& out_stream)
+	void serialize_memcpy(const t_data_type& in_to_serialize, Serialize_stream& out_stream)
 	{
 		const size_t old_size = out_stream.m_bytes.size();
 		out_stream.m_bytes.resize(old_size + sizeof(t_data_type));
@@ -41,10 +61,24 @@ namespace sic
 	}
 
 	template <typename t_data_type>
-	void deserialize(Deserialize_stream& in_stream, t_data_type& out_deserialized)
+	void deserialize_memcpy(Deserialize_stream & in_stream, t_data_type & out_deserialized)
 	{
 		memcpy_s(&out_deserialized, sizeof(t_data_type), &(in_stream.m_bytes[in_stream.m_offset]), sizeof(t_data_type));
 		in_stream.m_offset += sizeof(t_data_type);
+	}
+
+	template <typename t_data_type>
+	void serialize(const t_data_type& in_to_serialize, Serialize_stream& out_stream)
+	{
+		static_assert(std::is_trivially_copyable<t_data_type>::value, "Type is not trivially serializable! Please specialize serialize or use Serialize_stream::write_memcpy/write_raw.");
+		serialize_memcpy(in_to_serialize, out_stream);
+	}
+
+	template <typename t_data_type>
+	void deserialize(Deserialize_stream& in_stream, t_data_type& out_deserialized)
+	{
+		static_assert(std::is_trivially_copyable<t_data_type>::value, "Type is not trivially deserializable! Please specialize deserialize or use Deserialize_stream::read_memcpy/read_raw.");
+		deserialize_memcpy(in_stream, out_deserialized);
 	}
 
 	template <typename t_data_type>

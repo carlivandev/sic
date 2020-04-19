@@ -73,7 +73,7 @@ namespace sic
 		template <typename t_state>
 		t_state* get_state();
 
-		template <typename t_type>
+		template <typename T_type>
 		constexpr Typeinfo* get_typeinfo();
 
 		void create_level(Level* in_parent_level);
@@ -318,37 +318,37 @@ namespace sic
 		return reinterpret_cast<t_state*>(m_states[type_idx].get());
 	}
 
-	template<typename t_type>
+	template<typename T_type>
 	inline constexpr Typeinfo* Engine::get_typeinfo()
 	{
-		constexpr bool is_component = std::is_base_of<Component_base, t_type>::value;
-		constexpr bool is_object = std::is_base_of<Object_base, t_type>::value;
-		constexpr bool is_state = std::is_base_of<State, t_type>::value;
+		constexpr bool is_component = std::is_base_of<Component_base, T_type>::value;
+		constexpr bool is_object = std::is_base_of<Object_base, T_type>::value;
+		constexpr bool is_state = std::is_base_of<State, T_type>::value;
 
 		if constexpr (is_component)
 		{
-			const ui32 type_idx = Type_index<Component_base>::get<t_type>();
+			const ui32 type_idx = Type_index<Component_base>::get<T_type>();
 			assert(type_idx < m_engine.m_component_typeinfos.size() && m_engine.m_component_typeinfos[type_idx] != nullptr && "typeinfo not registered!");
 
 			return m_engine.m_component_typeinfos[type_idx];
 		}
 		else if constexpr (is_object)
 		{
-			const ui32 type_idx = Type_index<Object_base>::get<t_type>();
+			const ui32 type_idx = Type_index<Object_base>::get<T_type>();
 			assert(type_idx < m_engine.m_object_typeinfos.size() && m_engine.m_object_typeinfos[type_idx] != nullptr && "typeinfo not registered!");
 
 			return m_engine.m_object_typeinfos[type_idx];
 		}
 		else if constexpr (is_state)
 		{
-			const ui32 type_idx = Type_index<State>::get<t_type>();
+			const ui32 type_idx = Type_index<State>::get<T_type>();
 			assert(type_idx < m_engine.m_states.size() && m_engine.m_states[type_idx] != nullptr && "typeinfo not registered!");
 
 			return m_engine.m_states[type_idx];
 		}
 		else
 		{
-			const ui32 type_idx = Type_index<Typeinfo>::get<t_type>();
+			const ui32 type_idx = Type_index<Typeinfo>::get<T_type>();
 			assert(type_idx < m_engine.m_typeinfos.size() && m_engine.m_typeinfos[type_idx] != nullptr && "typeinfo not registered!");
 
 			return m_engine.m_typeinfos[type_idx];

@@ -9,8 +9,8 @@ namespace sic
 	{
 		namespace private_functions
 		{
-			template <typename t_type>
-			void draw_shape(Level_context& inout_context, const t_type& in_shape)
+			template <typename T_type>
+			void draw_shape(Level_context& inout_context, const T_type& in_shape)
 			{
 				Engine_context engine_context = inout_context.get_engine_context();
 
@@ -22,7 +22,7 @@ namespace sic
 					debug_drawing_state->m_level_id_to_debug_drawer_ids.find(inout_context.get_outermost_level_id())->second,
 					[in_shape](Render_object_debug_drawer& inout_drawer)
 					{
-						std::get<std::vector<t_type>>(inout_drawer.m_shapes).push_back(in_shape);
+						std::get<std::vector<T_type>>(inout_drawer.m_shapes).push_back(in_shape);
 					}
 				);
 			}

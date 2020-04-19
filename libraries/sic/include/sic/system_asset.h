@@ -7,6 +7,7 @@
 #include "sic/asset.h"
 #include "sic/leavable_queue.h"
 #include "sic/logger.h"
+#include "sic/delegate.h"
 
 #include "crossguid/guid.hpp"
 #include "fmt/format.h"
@@ -23,65 +24,57 @@ namespace sic
 	{
 		friend struct System_asset;
 
-		template <typename t_type>
-		Asset_ref<t_type> find_asset(const xg::Guid& in_id) const
+		template <typename T_type>
+		Asset_ref<T_type> find_asset(const xg::Guid& in_id) const
 		{
 			auto header_it = m_id_to_header.find(in_id);
-			return header_it != m_id_to_header.end() ? Asset_ref<t_type>(header_it->second) : Asset_ref<t_type>();
+			return header_it != m_id_to_header.end() ? Asset_ref<T_type>(header_it->second) : Asset_ref<T_type>();
 		}
 
-		template <typename t_type>
-		void load_batch(Engine_context in_context, std::vector<Asset_ref<t_type>>&& in_batch_to_load)
+		template <typename T_asset_type>
+		void load_asset(Asset_header& in_header)
 		{
 			std::scoped_lock lock(m_mutex);
-			load_requests.reserve(in_batch_to_load.size());
 
-			for (auto& ref : in_batch_to_load)
-			{
-				Asset_header* header = ref.m_header;
+			if (in_header.m_load_state != Asset_load_state::not_loaded)
+				return;
 
-				if (header->m_load_state != Asset_load_state::not_loaded)
-					continue;
+			in_header.m_load_state = Asset_load_state::loading;
+			in_header.increment_reference_count();
 
-				header->m_load_state = Asset_load_state::loading;
-				header->increment_reference_count();
-
-				load_requests.push_back
+			m_filesystem_state->request_load
+			(
+				File_load_request
 				(
-					File_load_request
-					(
-						std::string(header->m_asset_path),
-						[header, this](std::string&& in_loaded_data)
+					std::string(in_header.m_asset_path),
+					[&in_header, this](std::string&& in_loaded_data)
+					{
+						load_asset_internal<T_asset_type>(std::move(in_loaded_data), in_header.m_loaded_asset);
+						if (in_header.m_loaded_asset.get()->has_post_load())
 						{
-							load_asset_internal<t_type>(std::move(in_loaded_data), header->m_loaded_asset);
-							if (header->m_loaded_asset.get()->has_post_load())
-							{
-								std::scoped_lock post_load_lock(m_post_load_mutex);
+							std::scoped_lock post_load_lock(m_post_load_mutex);
 
-								std::unique_ptr<std::vector<Asset_header*>>& post_load_assets = m_typeindex_to_post_load_assets[std::type_index(typeid(t_type))];
+							std::unique_ptr<std::vector<Asset_header*>>& post_load_assets = m_typeindex_to_post_load_assets[std::type_index(typeid(T_asset_type))];
 
-								if (!post_load_assets)
-									post_load_assets = std::make_unique<std::vector<Asset_header*>>();
+							if (!post_load_assets)
+								post_load_assets = std::make_unique<std::vector<Asset_header*>>();
 
-								post_load_assets->push_back(header);
-							}
-							else
-							{
-								SIC_LOG(g_log_asset_verbose, "Loaded asset: \"{0}\"", header->m_name.c_str());
-								header->m_load_state = Asset_load_state::loaded;
-								header->decrement_reference_count();
-							}
+							post_load_assets->push_back(&in_header);
 						}
-					)
-				);
+						else
+						{
+							m_headers_to_mark_as_loaded.push_back(&in_header);
+						}
+					}
+				)
+			);
 
-				in_context.get_state<State_filesystem>()->request_load(std::move(load_requests));
-			}
 		}
 
 		template <typename t_asset_type>
 		inline void do_post_load(std::function<void(t_asset_type&)>&& in_callback)
 		{
+			std::scoped_lock lock(m_mutex);
 			std::scoped_lock post_load_lock(m_post_load_mutex);
 
 			std::unique_ptr<std::vector<Asset_header*>>& post_load_assets = m_typeindex_to_post_load_assets[std::type_index(typeid(t_asset_type))];
@@ -91,11 +84,8 @@ namespace sic
 
 			for (Asset_header* header : *post_load_assets.get())
 			{
-				SIC_LOG(g_log_asset_verbose, "Loaded asset: \"{0}\"", header->m_name.c_str());
-
 				in_callback(*reinterpret_cast<t_asset_type*>(header->m_loaded_asset.get()));
-				header->m_load_state = Asset_load_state::loaded;
-				header->decrement_reference_count();
+				m_headers_to_mark_as_loaded.push_back(header);
 			}
 
 			post_load_assets->clear();
@@ -207,19 +197,25 @@ namespace sic
 		std::vector<std::unique_ptr<Asset_header>> m_asset_headers;
 		std::unordered_map<xg::Guid, Asset_header*> m_id_to_header;
 
-		std::vector<File_load_request> load_requests;
+		std::vector<File_load_request> m_load_requests;
 		Leavable_queue<Asset_header*> m_unload_queue;
 
 		std::unordered_map<std::type_index, std::unique_ptr<std::vector<Asset_header*>>> m_typeindex_to_post_load_assets;
 		std::unordered_map<std::string, std::unique_ptr<std::vector<Asset_header*>>> m_typename_to_pre_unload_headers;
 
+		std::vector<Asset_header*> m_headers_to_mark_as_loaded;
+
 		std::mutex m_mutex;
 		std::mutex m_post_load_mutex;
 		std::mutex m_pre_unload_mutex;
+
+		State_filesystem* m_filesystem_state = nullptr;
 	};
 
 	struct System_asset : System
 	{
 		virtual void on_created(Engine_context in_context) override;
+		void on_engine_finalized(Engine_context in_context) const override;
+		virtual void on_engine_tick(Engine_context in_context, float in_time_delta) const override;
 	};
 }

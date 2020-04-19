@@ -24,11 +24,11 @@ namespace sic
 		template <typename t_component_type>
 		void destroy_component(t_component_type& in_component_to_destroy);
 
-		template <typename t_type>
-		void for_each(std::function<void(t_type&)> in_func);
+		template <typename T_type>
+		void for_each(std::function<void(T_type&)> in_func);
 
-		template <typename t_type>
-		void for_each(std::function<void(const t_type&)> in_func) const;
+		template <typename T_type>
+		void for_each(std::function<void(const T_type&)> in_func) const;
 
 		bool get_is_root_level() const { return m_outermost_level == nullptr; }
 
@@ -92,65 +92,65 @@ namespace sic
 		storage->destroy_component(in_component_to_destroy);
 	}
 
-	template<typename t_type>
-	inline void Level::for_each(std::function<void(t_type&)> in_func)
+	template<typename T_type>
+	inline void Level::for_each(std::function<void(T_type&)> in_func)
 	{
-		constexpr bool is_component = std::is_base_of<Component_base, t_type>::value;
-		constexpr bool is_object = std::is_base_of<Object_base, t_type>::value;
+		constexpr bool is_component = std::is_base_of<Component_base, T_type>::value;
+		constexpr bool is_object = std::is_base_of<Object_base, T_type>::value;
 
 		if constexpr (is_component)
 		{
-			const ui32 type_idx = Type_index<Component_base>::get<t_type>();
-			Component_storage<t_type>* storage = reinterpret_cast<Component_storage<t_type>*>(m_component_storages[type_idx].get());
+			const ui32 type_idx = Type_index<Component_base>::get<T_type>();
+			Component_storage<T_type>* storage = reinterpret_cast<Component_storage<T_type>*>(m_component_storages[type_idx].get());
 
-			for (t_type& component : storage->m_components)
+			for (T_type& component : storage->m_components)
 				in_func(component);
 		}
 		else if constexpr (is_object)
 		{
-			const ui32 type_idx = Type_index<Object_base>::get<t_type>();
-			Bucket_allocator_view<t_type> object_view(&m_objects[type_idx]->m_instances.m_byte_allocator);
+			const ui32 type_idx = Type_index<Object_base>::get<T_type>();
+			Bucket_allocator_view<T_type> object_view(&m_objects[type_idx]->m_instances.m_byte_allocator);
 
-			for (t_type& object : object_view)
+			for (T_type& object : object_view)
 				in_func(object);
 		}
 		else
 		{
-			static_assert(false, "t_type not valid for for_each<t>. only objects and components supported.");
+			static_assert(false, "T_type not valid for for_each<t>. only objects and components supported.");
 		}
 
 		for (auto& sublevel : m_sublevels)
-			sublevel->for_each<t_type>(in_func);
+			sublevel->for_each<T_type>(in_func);
 	}
 
-	template<typename t_type>
-	inline void Level::for_each(std::function<void(const t_type&)> in_func) const
+	template<typename T_type>
+	inline void Level::for_each(std::function<void(const T_type&)> in_func) const
 	{
-		constexpr bool is_component = std::is_base_of<Component_base, t_type>::value;
-		constexpr bool is_object = std::is_base_of<Object_base, t_type>::value;
+		constexpr bool is_component = std::is_base_of<Component_base, T_type>::value;
+		constexpr bool is_object = std::is_base_of<Object_base, T_type>::value;
 
 		if constexpr (is_component)
 		{
-			const ui32 type_idx = Type_index<Component_base>::get<t_type>();
-			const Component_storage<t_type>* storage = reinterpret_cast<const Component_storage<t_type>*>(m_component_storages[type_idx].get());
+			const ui32 type_idx = Type_index<Component_base>::get<T_type>();
+			const Component_storage<T_type>* storage = reinterpret_cast<const Component_storage<T_type>*>(m_component_storages[type_idx].get());
 
-			for (const t_type& component : storage->m_components)
+			for (const T_type& component : storage->m_components)
 				in_func(component);
 		}
 		else if constexpr (is_object)
 		{
-			const ui32 type_idx = Type_index<Object_base>::get<t_type>();
-			Bucket_allocator_view<const t_type> object_view(&m_objects[type_idx]->m_instances.m_byte_allocator);
+			const ui32 type_idx = Type_index<Object_base>::get<T_type>();
+			Bucket_allocator_view<const T_type> object_view(&m_objects[type_idx]->m_instances.m_byte_allocator);
 
-			for (const t_type& object : object_view)
+			for (const T_type& object : object_view)
 				in_func(object);
 		}
 		else
 		{
-			static_assert(false, "t_type not valid for for_each<t>. only objects and components supported.");
+			static_assert(false, "T_type not valid for for_each<t>. only objects and components supported.");
 		}
 
 		for (auto& sublevel : m_sublevels)
-			sublevel->for_each<t_type>(in_func);
+			sublevel->for_each<T_type>(in_func);
 	}
 }

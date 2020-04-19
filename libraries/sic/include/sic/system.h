@@ -75,7 +75,7 @@ namespace sic
 			return reinterpret_cast<t_to_type*>(&in_to_cast);
 		}
 
-		template <typename t_type, typename t_base_type>
+		template <typename T_type, typename t_base_type>
 		static __forceinline constexpr bool is_a(t_base_type& in_to_check)
 		{
 			constexpr bool is_component = std::is_base_of<Component_base, t_base_type>::value;
@@ -90,7 +90,7 @@ namespace sic
 			}
 			else if constexpr (is_object)
 			{
-				const i32 type_idx = Type_index<Object_base>::get<t_type>();
+				const i32 type_idx = Type_index<Object_base>::get<T_type>();
 
 				return type_idx == in_to_check.m_type_index;
 			}

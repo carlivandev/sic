@@ -94,7 +94,7 @@ sic::Asset_ref<sic::Asset_material> sic::Component_model::get_material_override(
 	auto it = m_material_overrides.find(in_material_slot);
 
 	if (it == m_material_overrides.end())
-		return Asset_ref <Asset_material>();
+		return Asset_ref<Asset_material>();
 
 	return it->second;
 }

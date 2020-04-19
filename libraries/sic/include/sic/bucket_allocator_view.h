@@ -4,8 +4,8 @@
 
 namespace sic
 {
-	template <typename t_type>
-	struct Bucket_allocator_iterator : public std::iterator<std::input_iterator_tag, t_type>
+	template <typename T_type>
+	struct Bucket_allocator_iterator : public std::iterator<std::input_iterator_tag, T_type>
 	{
 		Bucket_allocator_iterator() = default;
 		Bucket_allocator_iterator(Bucket_byte_allocator* in_storage, i32 in_index) : m_storage(in_storage), m_index(in_index)
@@ -20,15 +20,15 @@ namespace sic
 
 			return *this;
 		}
-		bool operator == (const Bucket_allocator_iterator<t_type>& rhs) const { return m_index == rhs.m_index; }
-		bool operator != (const Bucket_allocator_iterator<t_type>& rhs) const { return m_index != rhs.m_index; }
-		t_type& operator* () { return *reinterpret_cast<t_type*>(&m_storage->operator[](m_index * m_storage->m_typesize)); }
-		const t_type& operator* () const { return *reinterpret_cast<t_type*>(&m_storage->operator[](m_index * m_storage->m_typesize)); }
+		bool operator == (const Bucket_allocator_iterator<T_type>& rhs) const { return m_index == rhs.m_index; }
+		bool operator != (const Bucket_allocator_iterator<T_type>& rhs) const { return m_index != rhs.m_index; }
+		T_type& operator* () { return *reinterpret_cast<T_type*>(&m_storage->operator[](m_index * m_storage->m_typesize)); }
+		const T_type& operator* () const { return *reinterpret_cast<T_type*>(&m_storage->operator[](m_index * m_storage->m_typesize)); }
 
 		void try_find_next_valid_index()
 		{
 			while (m_index < static_cast<int>(m_storage->size() / m_storage->m_typesize) &&
-				!reinterpret_cast<t_type*>(&(*m_storage)[m_index * m_storage->m_typesize])->is_valid())
+				!reinterpret_cast<T_type*>(&(*m_storage)[m_index * m_storage->m_typesize])->is_valid())
 			{
 				++m_index;
 			}
@@ -38,11 +38,11 @@ namespace sic
 		i32 m_index = -1;
 	};
 
-	template <typename t_type>
+	template <typename T_type>
 	struct Bucket_allocator_view
 	{
-		using Iterator = Bucket_allocator_iterator<t_type>;
-		using Const_iterator = Bucket_allocator_iterator<const t_type>;
+		using Iterator = Bucket_allocator_iterator<T_type>;
+		using Const_iterator = Bucket_allocator_iterator<const T_type>;
 
 		Bucket_allocator_view() = default;
 		Bucket_allocator_view(Bucket_byte_allocator* in_storage) : m_storage(in_storage) {}

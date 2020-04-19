@@ -229,10 +229,6 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 			window_to_views_lut[window].push_back(&view);
 		}
 	}
-	
-	std::vector<Asset_ref<Asset_texture>> textures_to_load;
-	std::vector<Asset_ref<Asset_material>> materials_to_load;
-	std::vector<Asset_ref<Asset_model>> models_to_load;
 
 	for (auto& window_to_views_it : window_to_views_lut)
 	{
@@ -254,7 +250,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		glEnable(GL_CULL_FACE);
 		
 		for (Render_object_view* view : window_to_views_it.second)
-			render_view(in_context, *window_to_views_it.first, *view, textures_to_load, materials_to_load, models_to_load);
+			render_view(in_context, *window_to_views_it.first, *view);
 	}
 	
 	render_views_to_window_backbuffers(window_to_views_lut);
@@ -270,17 +266,9 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 	}
 
 	glfwMakeContextCurrent(nullptr);
-
-	assetsystem_state.load_batch(in_context, std::move(textures_to_load));
-	assetsystem_state.load_batch(in_context, std::move(materials_to_load));
-	assetsystem_state.load_batch(in_context, std::move(models_to_load));
 }
 
-void sic::System_renderer::render_view(
-	Engine_context in_context, const Render_object_window& in_window, Render_object_view& inout_view,
-	std::vector<Asset_ref<Asset_texture>>& out_textures_to_load,
-	std::vector<Asset_ref<Asset_material>>& out_materials_to_load,
-	std::vector<Asset_ref<Asset_model>>& out_models_to_load) const
+void sic::System_renderer::render_view(Engine_context in_context, const Render_object_window& in_window, Render_object_view& inout_view) const
 {
 	State_debug_drawing& debug_drawer_state = in_context.get_state_checked<State_debug_drawing>();
 	State_renderer_resources& renderer_resources_state = in_context.get_state_checked<State_renderer_resources>();
@@ -391,9 +379,6 @@ void sic::System_renderer::render_view(
 					{
 						if (texture_param.m_texture.is_valid())
 						{
-							if (texture_param.m_texture.get_load_state() == Asset_load_state::not_loaded)
-								out_textures_to_load.push_back(texture_param.m_texture);
-
 							if (texture_param.m_texture.get_load_state() != Asset_load_state::loaded)
 								all_texture_loaded = false;
 						}
@@ -402,14 +387,8 @@ void sic::System_renderer::render_view(
 					if (all_texture_loaded)
 						render_mesh(mesh, *mat_to_draw.get(), mvp, model.m_orientation);
 				}
-				else if (mat_to_draw.get_load_state() == Asset_load_state::not_loaded)
-				{
-					out_materials_to_load.push_back(mat_to_draw);
-				}
 			}
 		}
-		else if (model.m_model.get_load_state() == Asset_load_state::not_loaded)
-			out_models_to_load.push_back(model.m_model);
 	}
 
 	debug_drawer_state.m_draw_interface_debug_lines.value().begin_frame();

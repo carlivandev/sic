@@ -20,6 +20,7 @@ namespace sic_private
 
 		new_header->m_id = xg::Guid(json_object["id"].get<std::string>());
 		new_header->m_asset_path = json_object["asset_path"].get<std::string>();
+		new_header->m_name = json_object["name"].get<std::string>();
 		new_header->m_typename = json_object["type"].get<std::string>();
 
 		return std::move(new_header);
@@ -68,6 +69,34 @@ void sic::System_asset::on_created(Engine_context in_context)
 		assetsystem_state->m_asset_headers.push_back(std::move(new_header));
 		assetsystem_state->m_id_to_header[assetsystem_state->m_asset_headers.back()->m_id] = assetsystem_state->m_asset_headers.back().get();
 	}
+}
+
+void sic::System_asset::on_engine_finalized(Engine_context in_context) const
+{
+	in_context.get_state_checked<State_assetsystem>().m_filesystem_state = &in_context.get_state_checked<State_filesystem>();
+}
+
+void sic::System_asset::on_engine_tick(Engine_context in_context, float in_time_delta) const
+{
+	State_assetsystem& state = in_context.get_state_checked<State_assetsystem>();
+
+	std::scoped_lock lock(state.m_mutex);
+
+	for (Asset_header* header : state.m_headers_to_mark_as_loaded)
+	{
+		Asset_dependency_gatherer gatherer(state, *header);
+		header->m_loaded_asset.get()->get_dependencies(gatherer);
+
+		if (!gatherer.has_dependencies_to_load())
+		{
+			SIC_LOG(g_log_asset_verbose, "Loaded asset: \"{0}\"", header->m_name.c_str());
+			header->m_load_state = Asset_load_state::loaded;
+			header->m_on_loaded_delegate.invoke(header->m_loaded_asset.get());
+			header->decrement_reference_count();
+		}
+	}
+
+	state.m_headers_to_mark_as_loaded.clear();
 }
 
 void sic::State_assetsystem::leave_unload_queue(const Asset_header& in_header)

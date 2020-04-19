@@ -266,20 +266,20 @@ namespace sic
 		> m_shapes;
 
 	private:
-		template <typename t_type>
-		void draw_shapes_of_type(std::vector<t_type>& in_out_shapes, OpenGl_draw_interface_debug_lines& in_out_draw_interface)
+		template <typename T_type>
+		void draw_shapes_of_type(std::vector<T_type>& in_out_shapes, OpenGl_draw_interface_debug_lines& in_out_draw_interface)
 		{
-			for (t_type& shape : in_out_shapes)
+			for (T_type& shape : in_out_shapes)
 				shape.draw(in_out_draw_interface);
 		}
 
-		template <typename t_type>
-		void update_shape_lifetimes_of_type(std::vector<t_type>& in_out_shapes, float in_time_delta)
+		template <typename T_type>
+		void update_shape_lifetimes_of_type(std::vector<T_type>& in_out_shapes, float in_time_delta)
 		{
 			size_t i = 0;
 			while (i < in_out_shapes.size())
 			{
-				t_type& shape = in_out_shapes[i];
+				T_type& shape = in_out_shapes[i];
 				shape.m_lifetime -= in_time_delta;
 
 				if (shape.m_lifetime <= 0.0f)
@@ -297,10 +297,10 @@ namespace sic
 		}
 	};
 
-	template <typename t_type>
+	template <typename T_type>
 	struct Render_object_id
 	{
-		Update_list_id<t_type> m_id;
+		Update_list_id<T_type> m_id;
 		i32 m_level_id = -1;
 	};
 
@@ -329,34 +329,34 @@ namespace sic
 			m_level_id_to_scene_lut.erase(in_level_id);
 		}
 
-		template <typename t_type>
-		Render_object_id<t_type> create_object(i32 in_level_id, Update_list<t_type>::Update::template Callback&& in_create_callback)
+		template <typename T_type>
+		Render_object_id<T_type> create_object(i32 in_level_id, Update_list<T_type>::Update::template Callback&& in_create_callback)
 		{
 			std::scoped_lock lock(m_update_mutex);
 
-			Update_list<t_type>& list = std::get<Update_list<t_type>>(m_level_id_to_scene_lut.find(in_level_id)->second);
-			Render_object_id<t_type> id;
+			Update_list<T_type>& list = std::get<Update_list<T_type>>(m_level_id_to_scene_lut.find(in_level_id)->second);
+			Render_object_id<T_type> id;
 			id.m_id = list.create_object(std::move(in_create_callback));
 			id.m_level_id = in_level_id;
 
 			return id;
 		}
 
-		template <typename t_type>
-		void update_object(Render_object_id<t_type> in_object_id, Update_list<t_type>::Update::template Callback&& in_update_callback)
+		template <typename T_type>
+		void update_object(Render_object_id<T_type> in_object_id, Update_list<T_type>::Update::template Callback&& in_update_callback)
 		{
 			std::scoped_lock lock(m_update_mutex);
 
-			Update_list<t_type>& list = std::get<Update_list<t_type>>(m_level_id_to_scene_lut.find(in_object_id.m_level_id)->second);
+			Update_list<T_type>& list = std::get<Update_list<T_type>>(m_level_id_to_scene_lut.find(in_object_id.m_level_id)->second);
 			list.update_object(in_object_id.m_id, std::move(in_update_callback));
 		}
 
-		template <typename t_type>
-		void destroy_object(Render_object_id<t_type> in_object_id)
+		template <typename T_type>
+		void destroy_object(Render_object_id<T_type> in_object_id)
 		{
 			std::scoped_lock lock(m_update_mutex);
 
-			Update_list<t_type>& list = std::get<Update_list<t_type>>(m_level_id_to_scene_lut.find(in_object_id.m_level_id)->second);
+			Update_list<T_type>& list = std::get<Update_list<T_type>>(m_level_id_to_scene_lut.find(in_object_id.m_level_id)->second);
 			list.destroy_object(in_object_id.m_id);
 		}
 

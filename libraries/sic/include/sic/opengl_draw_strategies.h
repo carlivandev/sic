@@ -14,12 +14,12 @@ namespace sic
 		}
 	};
 
-	template <GLenum t_mode, GLenum t_type>
+	template <GLenum t_mode, GLenum T_type>
 	struct OpenGl_draw_strategy_element
 	{
 		static void draw(GLsizei in_count, const void* in_indices)
 		{
-			SIC_GL_CHECK(glDrawElements(t_mode, in_count, t_type, in_indices));
+			SIC_GL_CHECK(glDrawElements(t_mode, in_count, T_type, in_indices));
 		}
 	};
 

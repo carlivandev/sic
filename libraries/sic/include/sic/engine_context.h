@@ -50,10 +50,10 @@ namespace sic
 			return m_engine->register_typeinfo<t_type_to_register>(in_unique_key);
 		}
 
-		template <typename t_type>
+		template <typename T_type>
 		__forceinline constexpr Typeinfo* get_typeinfo()
 		{
-			return m_engine->get_typeinfo<t_type>();
+			return m_engine->get_typeinfo<T_type>();
 		}
 
 		template <typename t_state>
@@ -83,10 +83,10 @@ namespace sic
 			m_engine->invoke<t_event_type, event_data>(event_data_to_send);
 		}
 
-		template<typename t_type>
-		__forceinline void for_each(std::function<void(t_type&)> in_func)
+		template<typename T_type>
+		__forceinline void for_each(std::function<void(T_type&)> in_func)
 		{
-			if constexpr (std::is_same<t_type, Level>::value)
+			if constexpr (std::is_same<T_type, Level>::value)
 			{
 				for (auto& level : m_engine->m_levels)
 					for_each_level(in_func, *level.get());
@@ -94,14 +94,14 @@ namespace sic
 			else
 			{
 				for (auto& level : m_engine->m_levels)
-					level->for_each<t_type>(in_func);
+					level->for_each<T_type>(in_func);
 			}
 		}
 
-		template<typename t_type>
-		__forceinline void for_each(std::function<void(const t_type&)> in_func) const
+		template<typename T_type>
+		__forceinline void for_each(std::function<void(const T_type&)> in_func) const
 		{
-			m_level.for_each<t_type>(in_func);
+			m_level.for_each<T_type>(in_func);
 		}
 
 		void create_level(Level* in_parent_level)

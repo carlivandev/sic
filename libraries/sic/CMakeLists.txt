@@ -93,6 +93,7 @@ add_headers(SIC_HEADERS
 add_sources(SIC_SOURCES
 	component.cpp
 	pch.cpp
+	serializer.cpp
 	system.cpp
 	threadpool.cpp
 	logger.cpp
