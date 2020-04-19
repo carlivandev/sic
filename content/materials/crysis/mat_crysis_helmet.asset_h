@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/materials/crysis/mat_crysis_helmet.asset",
-	"id": "3df46fa9-fcad-47a8-9359-474fc68845e4",
+	"id": "7b772ecb-95e5-4732-8584-0b63494dbd39",
 	"name": "mat_crysis_helmet",
 	"type": "struct sic::Asset_material"
 }

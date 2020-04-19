@@ -23,6 +23,7 @@ namespace sic
 	struct State_assetsystem : State
 	{
 		friend struct System_asset;
+		friend Asset_header;
 
 		template <typename T_type>
 		Asset_ref<T_type> find_asset(const xg::Guid& in_id) const
@@ -151,12 +152,13 @@ namespace sic
 			save_asset_internal<t_asset_type>(in_header.m_loaded_asset, in_header.m_asset_path);
 		}
 
-		void leave_unload_queue(const Asset_header& in_header);
-		void join_unload_queue(Asset_header& in_out_header);
 
 		void force_unload_unreferenced_assets();
 
 	private:
+		void leave_unload_queue(const Asset_header& in_header);
+		void join_unload_queue(Asset_header& in_out_header);
+
 		Asset_header* create_asset_internal(const std::string& in_asset_name, const std::string& in_asset_directory, const std::string& in_typename);
 		void save_asset_header(const Asset_header& in_header, const std::string& in_typename);
 

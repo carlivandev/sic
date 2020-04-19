@@ -272,7 +272,10 @@ void sic::System_window::on_engine_tick(Engine_context in_context, float in_time
 			glfwGetWindowSize(window.m_context, &window_dimensions.x, &window_dimensions.y);
 
 			if (window.m_render_target.value().get_dimensions() != window_dimensions)
-				window.m_render_target.value().resize(window_dimensions);
+			{
+				if (window_dimensions.x != 0 && window_dimensions.y != 0)
+					window.m_render_target.value().resize(window_dimensions);
+			}
 		}
 	}
 
@@ -442,6 +445,9 @@ void sic::Window_proxy::set_dimensions(const glm::ivec2& in_dimensions)
 
 	State_render_scene& scene_state = m_engine_context.get_state_checked<State_render_scene>();
 	auto resource_context = m_engine_context.get_state_checked<State_window>().m_resource_context;
+
+	if (in_dimensions.x == 0 || in_dimensions.y == 0)
+		return;
 
 	scene_state.m_windows.update_object
 	(
