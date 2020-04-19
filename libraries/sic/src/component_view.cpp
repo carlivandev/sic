@@ -135,7 +135,11 @@ glm::mat4 sic::Component_view::calculate_projection_matrix() const
 	if (!m_window)
 		return glm::mat4(1);
 
-	const glm::vec2 window_dimensions = m_window->get_dimensions();
+	const glm::ivec2 window_dimensions = m_window->get_dimensions();
+
+	if (window_dimensions.x == 0 || window_dimensions.y == 0)
+		return glm::mat4(1);
+
 	const float view_aspect_ratio = (window_dimensions.x * m_viewport_size.x) / (window_dimensions.y * m_viewport_size.y);
 
 	const glm::mat4x4 proj_mat = glm::perspective
