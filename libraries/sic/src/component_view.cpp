@@ -12,17 +12,20 @@ void sic::Component_view::set_window(Window_proxy* in_window)
 
 	if (m_window)
 	{
-		m_on_window_destroyed_handle.m_function = [this, in_window]()
-		{
-			m_render_scene_state->update_object
-			(
-				m_render_object_id,
-				[](Render_object_view& inout_view)
-				{
-					inout_view.m_window_id.reset();
-				}
-			);
-		};
+		m_on_window_destroyed_handle.set_callback
+		(
+			[this, in_window]()
+			{
+				m_render_scene_state->update_object
+				(
+					m_render_object_id,
+					[](Render_object_view& inout_view)
+					{
+						inout_view.m_window_id.reset();
+					}
+				);
+			}
+		);
 
 		m_window->m_on_destroyed.bind(m_on_window_destroyed_handle);
 	}

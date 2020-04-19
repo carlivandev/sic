@@ -47,12 +47,13 @@ namespace sic
 
 	private:
 		void render_view(Engine_context in_context, const Render_object_window& in_window, Render_object_view& inout_view) const;
-
 		void render_mesh(const Asset_model::Mesh& in_mesh, const Asset_material& in_material, const glm::mat4& in_mvp, const glm::mat4& in_model_matrix) const;
 		void render_views_to_window_backbuffers(const std::unordered_map<sic::Render_object_window*, std::vector<sic::Render_object_view*>>& in_window_to_view_lut) const;
 
-		static void initialize_texture(Asset_texture& out_texture);
-		static void initialize_material(const State_renderer_resources& in_resource_state, Asset_material& out_material);
-		static void initialize_mesh(Asset_model::Mesh& inout_mesh);
+		void do_asset_post_loads(Engine_context in_context) const;
+
+		static void post_load_texture(Asset_texture& out_texture);
+		static void post_load_material(const State_renderer_resources& in_resource_state, Asset_material& out_material);
+		static void post_load_mesh(Asset_model::Mesh& inout_mesh);
 	};
 }

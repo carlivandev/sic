@@ -10,11 +10,11 @@ namespace sic
 	template <typename ...t_args>
 	struct Delegate : Noncopyable
 	{
+		using Signature = std::function<void(t_args...)>;
+
 		struct Handle
 		{
 			friend Delegate<t_args...>;
-
-			std::function<void(t_args...)> m_function;
 
 			Handle() = default;
 			
@@ -58,6 +58,8 @@ namespace sic
 				}
 
 				m_function = std::move(in_other.m_function);
+
+				return *this;
 			}
 
 			Handle& operator=(const Handle& in_other)
@@ -69,10 +71,26 @@ namespace sic
 					in_other.m_delegate->bind(*this);
 
 				m_function = in_other.m_function;
+
+				return *this;
+			}
+
+			void set_callback(Signature in_callback)
+			{
+				if (m_delegate)
+				{
+					std::scoped_lock lock(m_delegate->m_mutex);
+					m_function = in_callback;
+				}
+				else
+				{
+					m_function = in_callback;
+				}
 			}
 
 		private:
 			Delegate<t_args...>* m_delegate = nullptr;
+			Signature m_function;
 		};
 
 		Delegate() = default;
@@ -135,7 +153,7 @@ namespace sic
 
 			for (Handle* it : m_handles)
 			{
-				if (it)
+				if (it && it->m_function)
 					std::apply(it->m_function, in_params);
 			}
 		}
@@ -146,7 +164,7 @@ namespace sic
 
 			for (Handle* it : m_handles)
 			{
-				if (it)
+				if (it && it->m_function)
 					it->m_function();
 			}
 		}

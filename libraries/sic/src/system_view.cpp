@@ -16,19 +16,21 @@ void sic::System_view::on_created(Engine_context in_context)
 
 			in_out_component.m_render_scene_state = in_out_context.get_state<State_render_scene>();
 
-			in_out_component.m_on_updated_handle.m_function =
-			[&in_out_component](const Component_transform& in_transform)
-			{
-				in_out_component.m_render_scene_state->update_object
-				(
-					in_out_component.m_render_object_id,
-					[matrix = in_transform.get_matrix()]
-					(Render_object_view& in_object)
-					{
-						in_object.m_view_orientation = matrix;
-					}
-				);
-			};
+			in_out_component.m_on_updated_handle.set_callback
+			(
+				[&in_out_component](const Component_transform& in_transform)
+				{
+					in_out_component.m_render_scene_state->update_object
+					(
+						in_out_component.m_render_object_id,
+						[matrix = in_transform.get_matrix()]
+						(Render_object_view& in_object)
+						{
+							in_object.m_view_orientation = matrix;
+						}
+					);
+				}
+			);
 			
 			transform->m_on_updated.bind(in_out_component.m_on_updated_handle);
 

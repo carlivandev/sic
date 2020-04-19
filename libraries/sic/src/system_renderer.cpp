@@ -132,71 +132,12 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 {
 	in_time_delta;
 
-	State_assetsystem& assetsystem_state = in_context.get_state_checked<State_assetsystem>();
 	State_window& window_state = in_context.get_state_checked<State_window>();
-	State_renderer_resources& renderer_resources_state = in_context.get_state_checked<State_renderer_resources>();
 	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
 
 	glfwMakeContextCurrent(window_state.m_resource_context);
-	
-	assetsystem_state.do_post_load<Asset_texture>
-	(
-		[](Asset_texture& in_texture)
-		{
-			//do opengl load
-			initialize_texture(in_texture);
-		}
-	);
 
-	assetsystem_state.do_post_load<Asset_material>
-	(
-		[&renderer_resources_state](Asset_material& in_material)
-		{
-			//do opengl load
-			initialize_material(renderer_resources_state, in_material);
-		}
-	);
-
-	assetsystem_state.do_post_load<Asset_model>
-	(
-		[](Asset_model& in_model)
-		{
-			//do opengl load
-			for (auto&& mesh : in_model.m_meshes)
-				initialize_mesh(mesh);
-		}
-	);
-
-	assetsystem_state.do_pre_unload<Asset_texture>
-	(
-		[](Asset_texture& in_texture)
-		{
-			in_texture.m_texture.reset();
-
-			if (!in_texture.m_free_texture_data_after_setup)
-				in_texture.m_texture_data.reset();
-		}
-	);
-
-	assetsystem_state.do_pre_unload<Asset_material>
-	(
-		[](Asset_material& in_material)
-		{
-			in_material.m_program.reset();
-		}
-	);
-
-	assetsystem_state.do_pre_unload<Asset_model>
-	(
-		[](Asset_model& in_model)
-		{
-			for (auto&& mesh : in_model.m_meshes)
-			{
-				mesh.m_vertex_buffer_array.reset();
-				mesh.m_index_buffer.reset();
-			}
-		}
-	);
+	do_asset_post_loads(in_context);
 
 	//clear all window backbuffers
 	for (auto&& window : scene_state.m_windows.m_objects)
@@ -350,44 +291,31 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 	const Update_list<Render_object_model> & models = std::get<Update_list<Render_object_model>>(scene_it->second);
 	for (const Render_object_model& model : models.m_objects)
 	{
-		if (!model.m_model.is_valid())
-			continue;
+		assert(model.m_model.get_load_state() == Asset_load_state::loaded);
 
-		if (model.m_model.get_load_state() == Asset_load_state::loaded)
+		Asset_model* model_asset = model.m_model.get();
+
+		const glm::mat4 mvp = proj_mat * view_mat * model.m_orientation;
+
+		const ui64 mesh_count = model_asset->m_meshes.size();
+
+		for (i32 mesh_idx = 0; mesh_idx < mesh_count; mesh_idx++)
 		{
-			Asset_model* model_asset = model.m_model.get();
+			auto& mesh = model_asset->m_meshes[mesh_idx];
 
-			const glm::mat4 mvp = proj_mat * view_mat * model.m_orientation;
+			auto material_override_it = model.m_material_overrides.find(mesh.m_material_slot);
 
-			const ui64 mesh_count = model_asset->m_meshes.size();
+			const Asset_ref<Asset_material>& mat_to_draw = material_override_it != model.m_material_overrides.end() ? material_override_it->second : model_asset->get_material(mesh_idx);
+			if (!mat_to_draw.is_valid())
+				continue;
 
-			for (i32 mesh_idx = 0; mesh_idx < mesh_count; mesh_idx++)
-			{
-				auto& mesh = model_asset->m_meshes[mesh_idx];
+			assert(mat_to_draw.get_load_state() == Asset_load_state::loaded);
 
-				auto material_override_it = model.m_material_overrides.find(mesh.m_material_slot);
+			for (Asset_material::Texture_parameter& texture_param : mat_to_draw.get()->m_texture_parameters)
+				if (texture_param.m_texture.is_valid())
+					assert(texture_param.m_texture.get_load_state() == Asset_load_state::loaded);
 
-				const Asset_ref<Asset_material>& mat_to_draw = material_override_it != model.m_material_overrides.end() ? material_override_it->second : model_asset->get_material(mesh_idx);
-				if (!mat_to_draw.is_valid())
-					continue;
-
-				if (mat_to_draw.get_load_state() == Asset_load_state::loaded)
-				{
-					bool all_texture_loaded = true;
-
-					for (Asset_material::Texture_parameter& texture_param : mat_to_draw.get()->m_texture_parameters)
-					{
-						if (texture_param.m_texture.is_valid())
-						{
-							if (texture_param.m_texture.get_load_state() != Asset_load_state::loaded)
-								all_texture_loaded = false;
-						}
-					}
-
-					if (all_texture_loaded)
-						render_mesh(mesh, *mat_to_draw.get(), mvp, model.m_orientation);
-				}
-			}
+			render_mesh(mesh, *mat_to_draw.get(), mvp, model.m_orientation);
 		}
 	}
 
@@ -473,7 +401,72 @@ void sic::System_renderer::render_views_to_window_backbuffers(const std::unorder
 	}
 }
 
-void sic::System_renderer::initialize_texture(Asset_texture& out_texture)
+void sic::System_renderer::do_asset_post_loads(Engine_context in_context) const
+{
+	State_assetsystem& assetsystem_state = in_context.get_state_checked<State_assetsystem>();
+	State_renderer_resources& renderer_resources_state = in_context.get_state_checked<State_renderer_resources>();
+
+	assetsystem_state.do_post_load<Asset_texture>
+	(
+		[](Asset_texture& in_texture)
+		{
+			//do opengl load
+			post_load_texture(in_texture);
+		}
+	);
+
+	assetsystem_state.do_post_load<Asset_material>
+	(
+		[&renderer_resources_state](Asset_material& in_material)
+		{
+			//do opengl load
+			post_load_material(renderer_resources_state, in_material);
+		}
+	);
+
+	assetsystem_state.do_post_load<Asset_model>
+	(
+		[](Asset_model& in_model)
+		{
+			//do opengl load
+			for (auto&& mesh : in_model.m_meshes)
+				post_load_mesh(mesh);
+		}
+	);
+
+	assetsystem_state.do_pre_unload<Asset_texture>
+	(
+		[](Asset_texture& in_texture)
+		{
+			in_texture.m_texture.reset();
+
+			if (!in_texture.m_free_texture_data_after_setup)
+				in_texture.m_texture_data.reset();
+		}
+	);
+
+	assetsystem_state.do_pre_unload<Asset_material>
+	(
+		[](Asset_material& in_material)
+		{
+			in_material.m_program.reset();
+		}
+	);
+
+	assetsystem_state.do_pre_unload<Asset_model>
+	(
+		[](Asset_model& in_model)
+		{
+			for (auto&& mesh : in_model.m_meshes)
+			{
+				mesh.m_vertex_buffer_array.reset();
+				mesh.m_index_buffer.reset();
+			}
+		}
+	);
+}
+
+void sic::System_renderer::post_load_texture(Asset_texture& out_texture)
 {
 	i32 gl_texture_format = 0;
 
@@ -501,7 +494,7 @@ void sic::System_renderer::initialize_texture(Asset_texture& out_texture)
 		out_texture.m_texture_data.reset();
 }
 
-void sic::System_renderer::initialize_material(const State_renderer_resources& in_resource_state, Asset_material& out_material)
+void sic::System_renderer::post_load_material(const State_renderer_resources& in_resource_state, Asset_material& out_material)
 {
 	out_material.m_program.emplace(out_material.m_vertex_shader_path, out_material.m_vertex_shader_code, out_material.m_fragment_shader_path, out_material.m_fragment_shader_code);
 
@@ -509,7 +502,7 @@ void sic::System_renderer::initialize_material(const State_renderer_resources& i
 	out_material.m_program.value().set_uniform_block(in_resource_state.m_uniform_block_lights.value());
 }
 
-void sic::System_renderer::initialize_mesh(Asset_model::Mesh& inout_mesh)
+void sic::System_renderer::post_load_mesh(Asset_model::Mesh& inout_mesh)
 {
 	auto& vertex_buffer_array = inout_mesh.m_vertex_buffer_array.emplace();
 	vertex_buffer_array.bind();

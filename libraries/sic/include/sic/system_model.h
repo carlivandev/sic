@@ -22,6 +22,9 @@ namespace sic
 		Asset_ref<Asset_material> get_material_override(const std::string& in_material_slot) const;
 
 	protected:
+		void try_destroy_render_object();
+		void try_create_render_object();
+
 		State_render_scene* m_render_scene_state = nullptr;
 		Asset_ref<Asset_model> m_model;
 

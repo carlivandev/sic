@@ -300,6 +300,14 @@ namespace sic
 	template <typename T_type>
 	struct Render_object_id
 	{
+		void reset()
+		{
+			m_id.reset();
+			m_level_id = -1;
+		}
+
+		bool is_valid() const { return m_level_id != -1 && m_id.is_valid(); }
+
 		Update_list_id<T_type> m_id;
 		i32 m_level_id = -1;
 	};
