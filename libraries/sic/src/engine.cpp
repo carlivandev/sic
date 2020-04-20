@@ -1,4 +1,3 @@
-#include "sic/pch.h"
 #include "sic/engine.h"
 #include "sic/object.h"
 #include "sic/engine_context.h"

@@ -1,4 +1,3 @@
-#include "sic/pch.h"
 #include "sic/threadpool.h"
 #include "sic/thread_naming.h"
 

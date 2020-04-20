@@ -1,6 +1,7 @@
-cmake_minimum_required(VERSION 3.14.2)
+cmake_minimum_required(VERSION 3.17.1)
 project(sic)
 set(CMAKE_BUILD_TYPE Debug)
+
 add_compile_options("/std:c++latest")
 
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
@@ -43,7 +44,6 @@ add_headers(SIC_HEADERS
 	delegate.h
 	object.h
 	object_base.h
-	pch.h
 	serializer.h
 	system.h
 	thread_naming.h
@@ -92,7 +92,6 @@ add_headers(SIC_HEADERS
 
 add_sources(SIC_SOURCES
 	component.cpp
-	pch.cpp
 	serializer.cpp
 	system.cpp
 	threadpool.cpp
@@ -173,3 +172,5 @@ target_include_directories(sic PUBLIC
 
   target_compile_options(sic PRIVATE /W4)
   target_compile_options(assimp PRIVATE /W0)
+
+set_target_properties(sic PROPERTIES UNITY_BUILD ON)

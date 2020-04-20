@@ -78,6 +78,8 @@ void sic::System_asset::on_engine_finalized(Engine_context in_context) const
 
 void sic::System_asset::on_engine_tick(Engine_context in_context, float in_time_delta) const
 {
+	in_time_delta;
+
 	State_assetsystem& state = in_context.get_state_checked<State_assetsystem>();
 
 	std::scoped_lock lock(state.m_mutex);
