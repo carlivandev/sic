@@ -1,6 +1,9 @@
 #include "sic/threadpool.h"
 #include "sic/thread_naming.h"
 
+#include <cassert>
+#include <string>
+
 sic::Threadpool::~Threadpool()
 {
 	shutdown();

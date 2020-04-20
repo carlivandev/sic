@@ -56,34 +56,26 @@ namespace sic
 		*/
 		virtual void on_engine_tick(Engine_context in_context, float in_time_delta) const;
 
-		//unsafe cast, see try_cast for safe version
-		template <typename t_to_type, typename t_from_type>
-		static __forceinline constexpr t_to_type* cast(t_from_type& in_to_cast)
+		template <typename T_to_type, typename T_from_type>
+		static __forceinline constexpr T_to_type* safe_cast(T_from_type& in_to_cast)
 		{
-			static_assert(std::is_base_of<t_from_type, t_to_type>::value, "can only cast to subtype");
-			return reinterpret_cast<t_to_type*>(&in_to_cast);
-		}
+			static_assert(std::is_base_of<T_from_type, T_to_type>::value, "can only cast to subtype");
 
-		template <typename t_to_type, typename t_from_type>
-		static __forceinline constexpr t_to_type* try_cast(t_from_type& in_to_cast)
-		{
-			static_assert(std::is_base_of<t_from_type, t_to_type>::value, "can only cast to subtype");
-
-			if (!is_a<t_to_type, t_from_type>(in_to_cast))
+			if (!is_a<T_to_type, T_from_type>(in_to_cast))
 				return nullptr;
 
-			return reinterpret_cast<t_to_type*>(&in_to_cast);
+			return reinterpret_cast<T_to_type*>(&in_to_cast);
 		}
 
-		template <typename T_type, typename t_base_type>
-		static __forceinline constexpr bool is_a(t_base_type& in_to_check)
+		template <typename T_type, typename T_base_type>
+		static __forceinline constexpr bool is_a(T_base_type& in_to_check)
 		{
-			constexpr bool is_component = std::is_base_of<Component_base, t_base_type>::value;
-			constexpr bool is_object = std::is_base_of<Object_base, t_base_type>::value;
+			constexpr bool is_component = std::is_base_of<Component_base, T_base_type>::value;
+			constexpr bool is_object = std::is_base_of<Object_base, T_base_type>::value;
 
 			if constexpr (is_component)
 			{
-				const i32 type_idx = Type_index<Component_base>::get<t_base_type>();
+				const i32 type_idx = Type_index<Component_base>::get<T_base_type>();
 
 				return type_idx == in_to_check.m_type_index;
 

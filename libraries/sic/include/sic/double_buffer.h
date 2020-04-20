@@ -4,12 +4,12 @@
 
 namespace sic
 {
-	template <typename t_buffer_type>
+	template <typename T_buffer_type>
 	struct Double_buffer
 	{
-		using Read_function = std::function<void(const t_buffer_type& in_read)>;
-		using Write_function = std::function<void(t_buffer_type& in_write)> ;
-		using Swap_function = std::function<void(t_buffer_type& in_read, t_buffer_type& in_write)>;
+		using Read_function = std::function<void(const T_buffer_type& in_read)>;
+		using Write_function = std::function<void(T_buffer_type& in_write)> ;
+		using Swap_function = std::function<void(T_buffer_type& in_read, T_buffer_type& in_write)>;
 
 		void read(Read_function&& in_function)
 		{
@@ -44,11 +44,11 @@ namespace sic
 		}
 
 	protected:
-		t_buffer_type m_buffer_0;
-		t_buffer_type m_buffer_1;
+		T_buffer_type m_buffer_0;
+		T_buffer_type m_buffer_1;
 
-		t_buffer_type* m_buffer_read = &m_buffer_0;
-		t_buffer_type* m_buffer_write = &m_buffer_1;
+		T_buffer_type* m_buffer_read = &m_buffer_0;
+		T_buffer_type* m_buffer_write = &m_buffer_1;
 
 		std::mutex m_swap_mutex;
 		std::mutex m_write_mutex;

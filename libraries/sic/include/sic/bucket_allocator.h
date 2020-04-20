@@ -122,10 +122,10 @@ namespace sic
 
 	struct bucket_allocator
 	{
-		template <typename t_element_type>
+		template <typename T_element_type>
 		void allocate(ui32 in_initial_capacity, ui32 in_bucket_capacity)
 		{
-			m_byte_allocator.allocate(in_initial_capacity * sizeof(t_element_type), in_bucket_capacity * sizeof(t_element_type), sizeof(t_element_type));
+			m_byte_allocator.allocate(in_initial_capacity * sizeof(T_element_type), in_bucket_capacity * sizeof(T_element_type), sizeof(T_element_type));
 		}
 
 		void allocate_with_typesize(ui32 in_initial_capacity, ui32 in_bucket_capacity, ui32 in_typesize)
@@ -133,47 +133,47 @@ namespace sic
 			m_byte_allocator.allocate(in_initial_capacity * in_typesize, in_bucket_capacity * in_typesize, in_typesize);
 		}
 
-		template <typename t_element_type>
-		t_element_type& emplace_back()
+		template <typename T_element_type>
+		T_element_type& emplace_back()
 		{
-			byte& pos = m_byte_allocator.emplace_back(sizeof(t_element_type));
-			t_element_type* new_element = reinterpret_cast<t_element_type*>(&pos);
+			byte& pos = m_byte_allocator.emplace_back(sizeof(T_element_type));
+			T_element_type* new_element = reinterpret_cast<T_element_type*>(&pos);
 
-			new (new_element) t_element_type();
+			new (new_element) T_element_type();
 
 			return *new_element;
 		}
 
-		template <typename t_element_type>
-		t_element_type& at(ui32 in_index)
+		template <typename T_element_type>
+		T_element_type& at(ui32 in_index)
 		{
-			return *reinterpret_cast<t_element_type*>(&m_byte_allocator[in_index * sizeof(t_element_type)]);
+			return *reinterpret_cast<T_element_type*>(&m_byte_allocator[in_index * sizeof(T_element_type)]);
 		}
 
-		template <typename t_element_type>
-		const t_element_type& at(ui32 in_index) const
+		template <typename T_element_type>
+		const T_element_type& at(ui32 in_index) const
 		{
-			return *reinterpret_cast<t_element_type*>(&m_byte_allocator[in_index * sizeof(t_element_type)]);
+			return *reinterpret_cast<T_element_type*>(&m_byte_allocator[in_index * sizeof(T_element_type)]);
 		}
 
-		template <typename t_element_type>
-		t_element_type& back()
+		template <typename T_element_type>
+		T_element_type& back()
 		{
-			assert(size<t_element_type>() > 0 && "size needs to be > 0");
-			return *reinterpret_cast<t_element_type*>(&m_byte_allocator[(size<t_element_type>() - 1) * sizeof(t_element_type)]);
+			assert(size<T_element_type>() > 0 && "size needs to be > 0");
+			return *reinterpret_cast<T_element_type*>(&m_byte_allocator[(size<T_element_type>() - 1) * sizeof(T_element_type)]);
 		}
 
-		template <typename t_element_type>
-		const t_element_type& back() const
+		template <typename T_element_type>
+		const T_element_type& back() const
 		{
-			assert(size<t_element_type>() > 0 && "size needs to be > 0");
-			return *reinterpret_cast<t_element_type*>(&m_byte_allocator[(size<t_element_type>() - 1) * sizeof(t_element_type)]);
+			assert(size<T_element_type>() > 0 && "size needs to be > 0");
+			return *reinterpret_cast<T_element_type*>(&m_byte_allocator[(size<T_element_type>() - 1) * sizeof(T_element_type)]);
 		}
 
-		template <typename t_element_type>
+		template <typename T_element_type>
 		ui32 size() const
 		{
-			return m_byte_allocator.size() / sizeof(t_element_type);
+			return m_byte_allocator.size() / sizeof(T_element_type);
 		}
 
 		void deallocate()

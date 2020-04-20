@@ -72,32 +72,32 @@ namespace sic
 
 		}
 
-		template <typename t_asset_type>
-		inline void do_post_load(std::function<void(t_asset_type&)>&& in_callback)
+		template <typename T_asset_type>
+		inline void do_post_load(std::function<void(T_asset_type&)>&& in_callback)
 		{
 			std::scoped_lock lock(m_mutex);
 			std::scoped_lock post_load_lock(m_post_load_mutex);
 
-			std::unique_ptr<std::vector<Asset_header*>>& post_load_assets = m_typeindex_to_post_load_assets[std::type_index(typeid(t_asset_type))];
+			std::unique_ptr<std::vector<Asset_header*>>& post_load_assets = m_typeindex_to_post_load_assets[std::type_index(typeid(T_asset_type))];
 
 			if (!post_load_assets)
 				return;
 
 			for (Asset_header* header : *post_load_assets.get())
 			{
-				in_callback(*reinterpret_cast<t_asset_type*>(header->m_loaded_asset.get()));
+				in_callback(*reinterpret_cast<T_asset_type*>(header->m_loaded_asset.get()));
 				m_headers_to_mark_as_loaded.push_back(header);
 			}
 
 			post_load_assets->clear();
 		}
 
-		template <typename t_asset_type>
-		inline void do_pre_unload(std::function<void(t_asset_type&)>&& in_callback)
+		template <typename T_asset_type>
+		inline void do_pre_unload(std::function<void(T_asset_type&)>&& in_callback)
 		{
 			std::scoped_lock pre_unload_lock(m_pre_unload_mutex);
 
-			std::unique_ptr<std::vector<Asset_header*>>& pre_unload_assets = m_typename_to_pre_unload_headers[typeid(t_asset_type).name()];
+			std::unique_ptr<std::vector<Asset_header*>>& pre_unload_assets = m_typename_to_pre_unload_headers[typeid(T_asset_type).name()];
 
 			if (!pre_unload_assets)
 				return;
@@ -106,7 +106,7 @@ namespace sic
 			{
 				SIC_LOG(g_log_asset_verbose, "unloaded asset: \"{0}\"", header->m_name.c_str());
 
-				in_callback(*reinterpret_cast<t_asset_type*>(header->m_loaded_asset.get()));
+				in_callback(*reinterpret_cast<T_asset_type*>(header->m_loaded_asset.get()));
 				header->m_load_state = Asset_load_state::not_loaded;
 				header->m_loaded_asset.reset();
 			}
@@ -114,11 +114,11 @@ namespace sic
 			pre_unload_assets->clear();
 		}
 
-		template <typename t_asset_type>
-		inline Asset_ref<t_asset_type> create_asset(const std::string& in_asset_name, const std::string& in_asset_directory)
+		template <typename T_asset_type>
+		inline Asset_ref<T_asset_type> create_asset(const std::string& in_asset_name, const std::string& in_asset_directory)
 		{
-			Asset_header* new_header = create_asset_internal(in_asset_name, in_asset_directory, typeid(t_asset_type).name());
-			new_header->m_loaded_asset = std::unique_ptr<Asset>(reinterpret_cast<Asset*>(new t_asset_type()));
+			Asset_header* new_header = create_asset_internal(in_asset_name, in_asset_directory, typeid(T_asset_type).name());
+			new_header->m_loaded_asset = std::unique_ptr<Asset>(reinterpret_cast<Asset*>(new T_asset_type()));
 
 			new_header->increment_reference_count();
 
@@ -129,7 +129,7 @@ namespace sic
 				std::scoped_lock post_load_lock(m_post_load_mutex);
 				new_header->m_load_state = Asset_load_state::loading;
 
-				std::unique_ptr<std::vector<Asset_header*>>& post_load_assets = m_typeindex_to_post_load_assets[std::type_index(typeid(t_asset_type))];
+				std::unique_ptr<std::vector<Asset_header*>>& post_load_assets = m_typeindex_to_post_load_assets[std::type_index(typeid(T_asset_type))];
 
 				if (!post_load_assets)
 					post_load_assets = std::make_unique<std::vector<Asset_header*>>();
@@ -142,14 +142,14 @@ namespace sic
 				new_header->m_load_state = Asset_load_state::loaded;
 			}
 
-			return Asset_ref<t_asset_type>(new_header);
+			return Asset_ref<T_asset_type>(new_header);
 		}
 
-		template <typename t_asset_type>
+		template <typename T_asset_type>
 		inline void save_asset(const Asset_header& in_header)
 		{
-			save_asset_header(in_header, typeid(t_asset_type).name());
-			save_asset_internal<t_asset_type>(in_header.m_loaded_asset, in_header.m_asset_path);
+			save_asset_header(in_header, typeid(T_asset_type).name());
+			save_asset_internal<T_asset_type>(in_header.m_loaded_asset, in_header.m_asset_path);
 		}
 
 
@@ -162,7 +162,7 @@ namespace sic
 		Asset_header* create_asset_internal(const std::string& in_asset_name, const std::string& in_asset_directory, const std::string& in_typename);
 		void save_asset_header(const Asset_header& in_header, const std::string& in_typename);
 
-		template <typename t_asset_type>
+		template <typename T_asset_type>
 		inline void load_asset_internal(std::string&& in_asset_data, std::unique_ptr<Asset>& out)
 		{
 			if (in_asset_data.empty())
@@ -171,7 +171,7 @@ namespace sic
 				return;
 			}
 
-			t_asset_type* new_asset = new t_asset_type();
+			T_asset_type* new_asset = new T_asset_type();
 
 			Deserialize_stream stream(std::move(in_asset_data));
 			new_asset->load(*this, stream);
@@ -179,10 +179,10 @@ namespace sic
 			out = std::move(std::unique_ptr<Asset>(reinterpret_cast<Asset*>(new_asset)));
 		}
 
-		template <typename t_asset_type>
+		template <typename T_asset_type>
 		inline void save_asset_internal(const std::unique_ptr<Asset>& in_loaded_data, const std::string& in_asset_path)
 		{
-			const t_asset_type* asset = reinterpret_cast<const t_asset_type*>(in_loaded_data.get());
+			const T_asset_type* asset = reinterpret_cast<const T_asset_type*>(in_loaded_data.get());
 
 			if (!asset)
 				return;

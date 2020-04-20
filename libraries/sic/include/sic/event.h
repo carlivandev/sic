@@ -13,15 +13,15 @@ namespace sic
 		virtual void invoke(Engine_context in_out_context, void* in_data) = 0;
 	};
 
-	template <typename t_data_to_send>
+	template <typename T_data_to_send>
 	struct Event : public Event_base
 	{
 		void invoke(Engine_context in_out_context, void* in_data) override
 		{
-			invoke(std::move(in_out_context), *reinterpret_cast<t_data_to_send*>(in_data));
+			invoke(std::move(in_out_context), *reinterpret_cast<T_data_to_send*>(in_data));
 		}
 
-		void invoke(Engine_context in_out_context, t_data_to_send& in_data)
+		void invoke(Engine_context in_out_context, T_data_to_send& in_data)
 		{
 			for (i32 i = 0; i < m_listeners.size(); i++)
 			{
@@ -29,8 +29,8 @@ namespace sic
 			}
 		}
 
-		template <typename t_functor>
-		ui32 add_listener(t_functor in_func)
+		template <typename T_functor>
+		ui32 add_listener(T_functor in_func)
 		{
 			for (ui32 i = 0; i < m_listeners.size(); i++)
 			{
@@ -50,7 +50,7 @@ namespace sic
 			m_listeners[in_listener_index] = nullptr;
 		}
 
-		std::vector<std::function<void(Engine_context&, t_data_to_send&)>> m_listeners;
+		std::vector<std::function<void(Engine_context&, T_data_to_send&)>> m_listeners;
 	};
 
 	template <typename object_type>

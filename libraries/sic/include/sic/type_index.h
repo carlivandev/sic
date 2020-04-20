@@ -4,10 +4,10 @@
 
 namespace sic
 {
-	template <typename t_base = void>
+	template <typename T_base = void>
 	struct Type_index
 	{
-		template <typename t_derived>
+		template <typename T_derived>
 		__forceinline static i32 get()
 		{
 			static i32 id = m_id_ticker++;
@@ -18,6 +18,6 @@ namespace sic
 		static i32 m_id_ticker;
 	};
 
-	template <typename t_base>
-	i32 Type_index<t_base>::m_id_ticker = 0;
+	template <typename T_base>
+	i32 Type_index<T_base>::m_id_ticker = 0;
 }

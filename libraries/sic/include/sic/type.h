@@ -9,11 +9,11 @@ namespace sic
 {
 	struct Property
 	{
-		template <typename t_data_type, typename t_owner>
-		void set(t_owner& in_owner, const t_data_type& in_to_set)
+		template <typename T_data_type, typename T_owner>
+		void set(T_owner& in_owner, const T_data_type& in_to_set)
 		{
-			assert(m_owner_typeindex == Type_index<>::get<t_owner>() && "type mismatch, owner type incorrect");
-			assert(m_data_typeindex == Type_index<>::get<t_data_type>() && "type mismatch, data type incorrect");
+			assert(m_owner_typeindex == Type_index<>::get<T_owner>() && "type mismatch, owner type incorrect");
+			assert(m_data_typeindex == Type_index<>::get<T_data_type>() && "type mismatch, data type incorrect");
 
 			m_setter(*reinterpret_cast<sic::byte*>(&in_owner), *reinterpret_cast<const sic::byte*>(&in_to_set));
 		}
@@ -23,13 +23,13 @@ namespace sic
 			m_setter(in_owner, in_to_set);
 		}
 
-		template <typename t_data_type, typename t_owner>
-		t_data_type& get(t_owner& in_owner)
+		template <typename T_data_type, typename T_owner>
+		T_data_type& get(T_owner& in_owner)
 		{
-			assert(m_owner_typeindex == Type_index<>::get<t_owner>() && "type mismatch, owner type incorrect");
-			assert(m_data_typeindex == Type_index<>::get<t_data_type>() && "type mismatch, data type incorrect");
+			assert(m_owner_typeindex == Type_index<>::get<T_owner>() && "type mismatch, owner type incorrect");
+			assert(m_data_typeindex == Type_index<>::get<T_data_type>() && "type mismatch, data type incorrect");
 
-			return *reinterpret_cast<t_data_type*>(&m_getter(*reinterpret_cast<sic::byte*>(&in_owner)));
+			return *reinterpret_cast<T_data_type*>(&m_getter(*reinterpret_cast<sic::byte*>(&in_owner)));
 		}
 
 		byte& get(byte& in_owner)
@@ -47,8 +47,8 @@ namespace sic
 
 	struct Typeinfo
 	{
-		template <typename t_owner>
-		std::vector<byte> serialize_instance(t_owner& in_owner)
+		template <typename T_owner>
+		std::vector<byte> serialize_instance(T_owner& in_owner)
 		{
 			std::vector<byte> serialized_data;
 
@@ -63,8 +63,8 @@ namespace sic
 			return std::move(serialized_data);
 		}
 
-		template <typename t_owner>
-		void deserialize_instance(const std::vector<byte>& in_serialized_data, t_owner& out_owner)
+		template <typename T_owner>
+		void deserialize_instance(const std::vector<byte>& in_serialized_data, T_owner& out_owner)
 		{
 // 			std::stringstream serialized_stream;
 // 			serialized_stream.write(in_serialized_data.data(), in_serialized_data.get_max_elements());
@@ -117,39 +117,39 @@ namespace sic
 	{
 		Type_reg(Typeinfo* in_to_register) : m_to_register(in_to_register) {}
 
-		template <typename t_owner, typename t_data_type>
-		Type_reg& Property(const char* in_name, t_data_type t_owner::*in_ptr)
+		template <typename T_owner, typename T_data_type>
+		Type_reg& Property(const char* in_name, T_data_type T_owner::*in_ptr)
 		{
 			sic::Property& new_prop = m_to_register->m_properties[in_name];
 
 			new_prop.m_setter = [in_ptr](byte& in_to_set_on, const byte& in_data_to_set)
 			{
-				t_owner& as_t = *reinterpret_cast<t_owner*>(&in_to_set_on);
-				as_t.*in_ptr = *reinterpret_cast<const t_data_type*>(&in_data_to_set);
+				T_owner& as_t = *reinterpret_cast<T_owner*>(&in_to_set_on);
+				as_t.*in_ptr = *reinterpret_cast<const T_data_type*>(&in_data_to_set);
 			};
 
 			new_prop.m_getter = [in_ptr](byte& in_to_get_from) -> byte&
 			{
-				t_owner& as_t = *reinterpret_cast<t_owner*>(&in_to_get_from);
+				T_owner& as_t = *reinterpret_cast<T_owner*>(&in_to_get_from);
 				return *reinterpret_cast<byte*>(&(as_t.*in_ptr));
 			};
 
 			new_prop.m_serializer = [in_ptr](byte& in_to_serialize_from, std::vector<byte>& out_serialized_data)
 			{
-				t_owner& as_t = *reinterpret_cast<t_owner*>(&in_to_serialize_from);
+				T_owner& as_t = *reinterpret_cast<T_owner*>(&in_to_serialize_from);
 
 				serialize(as_t.*in_ptr, out_serialized_data);
 			};
 
 			new_prop.m_deserializer = [in_ptr](const sic::byte& in_serialized_data_begin, byte& out_deserialized) -> ui32
 			{
-				t_owner& as_t = *reinterpret_cast<t_owner*>(&out_deserialized);
+				T_owner& as_t = *reinterpret_cast<T_owner*>(&out_deserialized);
 
 				return deserialize(in_serialized_data_begin, as_t.*in_ptr);
 			};
 
-			new_prop.m_owner_typeindex = Type_index<>::get<t_owner>();
-			new_prop.m_data_typeindex = Type_index<>::get<t_data_type>();
+			new_prop.m_owner_typeindex = Type_index<>::get<T_owner>();
+			new_prop.m_data_typeindex = Type_index<>::get<T_data_type>();
 
 			return *this;
 		}

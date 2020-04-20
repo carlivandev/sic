@@ -9,20 +9,20 @@
 namespace sic
 {
 	/*
-		t_subtype = CRTP
+		T_subtype = CRTP
 	*/
-	template <typename t_subtype, typename ...t_component>
+	template <typename T_subtype, typename ...T_component>
 	struct Object : public Object_base
 	{
 		friend struct Object_storage;
 		friend struct Engine_context;
 
-		template <typename t_to_check_with>
+		template <typename T_to_check_with>
 		bool set_if_matching(i32 in_type_idx, byte*& out_result)
 		{
-			if (Type_index<Component_base>::get<t_to_check_with>() == in_type_idx)
+			if (Type_index<Component_base>::get<T_to_check_with>() == in_type_idx)
 			{
-				auto it = std::get<t_to_check_with*>(m_components);
+				auto it = std::get<T_to_check_with*>(m_components);
 				out_result = reinterpret_cast<byte*>(it);
 				return true;
 			}
@@ -30,12 +30,12 @@ namespace sic
 			return false;
 		}
 
-		template <typename t_to_check_with>
+		template <typename T_to_check_with>
 		bool set_if_matching(i32 in_type_idx, const byte*& out_result) const
 		{
-			if (Type_index<Component_base>::get<t_to_check_with>() == in_type_idx)
+			if (Type_index<Component_base>::get<T_to_check_with>() == in_type_idx)
 			{
-				auto it = std::get<t_to_check_with*>(m_components);
+				auto it = std::get<T_to_check_with*>(m_components);
 				out_result = reinterpret_cast<const byte*>(&(*it));
 				return true;
 			}
@@ -47,7 +47,7 @@ namespace sic
 		{
 			byte* result = nullptr;
 
-			(set_if_matching<t_component>(in_type_idx, result) || ...);
+			(set_if_matching<T_component>(in_type_idx, result) || ...);
 
 			return result;
 		}
@@ -56,42 +56,42 @@ namespace sic
 		{
 			const byte* result = nullptr;
 
-			(set_if_matching<t_component>(in_type_idx, result) || ...);
+			(set_if_matching<T_component>(in_type_idx, result) || ...);
 
 			return result;
 		}
 
-		template<typename t_to_get>
-		__forceinline constexpr t_to_get& get()
+		template<typename T_to_get>
+		__forceinline constexpr T_to_get& get()
 		{
-			auto it = std::get<t_to_get*>(m_components);
+			auto it = std::get<T_to_get*>(m_components);
 			return *it;
 		}
 
-		template<typename t_to_get>
-		__forceinline constexpr const t_to_get& get() const
+		template<typename T_to_get>
+		__forceinline constexpr const T_to_get& get() const
 		{
-			const auto it = std::get<t_to_get*>(m_components);
+			const auto it = std::get<T_to_get*>(m_components);
 			return *it;
 		}
 
-		template<typename t_to_create>
+		template<typename T_to_create>
 		constexpr void create_component(Level_context& inout_level)
 		{
-			std::get<t_to_create*>(m_components) = &inout_level.m_level.create_component<t_to_create>(*this);
+			std::get<T_to_create*>(m_components) = &inout_level.m_level.create_component<T_to_create>(*this);
 		}
 
-		template<typename t_to_invoke_on>
+		template<typename T_to_invoke_on>
 		constexpr void invoke_post_creation_event(Level_context& inout_level)
 		{
-			inout_level.m_engine.invoke<event_post_created<t_to_invoke_on>>(*std::get<t_to_invoke_on*>(m_components));
+			inout_level.m_engine.invoke<event_post_created<T_to_invoke_on>>(*std::get<T_to_invoke_on*>(m_components));
 		}
 
-		template<typename t_to_destroy>
+		template<typename T_to_destroy>
 		constexpr void destroy_component(Level_context& inout_level)
 		{
-			auto& destroy_it = std::get<t_to_destroy*>(m_components);
-			inout_level.m_level.destroy_component<t_to_destroy>(*destroy_it);
+			auto& destroy_it = std::get<T_to_destroy*>(m_components);
+			inout_level.m_level.destroy_component<T_to_destroy>(*destroy_it);
 			destroy_it = nullptr;
 		}
 
@@ -101,19 +101,19 @@ namespace sic
 			m_level_id = inout_level.get_level_id();
 			m_outermost_level_id = inout_level.get_outermost_level_id();
 
-			(create_component<t_component>(inout_level), ...);
-			(invoke_post_creation_event<t_component>(inout_level), ...);
+			(create_component<T_component>(inout_level), ...);
+			(invoke_post_creation_event<T_component>(inout_level), ...);
 		}
 
 		void destroy_instance(Level_context& inout_level) override
 		{
-			static_assert(std::is_base_of_v<Object_base, t_subtype>, "did you forget t_subtype?");
-			inout_level.m_engine.invoke<event_destroyed<t_subtype>>(*reinterpret_cast<t_subtype*>(this));
+			static_assert(std::is_base_of_v<Object_base, T_subtype>, "did you forget T_subtype?");
+			inout_level.m_engine.invoke<event_destroyed<T_subtype>>(*reinterpret_cast<T_subtype*>(this));
 
-			(destroy_component<t_component>(inout_level), ...);
+			(destroy_component<T_component>(inout_level), ...);
 		}
 
-		std::tuple<t_component*...> m_components;
+		std::tuple<T_component*...> m_components;
 	};
 
 	struct Object_storage : public Object_storage_base
@@ -123,13 +123,13 @@ namespace sic
 			m_instances.allocate_with_typesize(in_initial_capacity, in_bucket_capacity, in_typesize);
 		}
 
-		template <typename t_object>
-		constexpr t_object& make_instance(Level_context& inout_level)
+		template <typename T_object>
+		constexpr T_object& make_instance(Level_context& inout_level)
 		{
 			if (m_free_object_locations.empty())
 			{
-				t_object& new_instance = m_instances.emplace_back<t_object>();
-				new_instance.m_type_index = Type_index<Object_base>::get<t_object>();
+				T_object& new_instance = m_instances.emplace_back<T_object>();
+				new_instance.m_type_index = Type_index<Object_base>::get<T_object>();
 				new (&new_instance.m_children) std::vector<Object_base*>();
 
 				new_instance.make_instance(inout_level);
@@ -140,8 +140,8 @@ namespace sic
 			byte* new_pos = m_free_object_locations.back();
 			m_free_object_locations.pop_back();
 
-			t_object& new_instance = *reinterpret_cast<t_object*>(new_pos);
-			new_instance.m_type_index = Type_index<Object_base>::get<t_object>();
+			T_object& new_instance = *reinterpret_cast<T_object*>(new_pos);
+			new_instance.m_type_index = Type_index<Object_base>::get<T_object>();
 			new (&new_instance.m_children) std::vector<Object_base*>();
 
 			new_instance.make_instance(inout_level);

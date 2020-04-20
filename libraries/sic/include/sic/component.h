@@ -14,7 +14,7 @@ namespace sic
 		friend struct Engine;
 		friend struct Level;
 
-		template <typename t_component_type>
+		template <typename T_component_type>
 		friend struct Component_storage;
 
 		Component_base() = default;
@@ -51,34 +51,34 @@ namespace sic
 		ui32 m_component_type_size = 0;
 	};
 
-	template <typename t_component_type>
+	template <typename T_component_type>
 	struct Component_storage : Component_storage_base
 	{
 		void initialize(ui32 in_initial_capacity);
 
-		t_component_type& create_component();
-		void destroy_component(t_component_type& in_component_to_destroy);
+		T_component_type& create_component();
+		void destroy_component(T_component_type& in_component_to_destroy);
 
-		plf::colony<t_component_type> m_components;
+		plf::colony<T_component_type> m_components;
 	};
 
-	template<typename t_component_type>
-	inline void Component_storage<t_component_type>::initialize(ui32 in_initial_capacity)
+	template<typename T_component_type>
+	inline void Component_storage<T_component_type>::initialize(ui32 in_initial_capacity)
 	{
-		static_assert(std::is_base_of<Component_base, t_component_type>::value, "t_component_type must derive from struct Component_base");
+		static_assert(std::is_base_of<Component_base, T_component_type>::value, "T_component_type must derive from struct Component_base");
 
-		m_component_type_size = sizeof(t_component_type);
+		m_component_type_size = sizeof(T_component_type);
 		m_components.reserve(in_initial_capacity);
 	}
 
-	template<typename t_component_type>
-	inline t_component_type& Component_storage<t_component_type>::create_component()
+	template<typename T_component_type>
+	inline T_component_type& Component_storage<T_component_type>::create_component()
 	{
 		return (*m_components.emplace());
 	}
 
-	template<typename t_component_type>
-	inline void Component_storage<t_component_type>::destroy_component(t_component_type& in_component_to_destroy)
+	template<typename T_component_type>
+	inline void Component_storage<T_component_type>::destroy_component(T_component_type& in_component_to_destroy)
 	{
 		m_components.erase(m_components.get_iterator_from_pointer(&in_component_to_destroy));
 	}

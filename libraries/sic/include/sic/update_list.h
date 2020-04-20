@@ -15,11 +15,11 @@ namespace sic
 	};
 
 	/*
-	list of t_object_type, where all updates to the list are pushed from thead A and executed on thread B
+	list of T_object_type, where all updates to the list are pushed from thead A and executed on thread B
 	which means thead B is the owner of the data
 	*/
 
-	template <typename t_object_type>
+	template <typename T_object_type>
 	struct Update_list_id
 	{
 		template <typename t>
@@ -42,30 +42,30 @@ namespace sic
 		i32 m_id = -1;
 	};
 
-	template <typename t_object_type>
+	template <typename T_object_type>
 	struct Update_list
 	{
 		struct Update
 		{
-			using Callback = std::function<void(t_object_type& in_out_object)>;
+			using Callback = std::function<void(T_object_type& in_out_object)>;
 
 			Callback m_callback;
-			Update_list_id<t_object_type> m_object_id;
+			Update_list_id<T_object_type> m_object_id;
 			List_update_type m_type = List_update_type::create;
 		};
 
-		Update_list_id<t_object_type> create_object(typename Update::Callback&& in_update_callback = nullptr);
-		void destroy_object(Update_list_id<t_object_type> in_id);
+		Update_list_id<T_object_type> create_object(typename Update::Callback&& in_update_callback = nullptr);
+		void destroy_object(Update_list_id<T_object_type> in_id);
 
-		void update_object(Update_list_id<t_object_type> in_object_id, typename Update::Callback&& in_update_callback);
+		void update_object(Update_list_id<T_object_type> in_object_id, typename Update::Callback&& in_update_callback);
 
 		void flush_updates();
 
 		//only safe from data reciever
-		t_object_type* find_object(Update_list_id<t_object_type> in_object_id);
+		T_object_type* find_object(Update_list_id<T_object_type> in_object_id);
 
 		//only safe from data reciever
-		std::vector<t_object_type> m_objects;
+		std::vector<T_object_type> m_objects;
 
 	private:
 		std::unordered_map<size_t, i32> m_id_to_index_lut;
@@ -79,8 +79,8 @@ namespace sic
 		size_t m_current_create_id = 0;
 	};
 
-	template<typename t_object_type>
-	inline Update_list_id<t_object_type> Update_list<t_object_type>::create_object(typename Update::Callback&& in_update_callback)
+	template<typename T_object_type>
+	inline Update_list_id<T_object_type> Update_list<T_object_type>::create_object(typename Update::Callback&& in_update_callback)
 	{
 		std::scoped_lock lock(m_update_lock);
 
@@ -96,7 +96,7 @@ namespace sic
 			m_objects_free_ids.pop_back();
 		}
 
-		Update_list_id<t_object_type> new_update_list_id(static_cast<i32>(new_id));
+		Update_list_id<T_object_type> new_update_list_id(static_cast<i32>(new_id));
 
 		m_object_data_updates.write
 		(
@@ -109,8 +109,8 @@ namespace sic
 		return new_update_list_id;
 	}
 
-	template<typename t_object_type>
-	inline void Update_list<t_object_type>::destroy_object(Update_list_id<t_object_type> in_id)
+	template<typename T_object_type>
+	inline void Update_list<T_object_type>::destroy_object(Update_list_id<T_object_type> in_id)
 	{
 		assert(in_id.is_valid() && "Invalid object ID!");
 
@@ -126,8 +126,8 @@ namespace sic
 			}
 		);
 	}
-	template<typename t_object_type>
-	inline void Update_list<t_object_type>::update_object(Update_list_id<t_object_type> in_object_id, typename Update::Callback&& in_update_callback)
+	template<typename T_object_type>
+	inline void Update_list<T_object_type>::update_object(Update_list_id<T_object_type> in_object_id, typename Update::Callback&& in_update_callback)
 	{
 		assert(in_object_id.is_valid() && "Invalid object ID!");
 
@@ -142,8 +142,8 @@ namespace sic
 		);
 	}
 
-	template<typename t_object_type>
-	inline void Update_list<t_object_type>::flush_updates()
+	template<typename T_object_type>
+	inline void Update_list<T_object_type>::flush_updates()
 	{
 		std::scoped_lock lock(m_update_lock);
 
@@ -197,8 +197,8 @@ namespace sic
 
 		m_current_create_id = m_objects.size();
 	}
-	template<typename t_object_type>
-	inline t_object_type* Update_list<t_object_type>::find_object(Update_list_id<t_object_type> in_object_id)
+	template<typename T_object_type>
+	inline T_object_type* Update_list<T_object_type>::find_object(Update_list_id<T_object_type> in_object_id)
 	{
 		auto it = m_id_to_index_lut.find(in_object_id.m_id);
 

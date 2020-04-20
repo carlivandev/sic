@@ -10,15 +10,15 @@ namespace sic
 	
 	struct Level_context
 	{
-		template <typename t_subtype, typename ...t_component>
+		template <typename T_subtype, typename ...T_component>
 		friend struct Object;
 
 		Level_context(Engine& inout_engine, Level& inout_level) : m_engine(inout_engine), m_level(inout_level){}
 
-		template <typename t_object>
-		__forceinline constexpr t_object& create_object()
+		template <typename T_object>
+		__forceinline constexpr T_object& create_object()
 		{
-			return m_level.create_object<t_object>();
+			return m_level.create_object<T_object>();
 		}
 
 		void destroy_object(Object_base& in_object_to_destroy)

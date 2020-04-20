@@ -13,16 +13,16 @@ namespace sic
 	{
 		Level(Engine& in_engine, Level* in_outermost_level, Level* in_parent_level) : m_engine(in_engine), m_outermost_level(in_outermost_level) , m_parent_level(in_parent_level) {}
 
-		template <typename t_object>
-		constexpr t_object& create_object();
+		template <typename T_object>
+		constexpr T_object& create_object();
 
 		void destroy_object(Object_base& in_object_to_destroy);
 
-		template <typename t_component_type>
-		typename t_component_type& create_component(Object_base& in_object_to_attach_to);
+		template <typename T_component_type>
+		typename T_component_type& create_component(Object_base& in_object_to_attach_to);
 
-		template <typename t_component_type>
-		void destroy_component(t_component_type& in_component_to_destroy);
+		template <typename T_component_type>
+		void destroy_component(T_component_type& in_component_to_destroy);
 
 		template <typename T_type>
 		void for_each(std::function<void(T_type&)> in_func);
@@ -46,49 +46,49 @@ namespace sic
 		i32 m_level_id = -1;
 	};
 
-	template <typename t_object>
-	inline constexpr t_object& Level::create_object()
+	template <typename T_object>
+	inline constexpr T_object& Level::create_object()
 	{
-		static_assert(std::is_base_of<Object_base, t_object>::value, "object must derive from struct Object<>");
+		static_assert(std::is_base_of<Object_base, T_object>::value, "object must derive from struct Object<>");
 
-		const ui32 type_idx = Type_index<Object_base>::get<t_object>();
+		const ui32 type_idx = Type_index<Object_base>::get<T_object>();
 
 		assert((type_idx < m_objects.size() || m_objects[type_idx].get() != nullptr) && "type not registered");
 
 		auto& arch_to_create_from = m_objects[type_idx];
 
 		Level_context context(m_engine, *this);
-		t_object& new_instance = reinterpret_cast<Object_storage*>(arch_to_create_from.get())->make_instance<t_object>(context);
+		T_object& new_instance = reinterpret_cast<Object_storage*>(arch_to_create_from.get())->make_instance<T_object>(context);
 
-		m_engine.invoke<event_created<t_object>>(new_instance);
+		m_engine.invoke<event_created<T_object>>(new_instance);
 
 		return new_instance;
 	}
 
-	template<typename t_component_type>
-	inline typename t_component_type& Level::create_component(Object_base& in_object_to_attach_to)
+	template<typename T_component_type>
+	inline typename T_component_type& Level::create_component(Object_base& in_object_to_attach_to)
 	{
-		const ui32 type_idx = Type_index<Component_base>::get<t_component_type>();
+		const ui32 type_idx = Type_index<Component_base>::get<T_component_type>();
 
 		assert(type_idx < m_component_storages.size() && m_component_storages[type_idx]->initialized() && "component was not registered before use");
 
-		Component_storage<t_component_type>* storage = reinterpret_cast<Component_storage<t_component_type>*>(m_component_storages[type_idx].get());
+		Component_storage<T_component_type>* storage = reinterpret_cast<Component_storage<T_component_type>*>(m_component_storages[type_idx].get());
 		auto& comp = storage->create_component();
 
 		comp.m_owner = &in_object_to_attach_to;
 
-		m_engine.invoke<event_created<t_component_type>>(comp);
+		m_engine.invoke<event_created<T_component_type>>(comp);
 
 		return comp;
 	}
 
-	template<typename t_component_type>
-	inline void Level::destroy_component(t_component_type& in_component_to_destroy)
+	template<typename T_component_type>
+	inline void Level::destroy_component(T_component_type& in_component_to_destroy)
 	{
-		const ui32 type_idx = Type_index<Component_base>::get<t_component_type>();
-		m_engine.invoke<event_destroyed<t_component_type>>(in_component_to_destroy);
+		const ui32 type_idx = Type_index<Component_base>::get<T_component_type>();
+		m_engine.invoke<event_destroyed<T_component_type>>(in_component_to_destroy);
 
-		Component_storage<t_component_type>* storage = reinterpret_cast<Component_storage<t_component_type>*>(m_component_storages[type_idx].get());
+		Component_storage<T_component_type>* storage = reinterpret_cast<Component_storage<T_component_type>*>(m_component_storages[type_idx].get());
 		storage->destroy_component(in_component_to_destroy);
 	}
 

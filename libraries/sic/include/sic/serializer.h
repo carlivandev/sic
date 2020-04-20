@@ -9,14 +9,14 @@ namespace sic
 {
 	struct Serialize_stream
 	{
-		template <typename t_data_type>
-		void write(const t_data_type& in)
+		template <typename T_data_type>
+		void write(const T_data_type& in)
 		{
 			serialize(in, *this);
 		}
 
-		template <typename t_data_type>
-		void write_memcpy(const t_data_type& in)
+		template <typename T_data_type>
+		void write_memcpy(const T_data_type& in)
 		{
 			serialize_memcpy(in, *this);
 		}
@@ -30,14 +30,14 @@ namespace sic
 	{
 		Deserialize_stream(std::string&& in_bytes) : m_bytes(in_bytes) {}
 
-		template <typename t_data_type>
-		void read(t_data_type& out)
+		template <typename T_data_type>
+		void read(T_data_type& out)
 		{
 			deserialize(*this, out);
 		}
 
-		template <typename t_data_type>
-		void read_memcpy(t_data_type& out)
+		template <typename T_data_type>
+		void read_memcpy(T_data_type& out)
 		{
 			deserialize_memcpy(*this, out);
 		}
@@ -52,46 +52,46 @@ namespace sic
 
 	void deserialize_raw(Deserialize_stream& in_stream, unsigned char*& out_buffer, ui32& out_buffer_bytesize);
 
-	template <typename t_data_type>
-	void serialize_memcpy(const t_data_type& in_to_serialize, Serialize_stream& out_stream)
+	template <typename T_data_type>
+	void serialize_memcpy(const T_data_type& in_to_serialize, Serialize_stream& out_stream)
 	{
 		const size_t old_size = out_stream.m_bytes.size();
-		out_stream.m_bytes.resize(old_size + sizeof(t_data_type));
-		memcpy_s(&out_stream.m_bytes[old_size], sizeof(t_data_type), &in_to_serialize, sizeof(t_data_type));
+		out_stream.m_bytes.resize(old_size + sizeof(T_data_type));
+		memcpy_s(&out_stream.m_bytes[old_size], sizeof(T_data_type), &in_to_serialize, sizeof(T_data_type));
 	}
 
-	template <typename t_data_type>
-	void deserialize_memcpy(Deserialize_stream & in_stream, t_data_type & out_deserialized)
+	template <typename T_data_type>
+	void deserialize_memcpy(Deserialize_stream & in_stream, T_data_type & out_deserialized)
 	{
-		memcpy_s(&out_deserialized, sizeof(t_data_type), &(in_stream.m_bytes[in_stream.m_offset]), sizeof(t_data_type));
-		in_stream.m_offset += sizeof(t_data_type);
+		memcpy_s(&out_deserialized, sizeof(T_data_type), &(in_stream.m_bytes[in_stream.m_offset]), sizeof(T_data_type));
+		in_stream.m_offset += sizeof(T_data_type);
 	}
 
-	template <typename t_data_type>
-	void serialize(const t_data_type& in_to_serialize, Serialize_stream& out_stream)
+	template <typename T_data_type>
+	void serialize(const T_data_type& in_to_serialize, Serialize_stream& out_stream)
 	{
-		static_assert(std::is_trivially_copyable<t_data_type>::value, "Type is not trivially serializable! Please specialize serialize or use Serialize_stream::write_memcpy/write_raw.");
+		static_assert(std::is_trivially_copyable<T_data_type>::value, "Type is not trivially serializable! Please specialize serialize or use Serialize_stream::write_memcpy/write_raw.");
 		serialize_memcpy(in_to_serialize, out_stream);
 	}
 
-	template <typename t_data_type>
-	void deserialize(Deserialize_stream& in_stream, t_data_type& out_deserialized)
+	template <typename T_data_type>
+	void deserialize(Deserialize_stream& in_stream, T_data_type& out_deserialized)
 	{
-		static_assert(std::is_trivially_copyable<t_data_type>::value, "Type is not trivially deserializable! Please specialize deserialize or use Deserialize_stream::read_memcpy/read_raw.");
+		static_assert(std::is_trivially_copyable<T_data_type>::value, "Type is not trivially deserializable! Please specialize deserialize or use Deserialize_stream::read_memcpy/read_raw.");
 		deserialize_memcpy(in_stream, out_deserialized);
 	}
 
-	template <typename t_data_type>
-	void serialize(const std::vector<t_data_type>& in_to_serialize, Serialize_stream& out_stream)
+	template <typename T_data_type>
+	void serialize(const std::vector<T_data_type>& in_to_serialize, Serialize_stream& out_stream)
 	{
 		serialize(in_to_serialize.size(), out_stream);
 
-		for (const t_data_type& element : in_to_serialize)
+		for (const T_data_type& element : in_to_serialize)
 			serialize(element, out_stream);
 	}
 
-	template <typename t_data_type>
-	void deserialize(Deserialize_stream& in_stream, std::vector<t_data_type>& out_deserialized)
+	template <typename T_data_type>
+	void deserialize(Deserialize_stream& in_stream, std::vector<T_data_type>& out_deserialized)
 	{
 		const size_t old_len = out_deserialized.size();
 
@@ -104,8 +104,8 @@ namespace sic
 			deserialize(in_stream, out_deserialized[i]);
 	}
 
-	template <typename t_map>
-	void serialize_map(const t_map& in_to_serialize, Serialize_stream& out_stream)
+	template <typename T_map>
+	void serialize_map(const T_map& in_to_serialize, Serialize_stream& out_stream)
 	{
 		serialize(in_to_serialize.size(), out_stream);
 
@@ -116,27 +116,27 @@ namespace sic
 		}
 	}
 
-	template <typename t_key, typename t_value>
-	void serialize(const std::map<t_key, t_value>& in_to_serialize, Serialize_stream& out_stream)
+	template <typename T_key, typename T_value>
+	void serialize(const std::map<T_key, T_value>& in_to_serialize, Serialize_stream& out_stream)
 	{
 		serialize_map(in_to_serialize, out_stream);
 	}
 
-	template <typename t_key, typename t_value>
-	void serialize(const std::unordered_map<t_key, t_value>& in_to_serialize, Serialize_stream& out_stream)
+	template <typename T_key, typename T_value>
+	void serialize(const std::unordered_map<T_key, T_value>& in_to_serialize, Serialize_stream& out_stream)
 	{
 		serialize_map(in_to_serialize, out_stream);
 	}
 
-	template <typename t_key, typename t_value, typename t_map>
-	void deserialize_map(Deserialize_stream& in_stream, t_map& out_deserialized)
+	template <typename T_key, typename T_value, typename T_map>
+	void deserialize_map(Deserialize_stream& in_stream, T_map& out_deserialized)
 	{
 		size_t len = 0;
 		deserialize(in_stream, len);
 
 		for (size_t i = 0; i < len; i++)
 		{
-			std::pair<t_key, t_value> pair;
+			std::pair<T_key, T_value> pair;
 
 			deserialize(in_stream, pair.first);
 			deserialize(in_stream, pair.second);
@@ -145,16 +145,16 @@ namespace sic
 		}
 	}
 
-	template <typename t_key, typename t_value>
-	void deserialize(Deserialize_stream& in_stream, std::map<t_key, t_value>& out_deserialized)
+	template <typename T_key, typename T_value>
+	void deserialize(Deserialize_stream& in_stream, std::map<T_key, T_value>& out_deserialized)
 	{
-		deserialize_map<t_key, t_value>(in_stream, out_deserialized);
+		deserialize_map<T_key, T_value>(in_stream, out_deserialized);
 	}
 
-	template <typename t_key, typename t_value>
-	void deserialize(Deserialize_stream& in_stream, std::unordered_map<t_key, t_value>& out_deserialized)
+	template <typename T_key, typename T_value>
+	void deserialize(Deserialize_stream& in_stream, std::unordered_map<T_key, T_value>& out_deserialized)
 	{
-		deserialize_map<t_key, t_value>(in_stream, out_deserialized);
+		deserialize_map<T_key, T_value>(in_stream, out_deserialized);
 	}
 
 	template <>

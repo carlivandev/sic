@@ -32,20 +32,20 @@ namespace sic
 			return m_outermost_level_id;
 		}
 
-		template <typename t_component>
-		constexpr t_component* find()
+		template <typename T_component>
+		constexpr T_component* find()
 		{
-			const i32 type_idx = Type_index<Component_base>::get<t_component>();
+			const i32 type_idx = Type_index<Component_base>::get<T_component>();
 
-			return reinterpret_cast<t_component*>(find_internal(type_idx));
+			return reinterpret_cast<T_component*>(find_internal(type_idx));
 		}
 
-		template <typename t_component>
-		constexpr const t_component* find() const
+		template <typename T_component>
+		constexpr const T_component* find() const
 		{
-			const i32 type_idx = Type_index<Component_base>::get<t_component>();
+			const i32 type_idx = Type_index<Component_base>::get<T_component>();
 
-			return reinterpret_cast<const t_component*>(find_internal(type_idx));
+			return reinterpret_cast<const T_component*>(find_internal(type_idx));
 		}
 
 		void add_child(Object_base& inout_child)
