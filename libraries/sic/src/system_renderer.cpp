@@ -429,8 +429,11 @@ void sic::System_renderer::render_mesh(const Drawcall_mesh& in_dc, const glm::ma
 	auto& program = in_dc.m_material->m_program.value();
 	program.use();
 
-	program.set_uniform("MVP", in_mvp);
-	program.set_uniform("model_matrix", in_dc.m_orientation);
+	if (program.get_uniform_location("MVP") != -1)
+		program.set_uniform("MVP", in_mvp);
+
+	if (program.get_uniform_location("model_matrix") != -1)
+		program.set_uniform("model_matrix", in_dc.m_orientation);
 
 	ui32 texture_param_idx = 0;
 
