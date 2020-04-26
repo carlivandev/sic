@@ -8,6 +8,7 @@
 #include "sic/component_transform.h"
 #include "sic/logger.h"
 #include "sic/state_render_scene.h"
+#include "sic/material_parser.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
@@ -360,7 +361,13 @@ sic::Window_proxy& sic::State_window::create_window(Engine_context in_context, c
 			const std::string quad_vertex_shader_path = "content/materials/pass_through.vert";
 			const std::string quad_fragment_shader_path = "content/materials/simple_texture.frag";
 
-			in_out_window.m_quad_program.emplace(quad_vertex_shader_path, File_management::load_file(quad_vertex_shader_path), quad_fragment_shader_path, File_management::load_file(quad_fragment_shader_path));
+			in_out_window.m_quad_program.emplace
+			(
+				quad_vertex_shader_path,
+				Material_parser::parse_material(quad_vertex_shader_path).value(),
+				quad_fragment_shader_path,
+				Material_parser::parse_material(quad_fragment_shader_path).value()
+			);
 			in_out_window.m_quad_indexbuffer.emplace(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW);
 			const std::vector<GLfloat> positions = {
 				-1.0f, -1.0f,

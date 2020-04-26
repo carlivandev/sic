@@ -182,4 +182,16 @@ namespace sic
 
 		in_stream.m_offset += static_cast<ui32>(len);
 	}
+
+	template <>
+	inline void serialize(const std::string_view& in_to_serialize, Serialize_stream& out_stream)
+	{
+		const size_t len = in_to_serialize.size();
+		out_stream.write(len);
+
+		const size_t start_buf = out_stream.m_bytes.size();
+
+		out_stream.m_bytes.resize(start_buf + len);
+		memcpy_s(&out_stream.m_bytes[start_buf], len, in_to_serialize.data(), len);
+	}
 }

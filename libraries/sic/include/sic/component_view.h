@@ -47,8 +47,8 @@ namespace sic
 		glm::vec2 m_viewport_size = { 1.0f, 1.0f };
 
 		float m_fov = 45.0f;
-		float m_near_plane = 0.1f;
-		float m_far_plane = 100.0f;
+		float m_near_plane = 10.0f;
+		float m_far_plane = 25000.0f;
 
 		glm::vec4 m_clear_color = { 0.0f, 0.0f, 0.0f, 0.0f };
 

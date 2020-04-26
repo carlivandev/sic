@@ -1,42 +1,11 @@
-#version 330 core
+//? #version 410 core
 
-// Interpolated values from the vertex shaders
+//! #include "block_lights.glsl"
+//! #include "block_view.glsl"
 
-in vec2 texcoord;
-in vec3 position_worldspace;
-in vec3 normal_cameraspace;
-in vec3 eye_direction_cameraspace;
-
-// Ouput data
-layout(location = 0) out vec3 color;
-
-// Values that stay constant for the whole mesh.
-uniform sampler2D tex_albedo;
-
-layout(std140) uniform block_view
+vec3 calculate_light_for_fragment(vec3 in_fragment_diffuse_color, vec3 in_fragment_world_position, vec3 in_fragment_normal_cameraspace, vec3 in_fragment_to_view_direction)
 {
-	uniform mat4 view_matrix;
-	uniform mat4 projection_matrix;
-	uniform mat4 view_projection_matrix;
-};
-
-struct Light
-{
-	vec4 m_position_and_unused;
-	vec4 m_color_and_intensity;
-};
-
-layout(std140) uniform block_lights
-{
-	uniform float num_lights;
-	uniform Light lights[100];
-};
-
-void main()
-{
-	// Material properties
-	vec3 material_diffuse_color = texture( tex_albedo, texcoord ).rgb;
-	vec3 material_ambient_color = vec3(0.1,0.1,0.1) * material_diffuse_color;
+	vec3 material_ambient_color = vec3(0.1,0.1,0.1) * in_fragment_diffuse_color;
 	vec3 material_specular_color = vec3(0.3,0.3,0.3);
 
 	// Ambient : simulates indirect lighting
@@ -46,13 +15,13 @@ void main()
 	for (int i = 0; i < num_lights_int; i++)
 	{
 		// Distance to the light
-		float distance = length( lights[i].m_position_and_unused.xyz - position_worldspace );
+		float distance = length( lights[i].m_position_and_unused.xyz - in_fragment_world_position );
 	
 		// Normal of the computed fragment, in camera space
-		vec3 n = normalize( normal_cameraspace );
+		vec3 n = normalize( in_fragment_normal_cameraspace );
 	
 		vec3 light_position_cameraspace = ( view_matrix * vec4(lights[i].m_position_and_unused.xyz,1)).xyz;
-		vec3 light_direction_cameraspace = light_position_cameraspace + eye_direction_cameraspace;
+		vec3 light_direction_cameraspace = light_position_cameraspace + in_fragment_to_view_direction;
 	
 		// Direction of the light (from the fragment to the light)
 		vec3 l = normalize( light_direction_cameraspace );
@@ -64,7 +33,7 @@ void main()
 		float cosTheta = clamp( dot( n,l ), 0,1 );
 	
 		// Eye vector (towards the camera)
-		vec3 E = normalize(eye_direction_cameraspace);
+		vec3 E = normalize(in_fragment_to_view_direction);
 		// Direction in which the triangle reflects the light
 		vec3 R = reflect(-l,n);
 		// Cosine of the angle between the Eye vector and the Reflect vector,
@@ -74,10 +43,10 @@ void main()
 		float cosAlpha = clamp( dot( E,R ), 0,1 );
 		final_color += 
 		// Diffuse : "color" of the object
-		material_diffuse_color * lights[i].m_color_and_intensity.rgb * lights[i].m_color_and_intensity.a * cosTheta / (distance*distance) +
+		in_fragment_diffuse_color * lights[i].m_color_and_intensity.rgb * lights[i].m_color_and_intensity.a * cosTheta / (distance*distance) +
 		// Specular : reflective highlight, like a mirror
 		material_specular_color * lights[i].m_color_and_intensity.rgb * lights[i].m_color_and_intensity.a * pow(cosAlpha,5) / (distance*distance);
 	}
 
-	color = final_color;
+	return final_color;
 }

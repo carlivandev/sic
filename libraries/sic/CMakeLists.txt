@@ -59,6 +59,7 @@ add_headers(SIC_HEADERS
 	system_file.h
 	asset.h
 	asset_model.h
+	material_parser.h
 	asset_material.h
 	asset_texture.h
 	asset_types.h
@@ -88,6 +89,7 @@ add_headers(SIC_HEADERS
 	update_list.h
 	state_render_scene.h
 	component_transform.h
+	magic_enum.h
 	)
 
 add_sources(SIC_SOURCES
@@ -104,6 +106,7 @@ add_sources(SIC_SOURCES
 	system_file.cpp
 	asset.cpp
 	asset_model.cpp
+	material_parser.cpp
 	asset_material.cpp
 	asset_texture.cpp
 	system_asset.cpp

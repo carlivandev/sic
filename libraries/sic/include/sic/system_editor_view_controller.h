@@ -14,11 +14,11 @@ namespace sic
 	{
 		Component_view* m_view_to_control = nullptr;
 
-		float m_speed = 3.0f; // 3 units / second
+		float m_speed = 100.0f; // units / second
 		float m_mouse_speed = 0.1f;
 
 		float m_speed_multiplier = 1.0f;
-		float m_speed_multiplier_max = 10.0f;
+		float m_speed_multiplier_max = 20.0f;
 		float m_speed_multiplier_min = 0.5f;
 		float m_speed_multiplier_incrementation = 0.25f;
 

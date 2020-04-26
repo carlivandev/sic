@@ -14,9 +14,11 @@
 #include "sic/opengl_draw_interface_debug_lines.h"
 #include "sic/renderer_shape_draw_functions.h"
 #include "sic/opengl_draw_strategies.h"
+#include "sic/material_parser.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
+#include "glm/gtx/norm.hpp"
 
 #include "stb/stb_image.h"
 
@@ -85,9 +87,9 @@ void sic::System_renderer::on_engine_finalized(Engine_context in_context) const
 	resources.m_pass_through_program.emplace
 	(
 		pass_through_vertex_shader_path,
-		File_management::load_file(pass_through_vertex_shader_path),
+		Material_parser::parse_material(pass_through_vertex_shader_path).value(),
 		simple_texture_fragment_shader_path,
-		File_management::load_file(simple_texture_fragment_shader_path)
+		Material_parser::parse_material(simple_texture_fragment_shader_path).value()
 	);
 
 	resources.m_quad_vertex_buffer_array.emplace();
@@ -171,17 +173,17 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		}
 	}
 
-	for (auto& window_to_views_it : window_to_views_lut)
+	for (auto& window : scene_state.m_windows.m_objects)
 	{
+		auto& views = window_to_views_lut[&window];
+
 		glfwMakeContextCurrent(window_state.m_resource_context);
 
 		sic::i32 current_window_x, current_window_y;
-		glfwGetWindowSize(window_to_views_it.first->m_context, &current_window_x, &current_window_y);
+		glfwGetWindowSize(window.m_context, &current_window_x, &current_window_y);
 
 		if (current_window_x == 0 || current_window_y == 0)
 			continue;
-
-		
 
 		// Enable depth test
 		glEnable(GL_DEPTH_TEST);
@@ -189,9 +191,9 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		glDepthFunc(GL_LESS);
 
 		glEnable(GL_CULL_FACE);
-		
-		for (Render_object_view* view : window_to_views_it.second)
-			render_view(in_context, *window_to_views_it.first, *view);
+
+		for (Render_object_view* view : views)
+			render_view(in_context, window, *view);
 	}
 	
 	render_views_to_window_backbuffers(window_to_views_lut);
@@ -215,13 +217,94 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 	State_renderer_resources& renderer_resources_state = in_context.get_state_checked<State_renderer_resources>();
 	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
 
-	sic::i32 current_window_x, current_window_y;
-	glfwGetWindowSize(in_window.m_context, &current_window_x, &current_window_y);
-
 	auto scene_it = scene_state.m_level_id_to_scene_lut.find(inout_view.m_level_id);
 
 	if (scene_it == scene_state.m_level_id_to_scene_lut.end())
 		return;
+
+	const Update_list<Render_object_model>& models = std::get<Update_list<Render_object_model>>(scene_it->second);
+
+	//(Carl) Todo: use Temporary_list
+	std::vector<Drawcall_mesh> m_opaque_drawcalls;
+	std::vector<Drawcall_mesh_translucent> m_translucent_drawcalls;
+
+	m_opaque_drawcalls.reserve(models.m_objects.size());
+	m_translucent_drawcalls.reserve(models.m_objects.size());
+
+	const glm::vec3 view_location =
+	{
+		inout_view.m_view_orientation[3][0],
+		inout_view.m_view_orientation[3][1],
+		inout_view.m_view_orientation[3][2],
+	};
+
+	for (const Render_object_model& model : models.m_objects)
+	{
+		assert(model.m_model.get_load_state() == Asset_load_state::loaded);
+
+		Asset_model* model_asset = model.m_model.get();
+
+		const ui64 mesh_count = model_asset->m_meshes.size();
+
+		for (i32 mesh_idx = 0; mesh_idx < mesh_count; mesh_idx++)
+		{
+			auto& mesh = model_asset->m_meshes[mesh_idx];
+
+			auto material_override_it = model.m_material_overrides.find(mesh.m_material_slot);
+
+			const Asset_ref<Asset_material>& mat_to_draw = material_override_it != model.m_material_overrides.end() ? material_override_it->second : model_asset->get_material(mesh_idx);
+
+			//(Carl) Todo: for now skip, later we should draw it with error material
+			if (!mat_to_draw.is_valid())
+				continue;
+
+			Asset_material& mat = *mat_to_draw.get();
+
+			assert(mat_to_draw.get_load_state() == Asset_load_state::loaded);
+
+			for (const Asset_material::Texture_parameter& texture_param : mat.m_texture_parameters)
+				if (texture_param.m_texture.is_valid())
+					assert(texture_param.m_texture.get_load_state() == Asset_load_state::loaded);
+
+			switch (mat.m_blend_mode)
+			{
+			case Material_blend_mode::Opaque:
+			case Material_blend_mode::Masked:
+				m_opaque_drawcalls.push_back({ model.m_orientation, &mesh, &mat });
+				break;
+
+			case Material_blend_mode::Translucent:
+			case Material_blend_mode::Additive:
+			{
+				const glm::vec3 mesh_location =
+				{
+					model.m_orientation[3][0],
+					model.m_orientation[3][1],
+					model.m_orientation[3][2],
+				};
+
+				m_translucent_drawcalls.push_back({ model.m_orientation, &mesh, &mat, glm::length2(mesh_location - view_location) });
+			}
+				break;
+
+			case Material_blend_mode::Invalid:
+			default:
+				continue;
+			}
+		}
+	}
+
+	std::sort
+	(
+		m_translucent_drawcalls.begin(), m_translucent_drawcalls.end(),
+		[](const Drawcall_mesh_translucent& in_a, const Drawcall_mesh_translucent& in_b)
+		{
+			return in_a.m_distance_to_view_2 < in_b.m_distance_to_view_2;
+		}
+	);
+
+	sic::i32 current_window_x, current_window_y;
+	glfwGetWindowSize(in_window.m_context, &current_window_x, &current_window_y);
 
 	const float view_aspect_ratio = (current_window_x * inout_view.m_viewport_size.x) / (current_window_y * inout_view.m_viewport_size.y);
 
@@ -265,21 +348,21 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 	renderer_resources_state.m_uniform_block_view.value().set_data(1, proj_mat);
 	renderer_resources_state.m_uniform_block_view.value().set_data(2, view_proj_mat);
 
-	const glm::vec3 first_light_pos = glm::vec3(10.0f, 10.0f, -30.0f);
+	const glm::vec3 first_light_pos = glm::vec3(100.0f, 100.0f, -300.0f);
 
 	static float cur_val = 0.0f;
 	cur_val += 0.0016f;
-	const glm::vec3 second_light_pos = glm::vec3(10.0f, (glm::cos(cur_val * 2.0f) * 30.0f), 0.0f);
+	const glm::vec3 second_light_pos = glm::vec3(100.0f, (glm::cos(cur_val * 20.0f) * 300.0f), 0.0f);
 
 	std::vector<OpenGl_uniform_block_light_instance> relevant_lights;
 	OpenGl_uniform_block_light_instance light;
 	light.m_position_and_unused = glm::vec4(first_light_pos, 0.0f);
-	light.m_color_and_intensity = { 1.0f, 0.0f, 0.0f, 100.0f };
+	light.m_color_and_intensity = { 1.0f, 0.0f, 0.0f, 5000.0f };
 
 	relevant_lights.push_back(light);
 
 	light.m_position_and_unused = glm::vec4(second_light_pos, 0.0f);
-	light.m_color_and_intensity = { 0.0f, 1.0f, 0.0f, 50.0f };
+	light.m_color_and_intensity = { 0.0f, 1.0f, 0.0f, 5000.0f };
 
 	relevant_lights.push_back(light);
 
@@ -288,35 +371,13 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 	renderer_resources_state.m_uniform_block_lights.value().set_data(0, static_cast<GLfloat>(relevant_lights.size()));
 	renderer_resources_state.m_uniform_block_lights.value().set_data_raw(1, 0, byte_size, relevant_lights.data());
 
-	const Update_list<Render_object_model> & models = std::get<Update_list<Render_object_model>>(scene_it->second);
-	for (const Render_object_model& model : models.m_objects)
+	set_depth_mode(Depth_mode::read_write);
+	set_blend_mode(Material_blend_mode::Opaque);
+
+	for (const Drawcall_mesh& mesh_dc : m_opaque_drawcalls)
 	{
-		assert(model.m_model.get_load_state() == Asset_load_state::loaded);
-
-		Asset_model* model_asset = model.m_model.get();
-
-		const glm::mat4 mvp = proj_mat * view_mat * model.m_orientation;
-
-		const ui64 mesh_count = model_asset->m_meshes.size();
-
-		for (i32 mesh_idx = 0; mesh_idx < mesh_count; mesh_idx++)
-		{
-			auto& mesh = model_asset->m_meshes[mesh_idx];
-
-			auto material_override_it = model.m_material_overrides.find(mesh.m_material_slot);
-
-			const Asset_ref<Asset_material>& mat_to_draw = material_override_it != model.m_material_overrides.end() ? material_override_it->second : model_asset->get_material(mesh_idx);
-			if (!mat_to_draw.is_valid())
-				continue;
-
-			assert(mat_to_draw.get_load_state() == Asset_load_state::loaded);
-
-			for (Asset_material::Texture_parameter& texture_param : mat_to_draw.get()->m_texture_parameters)
-				if (texture_param.m_texture.is_valid())
-					assert(texture_param.m_texture.get_load_state() == Asset_load_state::loaded);
-
-			render_mesh(mesh, *mat_to_draw.get(), mvp, model.m_orientation);
-		}
+		const glm::mat4 mvp = proj_mat * view_mat * mesh_dc.m_orientation;
+		render_mesh(mesh_dc, mvp);
 	}
 
 	debug_drawer_state.m_draw_interface_debug_lines.value().begin_frame();
@@ -327,6 +388,19 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 		debug_drawer.draw_shapes(debug_drawer_state.m_draw_interface_debug_lines.value());
 
 	debug_drawer_state.m_draw_interface_debug_lines.value().end_frame();
+
+	set_depth_mode(Depth_mode::read);
+
+	for (const Drawcall_mesh& mesh_dc : m_translucent_drawcalls)
+	{
+		set_blend_mode(mesh_dc.m_material->m_blend_mode);
+
+		const glm::mat4 mvp = proj_mat * view_mat * mesh_dc.m_orientation;
+		render_mesh(mesh_dc, mvp);
+	}
+
+	set_depth_mode(Depth_mode::read_write);
+	set_blend_mode(Material_blend_mode::Opaque);
 
 	in_window.m_render_target.value().bind_as_target(0);
 
@@ -350,30 +424,26 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(renderer_resources_state.m_quad_indexbuffer.value().get_max_elements()), 0);
 }
 
-void sic::System_renderer::render_mesh(const Asset_model::Mesh& in_mesh, const Asset_material& in_material, const glm::mat4& in_mvp, const glm::mat4& in_model_matrix) const
+void sic::System_renderer::render_mesh(const Drawcall_mesh& in_dc, const glm::mat4& in_mvp) const
 {
-	auto& program = in_material.m_program.value();
+	auto& program = in_dc.m_material->m_program.value();
 	program.use();
 
 	program.set_uniform("MVP", in_mvp);
-	program.set_uniform("model_matrix", in_model_matrix);
+	program.set_uniform("model_matrix", in_dc.m_orientation);
 
 	ui32 texture_param_idx = 0;
 
-	for (auto& texture_param : in_material.m_texture_parameters)
+	for (auto& texture_param : in_dc.m_material->m_texture_parameters)
 	{
-		//in future we want to render an error texture instead
-		if (!texture_param.m_texture.is_valid())
-			continue;
+		const i32 uniform_loc = program.get_uniform_location(texture_param.m_name.c_str());
 
-		const i32 uniform_loc = in_material.m_program.value().get_uniform_location(texture_param.m_name.c_str());
-
-		//error handle this
+		//(Carl) Todo: error texture here instead of skipping
 		if (uniform_loc == -1)
 		{
 			SIC_LOG_E(g_log_renderer_verbose,
 				"Texture parameter: {0}, not found in material with shaders: {1} and {2}",
-				texture_param.m_name.c_str(), in_material.m_vertex_shader_path.c_str(), in_material.m_fragment_shader_path.c_str());
+				texture_param.m_name.c_str(), in_dc.m_material->m_vertex_shader_path.c_str(), in_dc.m_material->m_fragment_shader_path.c_str());
 			continue;
 		}
 
@@ -382,10 +452,10 @@ void sic::System_renderer::render_mesh(const Asset_model::Mesh& in_mesh, const A
 	}
 
 	// draw mesh
-	in_mesh.m_vertex_buffer_array.value().bind();
-	in_mesh.m_index_buffer.value().bind();
+	in_dc.m_mesh->m_vertex_buffer_array.value().bind();
+	in_dc.m_mesh->m_index_buffer.value().bind();
 
-	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(in_mesh.m_index_buffer.value().get_max_elements()), 0);
+	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(in_dc.m_mesh->m_index_buffer.value().get_max_elements()), 0);
 
 	glActiveTexture(GL_TEXTURE0);
 }
@@ -515,4 +585,63 @@ void sic::System_renderer::post_load_mesh(Asset_model::Mesh& inout_mesh)
 
 	auto& index_buffer = inout_mesh.m_index_buffer.emplace(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW);
 	index_buffer.set_data(inout_mesh.m_indices);
+}
+
+void sic::System_renderer::set_depth_mode(Depth_mode in_to_set) const
+{
+	switch (in_to_set)
+	{
+	case sic::Depth_mode::disabled:
+		glDisable(GL_DEPTH_TEST);
+		glDepthMask(GL_FALSE);
+		break;
+
+	case sic::Depth_mode::read_write:
+		glEnable(GL_DEPTH_TEST);
+		glDepthMask(GL_TRUE);
+		break;
+
+	case sic::Depth_mode::read:
+		glEnable(GL_DEPTH_TEST);
+		glDepthMask(GL_FALSE);
+		break;
+
+	case sic::Depth_mode::write:
+		glDisable(GL_DEPTH_TEST);
+		glDepthMask(GL_TRUE);
+		break;
+
+	default:
+		assert(false);
+		break;
+	}
+}
+
+void sic::System_renderer::set_blend_mode(Material_blend_mode in_to_set) const
+{
+	switch (in_to_set)
+	{
+	case sic::Material_blend_mode::Opaque:
+	case sic::Material_blend_mode::Masked:
+		glDisable(GL_BLEND);
+		break;
+
+	case sic::Material_blend_mode::Translucent:
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		break;
+
+	case sic::Material_blend_mode::Additive:
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+		break;
+
+	case sic::Material_blend_mode::Invalid:
+		assert(false);
+		break;
+
+	default:
+		assert(false);
+		break;
+	}
 }

@@ -3,11 +3,19 @@
 #include "sic/file_management.h"
 #include "sic/opengl_engine_uniform_blocks.h"
 #include "sic/opengl_draw_strategies.h"
+#include "sic/material_parser.h"
 
 #include <string>
 
 sic::OpenGl_draw_interface_debug_lines::OpenGl_draw_interface_debug_lines(const OpenGl_uniform_block_view& in_uniform_block_view) :
-	simple_line_program(simple_line_vertex_shader_path, File_management::load_file(simple_line_vertex_shader_path), simple_line_fragment_shader_path, File_management::load_file(simple_line_fragment_shader_path))
+	//(Carl) Todo: this program should be loaded in the engine resources state, so we can easily hot reload it later
+	simple_line_program
+	(
+		simple_line_vertex_shader_path,
+		Material_parser::parse_material(simple_line_vertex_shader_path).value(),
+		simple_line_fragment_shader_path,
+		Material_parser::parse_material(simple_line_fragment_shader_path).value()
+	)
 {
 	m_line_points.resize(max_lines_per_batch * 2);
 	m_line_colors.resize(max_lines_per_batch * 2);
