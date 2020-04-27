@@ -12,9 +12,9 @@ sic::OpenGl_draw_interface_debug_lines::OpenGl_draw_interface_debug_lines(const 
 	simple_line_program
 	(
 		simple_line_vertex_shader_path,
-		Material_parser::parse_material(simple_line_vertex_shader_path).value(),
+		Material_parser::parse_material(simple_line_vertex_shader_path).value_or("Error"),
 		simple_line_fragment_shader_path,
-		Material_parser::parse_material(simple_line_fragment_shader_path).value()
+		Material_parser::parse_material(simple_line_fragment_shader_path).value_or("Error")
 	)
 {
 	m_line_points.resize(max_lines_per_batch * 2);

@@ -32,6 +32,9 @@ function(add_sources VAR)
 endfunction()
 
 add_headers(SIC_HEADERS
+	thread_context.h
+	thread_temporary_storage_instance.h
+	temporary_string.h
 	type_restrictions.h
 	bucket_allocator.h
 	bucket_allocator_view.h
@@ -93,6 +96,9 @@ add_headers(SIC_HEADERS
 	)
 
 add_sources(SIC_SOURCES
+	thread_context.cpp
+	thread_temporary_storage_instance.cpp
+	temporary_string.cpp
 	component.cpp
 	serializer.cpp
 	system.cpp

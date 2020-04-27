@@ -19,6 +19,20 @@ std::string sic::File_management::load_file(const std::string& in_filepath, bool
 	return str;
 }
 
+sic::Temporary_string sic::File_management::load_file_to_temporary(const std::string& in_filepath, bool in_binary)
+{
+	std::ifstream infile(in_filepath, in_binary ? std::ios_base::binary : std::ios_base::in);
+
+	infile.seekg(0, std::ios_base::end);
+	const size_t length = infile.tellg();
+	infile.seekg(0, std::ios_base::beg);
+
+	Temporary_string str(length);
+	infile.read(str.get_data(), length);
+
+	return str;
+}
+
 void sic::File_management::save_file(const std::string& in_filepath, const std::string& in_filedata, bool in_binary)
 {
 	const std::filesystem::path path(in_filepath);

@@ -42,9 +42,47 @@ namespace sic
 
 	void Engine::prepare_threadpool()
 	{
-		const size_t most_parallel_possible = m_async_systems.size() + m_tick_systems.size() - 1;
+		const auto processor_count = std::thread::hardware_concurrency();
 
-		m_system_ticker_threadpool.spawn(static_cast<ui16>(most_parallel_possible));
+		m_system_ticker_threadpool.spawn(static_cast<ui16>(processor_count - 1));
+
+		m_thread_contexts.resize(processor_count);
+
+		std::vector<bool> finished_thread_context_setup;
+		finished_thread_context_setup.resize(processor_count);
+
+		std::vector<Threadpool::Closure> thread_context_initialize_jobs;
+
+		for (size_t i = 1; i < processor_count; i++)
+		{
+			thread_context_initialize_jobs.push_back
+			(
+				[&finished_thread_context_setup, i, this]()
+				{
+					m_thread_contexts[i] = &this_thread();
+					this_thread().set_name(m_system_ticker_threadpool.thread_name(std::this_thread::get_id()));
+					finished_thread_context_setup[i] = true;
+				}
+			);
+		}
+
+		m_system_ticker_threadpool.batch(std::move(thread_context_initialize_jobs));
+		
+		m_thread_contexts[0] = &this_thread();
+		finished_thread_context_setup[0] = true;
+		this_thread().set_name("main thread");
+
+		bool all_done = false;
+		while (!all_done)
+		{
+			all_done = true;
+
+			for (bool thread_done : finished_thread_context_setup)
+			{
+				if (!thread_done)
+					all_done = false;
+			}
+		}
 
 		for (auto& async_system : m_async_systems)
 		{
@@ -142,6 +180,9 @@ namespace sic
 		}
 
 		flush_level_streaming();
+
+		for (Thread_context* context : m_thread_contexts)
+			context->reset_local_storage();
 	}
 
 	void Engine::on_shutdown()

@@ -10,6 +10,7 @@
 #include "sic/event.h"
 
 #include "sic/threadpool.h"
+#include "sic/thread_context.h"
 
 #include <new>
 #include <chrono>
@@ -112,6 +113,8 @@ namespace sic
 		std::vector<System*> m_pre_tick_systems;
 		std::vector<System*> m_tick_systems;
 		std::vector<System*> m_post_tick_systems;
+
+		std::vector<Thread_context*> m_thread_contexts;
 
 		Threadpool m_system_ticker_threadpool;
 
