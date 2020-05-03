@@ -82,8 +82,8 @@ void sic::System_renderer::on_engine_finalized(Engine_context in_context) const
 	State_debug_drawing& debug_drawer_state = in_context.get_state_checked<State_debug_drawing>();
 	debug_drawer_state.m_draw_interface_debug_lines.emplace(*resources.get_static_uniform_block<OpenGl_uniform_block_view>());
 
-	const char* pass_through_vertex_shader_path = "content/materials/pass_through.vert";
-	const char* simple_texture_fragment_shader_path = "content/materials/simple_texture.frag";
+	const char* pass_through_vertex_shader_path = "content/engine/materials/pass_through.vert";
+	const char* simple_texture_fragment_shader_path = "content/engine/materials/simple_texture.frag";
 
 	resources.m_pass_through_program.emplace
 	(

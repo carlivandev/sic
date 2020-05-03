@@ -1,6 +1,6 @@
 #version 330 core
 
-//! #include "../engine/materials/includes/block_view.glsl"
+//! #include "includes/block_view.glsl"
 
 layout(location = 0) in vec3 in_position3D;
 layout(location = 1) in vec4 in_color;

@@ -358,8 +358,8 @@ sic::Window_proxy& sic::State_window::create_window(Engine_context in_context, c
 
 			in_out_window.m_quad_vertex_buffer_array.emplace();
 
-			const char* quad_vertex_shader_path = "content/materials/pass_through.vert";
-			const char* quad_fragment_shader_path = "content/materials/simple_texture.frag";
+			const char* quad_vertex_shader_path = "content/engine/materials/pass_through.vert";
+			const char* quad_fragment_shader_path = "content/engine/materials/simple_texture.frag";
 
 			in_out_window.m_quad_program.emplace
 			(

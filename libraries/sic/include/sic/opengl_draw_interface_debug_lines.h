@@ -14,8 +14,8 @@ namespace sic
 
 	struct OpenGl_draw_interface_debug_lines : Noncopyable
 	{
-		static inline const char* simple_line_vertex_shader_path = "content/materials/simple_line.vert";
-		static inline const char* simple_line_fragment_shader_path = "content/materials/simple_line.frag";
+		static inline const char* simple_line_vertex_shader_path = "content/engine/materials/simple_line.vert";
+		static inline const char* simple_line_fragment_shader_path = "content/engine/materials/simple_line.frag";
 
 		constexpr static ui32 max_lines_per_batch = 10000;
 
