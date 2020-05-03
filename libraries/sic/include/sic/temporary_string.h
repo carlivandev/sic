@@ -15,7 +15,7 @@ namespace sic
 		Temporary_string(const Temporary_string& in_other);
 		Temporary_string(size_t in_length) : m_storage(sic::this_thread().allocate_temporary_storage(in_length + 1)) { memcpy(m_storage.get_storage() + in_length, "\0", 1); }
 
-		size_t get_length() const { return m_storage.get_byte_size() - 1; }
+		size_t get_length() const { return m_storage.get_byte_size() == 0 ? 0 : m_storage.get_byte_size() - 1; }
 		bool get_is_empty() const { return get_length() == 0; }
 		const char* get_c_str() const { return m_storage.get_storage(); }
 

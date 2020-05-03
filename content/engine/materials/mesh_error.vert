@@ -1,7 +1,7 @@
 //?#version 410 core
 
-//! #include "../engine/materials/includes/mesh_vert_header.glsl"
-//! #include "../engine/materials/includes/block_view.glsl"
+//! #include "includes/mesh_vert_header.glsl"
+//! #include "includes/block_view.glsl"
 
 void main()
 {

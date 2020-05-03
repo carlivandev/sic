@@ -4,6 +4,7 @@
 
 #include "sic/gl_includes.h"
 #include "sic/asset.h"
+#include "sic/asset_types.h"
 #include "sic/opengl_render_target.h"
 #include "sic/opengl_draw_interface_debug_lines.h"
 #include "sic/renderer_shape_draw_functions.h"
@@ -79,14 +80,14 @@ namespace sic
 				static_cast<GLsizei>(current_window_y)
 			);
 
-			m_quad_program.value().use();
-
-			GLuint tex_loc_id = m_quad_program.value().get_uniform_location("uniform_texture");
-
-			m_render_target.value().bind_as_texture(tex_loc_id, 0);
-
 			m_quad_vertex_buffer_array.value().bind();
 			m_quad_indexbuffer.value().bind();
+
+			m_quad_program.value().use();
+
+			GLuint tex_loc_id = m_quad_program.value().get_uniform_location("uniform_texture").value();
+
+			m_render_target.value().bind_as_texture(tex_loc_id, 0);
 
 			OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(m_quad_indexbuffer.value().get_max_elements()), 0);
 		}
@@ -297,6 +298,18 @@ namespace sic
 		}
 	};
 
+	struct Drawcall_mesh
+	{
+		glm::mat4x4 m_orientation;
+		Asset_model::Mesh* m_mesh;
+		Asset_material* m_material;
+	};
+
+	struct Drawcall_mesh_translucent : Drawcall_mesh
+	{
+		float m_distance_to_view_2;
+	};
+
 	template <typename T_type>
 	struct Render_object_id
 	{
@@ -369,6 +382,9 @@ namespace sic
 		}
 
 		Update_list<Render_object_window> m_windows;
+
+		std::vector<Drawcall_mesh> m_opaque_drawcalls;
+		std::vector<Drawcall_mesh_translucent> m_translucent_drawcalls;
 
 	protected:
 		void flush_updates();

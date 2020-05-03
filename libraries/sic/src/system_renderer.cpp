@@ -14,7 +14,7 @@
 #include "sic/opengl_draw_interface_debug_lines.h"
 #include "sic/renderer_shape_draw_functions.h"
 #include "sic/opengl_draw_strategies.h"
-#include "sic/material_parser.h"
+#include "sic/shader_parser.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
@@ -24,9 +24,10 @@
 
 void sic::System_renderer::on_created(Engine_context in_context)
 {
-	in_context.register_state<State_render_scene>("state_render_scene");
-	in_context.register_state<State_debug_drawing>("state_debug_drawing");
+	in_context.register_state<State_render_scene>("State_render_scene");
+	in_context.register_state<State_debug_drawing>("State_debug_drawing");
 	in_context.register_state<State_renderer_resources>("State_renderer_resources");
+	in_context.register_state<State_renderer>("State_renderer");
 
 	in_context.listen<event_created<Level>>
 	(
@@ -75,11 +76,11 @@ void sic::System_renderer::on_engine_finalized(Engine_context in_context) const
 
 	State_renderer_resources& resources = in_context.get_state_checked<State_renderer_resources>();
 
-	resources.m_uniform_block_view.emplace();
-	resources.m_uniform_block_lights.emplace();
+	resources.add_uniform_block<OpenGl_uniform_block_view>();
+	resources.add_uniform_block<OpenGl_uniform_block_lights>();
 
 	State_debug_drawing& debug_drawer_state = in_context.get_state_checked<State_debug_drawing>();
-	debug_drawer_state.m_draw_interface_debug_lines.emplace(resources.m_uniform_block_view.value());
+	debug_drawer_state.m_draw_interface_debug_lines.emplace(*resources.get_static_uniform_block<OpenGl_uniform_block_view>());
 
 	const char* pass_through_vertex_shader_path = "content/materials/pass_through.vert";
 	const char* simple_texture_fragment_shader_path = "content/materials/simple_texture.frag";
@@ -87,9 +88,9 @@ void sic::System_renderer::on_engine_finalized(Engine_context in_context) const
 	resources.m_pass_through_program.emplace
 	(
 		pass_through_vertex_shader_path,
-		Material_parser::parse_material(pass_through_vertex_shader_path).value(),
+		Shader_parser::parse_shader(pass_through_vertex_shader_path).value(),
 		simple_texture_fragment_shader_path,
-		Material_parser::parse_material(simple_texture_fragment_shader_path).value()
+		Shader_parser::parse_shader(simple_texture_fragment_shader_path).value()
 	);
 
 	resources.m_quad_vertex_buffer_array.emplace();
@@ -127,7 +128,18 @@ void sic::System_renderer::on_engine_finalized(Engine_context in_context) const
 	resources.m_quad_vertex_buffer_array.value().set_data<OpenGl_vertex_attribute_texcoord>(tex_coords);
 
 	resources.m_quad_indexbuffer.value().set_data(indices);
-	
+
+	std::vector<unsigned char> white_pixels =
+	{
+		255, 255, 255, 255,		255, 255, 255, 255,
+		255, 255, 255, 255,		255, 255, 255, 255
+	};
+
+	//TODO: CONTINUE YES
+	resources.m_white_texture.emplace(glm::ivec2(white_pixels.size() / (2 * 4), white_pixels.size() / (2 * 4)), GL_RGBA, GL_LINEAR, GL_LINEAR_MIPMAP_LINEAR, white_pixels.data());
+
+	resources.m_error_material = in_context.get_state_checked<State_assetsystem>().create_asset<Asset_material>("mesh_error_material", "content/engine/materials");
+	resources.m_error_material.get()->import("content/engine/materials/mesh_error.vert", "content/engine/materials/mesh_error.frag");
 }
 
 void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_time_delta) const
@@ -224,12 +236,11 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 
 	const Update_list<Render_object_model>& models = std::get<Update_list<Render_object_model>>(scene_it->second);
 
-	//(Carl) Todo: use Temporary_list
-	std::vector<Drawcall_mesh> m_opaque_drawcalls;
-	std::vector<Drawcall_mesh_translucent> m_translucent_drawcalls;
+	scene_state.m_opaque_drawcalls.clear();
+	scene_state.m_translucent_drawcalls.clear();
 
-	m_opaque_drawcalls.reserve(models.m_objects.size());
-	m_translucent_drawcalls.reserve(models.m_objects.size());
+	scene_state.m_opaque_drawcalls.reserve(models.m_objects.size());
+	scene_state.m_translucent_drawcalls.reserve(models.m_objects.size());
 
 	const glm::vec3 view_location =
 	{
@@ -252,25 +263,46 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 
 			auto material_override_it = model.m_material_overrides.find(mesh.m_material_slot);
 
-			const Asset_ref<Asset_material>& mat_to_draw = material_override_it != model.m_material_overrides.end() ? material_override_it->second : model_asset->get_material(mesh_idx);
+			const Asset_ref<Asset_material>* mat_to_draw = material_override_it != model.m_material_overrides.end() ? &material_override_it->second : &model_asset->get_material(mesh_idx);
 
-			//(Carl) Todo: for now skip, later we should draw it with error material
-			if (!mat_to_draw.is_valid())
-				continue;
+			if (!mat_to_draw->is_valid() || !mat_to_draw->get()->m_program.has_value())
+				mat_to_draw = &renderer_resources_state.m_error_material;
 
-			Asset_material& mat = *mat_to_draw.get();
+			Asset_material* mat = mat_to_draw->get();
 
-			assert(mat_to_draw.get_load_state() == Asset_load_state::loaded);
+			assert(mat_to_draw->get_load_state() == Asset_load_state::loaded);
 
-			for (const Asset_material::Texture_parameter& texture_param : mat.m_texture_parameters)
+			for (const Asset_material::Texture_parameter& texture_param : mat->m_texture_parameters)
+			{
 				if (texture_param.m_texture.is_valid())
+				{
 					assert(texture_param.m_texture.get_load_state() == Asset_load_state::loaded);
+				}
+				else
+				{
+					mat = renderer_resources_state.m_error_material.get();
+					break;
+				}
+			}
 
-			switch (mat.m_blend_mode)
+			const GLint mat_attrib_count = mat->m_program.value().get_attribute_count();
+			const size_t mesh_attrib_count = mesh.m_vertex_buffer_array.value().get_attribute_count();
+			if (mat_attrib_count > mesh_attrib_count)
+			{
+				SIC_LOG_E
+				(
+					g_log_renderer, "Failed to add drawcall, material(\"{0})\" expected {1} attributes but mesh only has {2}.",
+					mat->m_vertex_shader_path, mat_attrib_count, mesh_attrib_count
+				);
+
+				continue;
+			}
+
+			switch (mat->m_blend_mode)
 			{
 			case Material_blend_mode::Opaque:
 			case Material_blend_mode::Masked:
-				m_opaque_drawcalls.push_back({ model.m_orientation, &mesh, &mat });
+				scene_state.m_opaque_drawcalls.push_back({ model.m_orientation, &mesh, mat });
 				break;
 
 			case Material_blend_mode::Translucent:
@@ -283,7 +315,7 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 					model.m_orientation[3][2],
 				};
 
-				m_translucent_drawcalls.push_back({ model.m_orientation, &mesh, &mat, glm::length2(mesh_location - view_location) });
+				scene_state.m_translucent_drawcalls.push_back({ model.m_orientation, &mesh, mat, glm::length2(mesh_location - view_location) });
 			}
 				break;
 
@@ -296,7 +328,7 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 
 	std::sort
 	(
-		m_translucent_drawcalls.begin(), m_translucent_drawcalls.end(),
+		scene_state.m_translucent_drawcalls.begin(), scene_state.m_translucent_drawcalls.end(),
 		[](const Drawcall_mesh_translucent& in_a, const Drawcall_mesh_translucent& in_b)
 		{
 			return in_a.m_distance_to_view_2 < in_b.m_distance_to_view_2;
@@ -344,9 +376,12 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 	const glm::mat4x4 view_mat = glm::inverse(inout_view.m_view_orientation);
 	const glm::mat4x4 view_proj_mat = proj_mat * view_mat;
 
-	renderer_resources_state.m_uniform_block_view.value().set_data(0, view_mat);
-	renderer_resources_state.m_uniform_block_view.value().set_data(1, proj_mat);
-	renderer_resources_state.m_uniform_block_view.value().set_data(2, view_proj_mat);
+	if (OpenGl_uniform_block_view* view_block = renderer_resources_state.get_static_uniform_block<OpenGl_uniform_block_view>())
+	{
+		view_block->set_data(0, view_mat);
+		view_block->set_data(1, proj_mat);
+		view_block->set_data(2, view_proj_mat);
+	}
 
 	const glm::vec3 first_light_pos = glm::vec3(100.0f, 100.0f, -300.0f);
 
@@ -368,13 +403,16 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 
 	const ui32 byte_size = static_cast<ui32>(sizeof(OpenGl_uniform_block_light_instance) * relevant_lights.size());
 
-	renderer_resources_state.m_uniform_block_lights.value().set_data(0, static_cast<GLfloat>(relevant_lights.size()));
-	renderer_resources_state.m_uniform_block_lights.value().set_data_raw(1, 0, byte_size, relevant_lights.data());
+	if (OpenGl_uniform_block_lights* lights_block = renderer_resources_state.get_static_uniform_block<OpenGl_uniform_block_lights>())
+	{
+		lights_block->set_data(0, static_cast<GLfloat>(relevant_lights.size()));
+		lights_block->set_data_raw(1, 0, byte_size, relevant_lights.data());
+	}
 
 	set_depth_mode(Depth_mode::read_write);
 	set_blend_mode(Material_blend_mode::Opaque);
 
-	for (const Drawcall_mesh& mesh_dc : m_opaque_drawcalls)
+	for (const Drawcall_mesh& mesh_dc : scene_state.m_opaque_drawcalls)
 	{
 		const glm::mat4 mvp = proj_mat * view_mat * mesh_dc.m_orientation;
 		render_mesh(mesh_dc, mvp);
@@ -391,7 +429,7 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 
 	set_depth_mode(Depth_mode::read);
 
-	for (const Drawcall_mesh& mesh_dc : m_translucent_drawcalls)
+	for (const Drawcall_mesh& mesh_dc : scene_state.m_translucent_drawcalls)
 	{
 		set_blend_mode(mesh_dc.m_material->m_blend_mode);
 
@@ -412,37 +450,39 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 		static_cast<GLsizei>(current_window_y * inout_view.m_viewport_size.y)
 	));
 
-	renderer_resources_state.m_pass_through_program.value().use();
-
-	GLuint tex_loc_id = renderer_resources_state.m_pass_through_program.value().get_uniform_location("uniform_texture");
-
-	inout_view.m_render_target.value().bind_as_texture(tex_loc_id, 0);
-
 	renderer_resources_state.m_quad_vertex_buffer_array.value().bind();
 	renderer_resources_state.m_quad_indexbuffer.value().bind();
+
+	renderer_resources_state.m_pass_through_program.value().use();
+
+	GLuint tex_loc_id = renderer_resources_state.m_pass_through_program.value().get_uniform_location("uniform_texture").value();
+
+	inout_view.m_render_target.value().bind_as_texture(tex_loc_id, 0);
 
 	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(renderer_resources_state.m_quad_indexbuffer.value().get_max_elements()), 0);
 }
 
 void sic::System_renderer::render_mesh(const Drawcall_mesh& in_dc, const glm::mat4& in_mvp) const
 {
+	in_dc.m_mesh->m_vertex_buffer_array.value().bind();
+	in_dc.m_mesh->m_index_buffer.value().bind();
+
 	auto& program = in_dc.m_material->m_program.value();
 	program.use();
 
-	if (program.get_uniform_location("MVP") != -1)
+	if (program.get_uniform_location("MVP"))
 		program.set_uniform("MVP", in_mvp);
 
-	if (program.get_uniform_location("model_matrix") != -1)
+	if (program.get_uniform_location("model_matrix"))
 		program.set_uniform("model_matrix", in_dc.m_orientation);
 
 	ui32 texture_param_idx = 0;
 
 	for (auto& texture_param : in_dc.m_material->m_texture_parameters)
 	{
-		const i32 uniform_loc = program.get_uniform_location(texture_param.m_name.c_str());
+		const auto uniform_loc = program.get_uniform_location(texture_param.m_name.c_str());
 
-		//(Carl) Todo: error texture here instead of skipping
-		if (uniform_loc == -1)
+		if (!uniform_loc.has_value())
 		{
 			SIC_LOG_E(g_log_renderer_verbose,
 				"Texture parameter: {0}, not found in material with shaders: {1} and {2}",
@@ -450,17 +490,12 @@ void sic::System_renderer::render_mesh(const Drawcall_mesh& in_dc, const glm::ma
 			continue;
 		}
 
-		texture_param.m_texture.get()->m_texture.value().bind(uniform_loc, texture_param_idx);
+		texture_param.m_texture.get()->m_texture.value().bind(uniform_loc.value(), texture_param_idx);
+
 		++texture_param_idx;
 	}
 
-	// draw mesh
-	in_dc.m_mesh->m_vertex_buffer_array.value().bind();
-	in_dc.m_mesh->m_index_buffer.value().bind();
-
 	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(in_dc.m_mesh->m_index_buffer.value().get_max_elements()), 0);
-
-	glActiveTexture(GL_TEXTURE0);
 }
 
 void sic::System_renderer::render_views_to_window_backbuffers(const std::unordered_map<sic::Render_object_window*, std::vector<sic::Render_object_view*>>& in_window_to_view_lut) const
@@ -569,10 +604,20 @@ void sic::System_renderer::post_load_texture(Asset_texture& out_texture)
 
 void sic::System_renderer::post_load_material(const State_renderer_resources& in_resource_state, Asset_material& out_material)
 {
+	if (out_material.m_vertex_shader_code.empty() || out_material.m_fragment_shader_code.empty())
+		return;
+
 	out_material.m_program.emplace(out_material.m_vertex_shader_path, out_material.m_vertex_shader_code, out_material.m_fragment_shader_path, out_material.m_fragment_shader_code);
 
-	out_material.m_program.value().set_uniform_block(in_resource_state.m_uniform_block_view.value());
-	out_material.m_program.value().set_uniform_block(in_resource_state.m_uniform_block_lights.value());
+	if (!out_material.m_program.value().get_is_valid())
+	{
+		out_material.m_program.reset();
+		return;
+	}
+
+	for (auto&& uniform_block_mapping : out_material.m_program.value().get_uniform_blocks())
+		if (const OpenGl_uniform_block* block = in_resource_state.get_uniform_block(uniform_block_mapping.first))
+			out_material.m_program.value().set_uniform_block(*block);
 }
 
 void sic::System_renderer::post_load_mesh(Asset_model::Mesh& inout_mesh)

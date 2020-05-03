@@ -62,7 +62,7 @@ add_headers(SIC_HEADERS
 	system_file.h
 	asset.h
 	asset_model.h
-	material_parser.h
+	shader_parser.h
 	asset_material.h
 	asset_texture.h
 	asset_types.h
@@ -112,7 +112,7 @@ add_sources(SIC_SOURCES
 	system_file.cpp
 	asset.cpp
 	asset_model.cpp
-	material_parser.cpp
+	shader_parser.cpp
 	asset_material.cpp
 	asset_texture.cpp
 	system_asset.cpp

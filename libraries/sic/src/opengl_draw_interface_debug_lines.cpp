@@ -3,7 +3,7 @@
 #include "sic/file_management.h"
 #include "sic/opengl_engine_uniform_blocks.h"
 #include "sic/opengl_draw_strategies.h"
-#include "sic/material_parser.h"
+#include "sic/shader_parser.h"
 
 #include <string>
 
@@ -12,9 +12,9 @@ sic::OpenGl_draw_interface_debug_lines::OpenGl_draw_interface_debug_lines(const 
 	simple_line_program
 	(
 		simple_line_vertex_shader_path,
-		Material_parser::parse_material(simple_line_vertex_shader_path).value_or("Error"),
+		Shader_parser::parse_shader(simple_line_vertex_shader_path).value_or(""),
 		simple_line_fragment_shader_path,
-		Material_parser::parse_material(simple_line_fragment_shader_path).value_or("Error")
+		Shader_parser::parse_shader(simple_line_fragment_shader_path).value_or("")
 	)
 {
 	m_line_points.resize(max_lines_per_batch * 2);
@@ -60,9 +60,10 @@ void sic::OpenGl_draw_interface_debug_lines::flush()
 	simple_line_vertex_buffer_array.set_data_partial<OpenGl_vertex_attribute_position3D>(m_line_points, 0);
 	simple_line_vertex_buffer_array.set_data_partial<OpenGl_vertex_attribute_color>(m_line_colors, 0);
 
+	simple_line_vertex_buffer_array.bind();
+
 	simple_line_program.use();
 
-	simple_line_vertex_buffer_array.bind();
 	OpenGl_draw_strategy_line_array::draw(0, static_cast<GLsizei>(m_line_points.size()));
 
 	begin_frame();

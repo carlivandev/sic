@@ -115,6 +115,21 @@ namespace sic
 		}
 
 		template <typename T_asset_type>
+		inline void for_each(std::function<void(T_asset_type&)>&& in_callback)
+		{
+			std::scoped_lock lock(m_mutex);
+
+			for (auto& header : m_asset_headers)
+			{
+				if (header->m_load_state != Asset_load_state::loaded)
+					continue;
+
+				if (header->m_typename == typeid(T_asset_type).name())
+					in_callback(*reinterpret_cast<T_asset_type*>(header->m_loaded_asset.get()));
+			}
+		}
+
+		template <typename T_asset_type>
 		inline Asset_ref<T_asset_type> create_asset(const std::string& in_asset_name, const std::string& in_asset_directory)
 		{
 			Asset_header* new_header = create_asset_internal(in_asset_name, in_asset_directory, typeid(T_asset_type).name());

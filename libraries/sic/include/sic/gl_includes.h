@@ -18,7 +18,10 @@
 																					\
 	GLenum gl_err_value;															\
 	while ((gl_err_value = glGetError()) != GL_NO_ERROR)							\
+	{																				\
 	SIC_LOG_E(g_log_renderer, "OpenGL error: {0}", gluErrorString(gl_err_value));	\
+	__debugbreak();																	\
+	}																				\
 }
 
 #else

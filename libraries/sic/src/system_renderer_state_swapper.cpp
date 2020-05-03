@@ -8,17 +8,28 @@ void sic::System_renderer_state_swapper::on_engine_tick(Engine_context in_contex
 {
 	in_time_delta;
 
-	State_render_scene* scene_state = in_context.get_state<State_render_scene>();
+	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
+	State_window& window_state = in_context.get_state_checked<State_window>();
+	State_renderer& renderer_state = in_context.get_state_checked<State_renderer>();
 
-	if (!scene_state)
-		return;
+	glfwMakeContextCurrent(window_state.m_resource_context);
 
-	State_window* window_state = in_context.get_state<State_window>();
+	scene_state.flush_updates();
 
-	if (!window_state)
-		return;
+	renderer_state.m_synchronous_renderer_updates.read
+	(
+		[&context = in_context](const std::vector<std::function<void(Engine_context&)>>& in_updates)
+		{
+			for (auto&& update : in_updates)
+				update(context);
+		}
+	);
 
-	glfwMakeContextCurrent(window_state->m_resource_context);
-
-	scene_state->flush_updates();
+	renderer_state.m_synchronous_renderer_updates.swap
+	(
+		[](std::vector<std::function<void(Engine_context&)>>& in_out_read, std::vector<std::function<void(Engine_context&)>>&)
+		{
+			in_out_read.clear();
+		}
+	);
 }
