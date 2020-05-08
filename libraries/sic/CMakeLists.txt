@@ -83,6 +83,7 @@ add_headers(SIC_HEADERS
 	opengl_uniform_block.h
 	opengl_engine_uniform_blocks.h
 	opengl_draw_interface_debug_lines.h
+	opengl_draw_interface_instanced.h
 	renderer_shape_draw_functions.h
 	system_editor_view_controller.h
 	component_view.h
@@ -125,6 +126,7 @@ add_sources(SIC_SOURCES
 	opengl_program.cpp
 	opengl_texture.cpp
 	opengl_draw_interface_debug_lines.cpp
+	opengl_draw_interface_instanced.cpp
 	renderer_shape_draw_functions.cpp
 	system_editor_view_controller.cpp
 	component_view.cpp

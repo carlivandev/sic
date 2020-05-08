@@ -85,9 +85,7 @@ namespace sic
 
 			m_quad_program.value().use();
 
-			GLuint tex_loc_id = m_quad_program.value().get_uniform_location("uniform_texture").value();
-
-			m_render_target.value().bind_as_texture(tex_loc_id, 0);
+			m_quad_program.value().set_uniform("uniform_texture", m_render_target.value().get_texture());
 
 			OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(m_quad_indexbuffer.value().get_max_elements()), 0);
 		}
@@ -154,11 +152,13 @@ namespace sic
 		i32 m_level_id = -1;
 	};
 
-	struct Render_object_model : Noncopyable
+	struct Render_object_mesh : Noncopyable
 	{
-		Asset_ref<Asset_model> m_model;
-		std::unordered_map<std::string, Asset_ref<Asset_material>> m_material_overrides;
 		glm::mat4x4 m_orientation = glm::mat4x4(1);
+		
+		Asset_model::Mesh* m_mesh;
+		Asset_material* m_material;
+		size_t m_instance_data_index;
 	};
 
 	struct Render_object_debug_drawer : Noncopyable
@@ -303,6 +303,7 @@ namespace sic
 		glm::mat4x4 m_orientation;
 		Asset_model::Mesh* m_mesh;
 		Asset_material* m_material;
+		char* m_instance_data;
 	};
 
 	struct Drawcall_mesh_translucent : Drawcall_mesh
@@ -334,7 +335,7 @@ namespace sic
 			std::tuple
 			<
 			Update_list<Render_object_view>,
-			Update_list<Render_object_model>,
+			Update_list<Render_object_mesh>,
 			Update_list<Render_object_debug_drawer>
 			>;
 

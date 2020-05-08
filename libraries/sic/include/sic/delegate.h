@@ -46,7 +46,7 @@ namespace sic
 				m_function = std::move(in_other.m_function);
 			}
 
-			Handle& operator=(Handle&& in_other)
+			Handle& operator=(Handle&& in_other) noexcept
 			{
 				if (m_delegate)
 					m_delegate->unbind(*this);

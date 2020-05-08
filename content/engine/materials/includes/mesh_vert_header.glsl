@@ -12,7 +12,3 @@ out vec2 texcoord;
 out vec3 position_worldspace;
 out vec3 normal_cameraspace;
 out vec3 eye_direction_cameraspace;
-
-// Values that stay constant for the whole mesh.
-uniform mat4 MVP;
-uniform mat4 model_matrix;

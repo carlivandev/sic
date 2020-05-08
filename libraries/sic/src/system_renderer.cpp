@@ -81,7 +81,7 @@ void sic::System_renderer::on_engine_finalized(Engine_context in_context) const
 
 	State_debug_drawing& debug_drawer_state = in_context.get_state_checked<State_debug_drawing>();
 	debug_drawer_state.m_draw_interface_debug_lines.emplace(*resources.get_static_uniform_block<OpenGl_uniform_block_view>());
-
+	
 	const char* pass_through_vertex_shader_path = "content/engine/materials/pass_through.vert";
 	const char* simple_texture_fragment_shader_path = "content/engine/materials/simple_texture.frag";
 
@@ -234,13 +234,13 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 	if (scene_it == scene_state.m_level_id_to_scene_lut.end())
 		return;
 
-	const Update_list<Render_object_model>& models = std::get<Update_list<Render_object_model>>(scene_it->second);
+	const Update_list<Render_object_mesh>& meshes = std::get<Update_list<Render_object_mesh>>(scene_it->second);
 
 	scene_state.m_opaque_drawcalls.clear();
 	scene_state.m_translucent_drawcalls.clear();
 
-	scene_state.m_opaque_drawcalls.reserve(models.m_objects.size());
-	scene_state.m_translucent_drawcalls.reserve(models.m_objects.size());
+	scene_state.m_opaque_drawcalls.reserve(meshes.m_objects.size());
+	scene_state.m_translucent_drawcalls.reserve(meshes.m_objects.size());
 
 	const glm::vec3 view_location =
 	{
@@ -249,91 +249,64 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 		inout_view.m_view_orientation[3][2],
 	};
 
-	for (const Render_object_model& model : models.m_objects)
+	for (const Render_object_mesh& mesh : meshes.m_objects)
 	{
-		assert(model.m_model.get_load_state() == Asset_load_state::loaded);
+		Asset_material* mat = mesh.m_material;
 
-		Asset_model* model_asset = model.m_model.get();
-
-		const ui64 mesh_count = model_asset->m_meshes.size();
-
-		for (i32 mesh_idx = 0; mesh_idx < mesh_count; mesh_idx++)
+		for (const Asset_material::Texture_parameter& texture_param : mat->m_texture_parameters)
 		{
-			auto& mesh = model_asset->m_meshes[mesh_idx];
-
-			auto material_override_it = model.m_material_overrides.find(mesh.m_material_slot);
-
-			const Asset_ref<Asset_material>* mat_to_draw = material_override_it != model.m_material_overrides.end() ? &material_override_it->second : &model_asset->get_material(mesh_idx);
-
-			if (!mat_to_draw->is_valid() || !mat_to_draw->get()->m_program.has_value())
-				mat_to_draw = &renderer_resources_state.m_error_material;
-
-			Asset_material* mat = mat_to_draw->get();
-
-			assert(mat_to_draw->get_load_state() == Asset_load_state::loaded);
-
-			for (const Asset_material::Texture_parameter& texture_param : mat->m_texture_parameters)
+			if (texture_param.m_texture.is_valid())
 			{
-				if (texture_param.m_texture.is_valid())
-				{
-					assert(texture_param.m_texture.get_load_state() == Asset_load_state::loaded);
-				}
-				else
-				{
-					mat = renderer_resources_state.m_error_material.get();
-					break;
-				}
+				assert(texture_param.m_texture.get_load_state() == Asset_load_state::loaded);
 			}
-
-			const GLint mat_attrib_count = mat->m_program.value().get_attribute_count();
-			const size_t mesh_attrib_count = mesh.m_vertex_buffer_array.value().get_attribute_count();
-			if (mat_attrib_count > mesh_attrib_count)
+			else
 			{
-				SIC_LOG_E
-				(
-					g_log_renderer, "Failed to add drawcall, material(\"{0})\" expected {1} attributes but mesh only has {2}.",
-					mat->m_vertex_shader_path, mat_attrib_count, mesh_attrib_count
-				);
-
-				continue;
-			}
-
-			switch (mat->m_blend_mode)
-			{
-			case Material_blend_mode::Opaque:
-			case Material_blend_mode::Masked:
-				scene_state.m_opaque_drawcalls.push_back({ model.m_orientation, &mesh, mat });
+				mat = renderer_resources_state.m_error_material.get();
 				break;
+			}
+		}
 
-			case Material_blend_mode::Translucent:
-			case Material_blend_mode::Additive:
+		const GLint mat_attrib_count = mat->m_program.value().get_attribute_count();
+		const size_t mesh_attrib_count = mesh.m_mesh->m_vertex_buffer_array.value().get_attribute_count();
+		if (mat_attrib_count > mesh_attrib_count)
+		{
+			SIC_LOG_E
+			(
+				g_log_renderer, "Failed to add drawcall, material(\"{0})\" expected {1} attributes but mesh only has {2}.",
+				mat->m_vertex_shader_path, mat_attrib_count, mesh_attrib_count
+			);
+
+			continue;
+		}
+
+		char* instance_buffer = mat->m_is_instanced ? mat->m_instance_buffer.data() + mesh.m_instance_data_index : nullptr;
+
+		switch (mat->m_blend_mode)
+		{
+		case Material_blend_mode::Opaque:
+		case Material_blend_mode::Masked:
+			scene_state.m_opaque_drawcalls.push_back({ mesh.m_orientation, mesh.m_mesh, mat, instance_buffer });
+			break;
+
+		case Material_blend_mode::Translucent:
+		case Material_blend_mode::Additive:
+		{
+			const glm::vec3 mesh_location =
 			{
-				const glm::vec3 mesh_location =
-				{
-					model.m_orientation[3][0],
-					model.m_orientation[3][1],
-					model.m_orientation[3][2],
-				};
+				mesh.m_orientation[3][0],
+				mesh.m_orientation[3][1],
+				mesh.m_orientation[3][2],
+			};
 
-				scene_state.m_translucent_drawcalls.push_back({ model.m_orientation, &mesh, mat, glm::length2(mesh_location - view_location) });
-			}
-				break;
+			scene_state.m_translucent_drawcalls.push_back({ mesh.m_orientation, mesh.m_mesh, mat, instance_buffer, glm::length2(mesh_location - view_location) });
+		}
+		break;
 
-			case Material_blend_mode::Invalid:
-			default:
-				continue;
-			}
+		case Material_blend_mode::Invalid:
+		default:
+			continue;
 		}
 	}
-
-	std::sort
-	(
-		scene_state.m_translucent_drawcalls.begin(), scene_state.m_translucent_drawcalls.end(),
-		[](const Drawcall_mesh_translucent& in_a, const Drawcall_mesh_translucent& in_b)
-		{
-			return in_a.m_distance_to_view_2 < in_b.m_distance_to_view_2;
-		}
-	);
 
 	sic::i32 current_window_x, current_window_y;
 	glfwGetWindowSize(in_window.m_context, &current_window_x, &current_window_y);
@@ -412,11 +385,7 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 	set_depth_mode(Depth_mode::read_write);
 	set_blend_mode(Material_blend_mode::Opaque);
 
-	for (const Drawcall_mesh& mesh_dc : scene_state.m_opaque_drawcalls)
-	{
-		const glm::mat4 mvp = proj_mat * view_mat * mesh_dc.m_orientation;
-		render_mesh(mesh_dc, mvp);
-	}
+	render_meshes<Drawcall_mesh, false, false>(scene_state.m_opaque_drawcalls, proj_mat, view_mat, renderer_resources_state);
 
 	debug_drawer_state.m_draw_interface_debug_lines.value().begin_frame();
 
@@ -429,13 +398,16 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 
 	set_depth_mode(Depth_mode::read);
 
-	for (const Drawcall_mesh& mesh_dc : scene_state.m_translucent_drawcalls)
-	{
-		set_blend_mode(mesh_dc.m_material->m_blend_mode);
+	std::sort
+	(
+		scene_state.m_translucent_drawcalls.begin(), scene_state.m_translucent_drawcalls.end(),
+		[](const Drawcall_mesh_translucent& in_a, const Drawcall_mesh_translucent& in_b)
+		{
+			return in_a.m_distance_to_view_2 < in_b.m_distance_to_view_2;
+		}
+	);
 
-		const glm::mat4 mvp = proj_mat * view_mat * mesh_dc.m_orientation;
-		render_mesh(mesh_dc, mvp);
-	}
+	render_meshes<Drawcall_mesh_translucent, true, true>(scene_state.m_translucent_drawcalls, proj_mat, view_mat, renderer_resources_state);
 
 	set_depth_mode(Depth_mode::read_write);
 	set_blend_mode(Material_blend_mode::Opaque);
@@ -455,9 +427,7 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 
 	renderer_resources_state.m_pass_through_program.value().use();
 
-	GLuint tex_loc_id = renderer_resources_state.m_pass_through_program.value().get_uniform_location("uniform_texture").value();
-
-	inout_view.m_render_target.value().bind_as_texture(tex_loc_id, 0);
+	renderer_resources_state.m_pass_through_program.value().set_uniform("uniform_texture", inout_view.m_render_target.value().get_texture());
 
 	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(renderer_resources_state.m_quad_indexbuffer.value().get_max_elements()), 0);
 }
@@ -476,23 +446,14 @@ void sic::System_renderer::render_mesh(const Drawcall_mesh& in_dc, const glm::ma
 	if (program.get_uniform_location("model_matrix"))
 		program.set_uniform("model_matrix", in_dc.m_orientation);
 
-	ui32 texture_param_idx = 0;
-
 	for (auto& texture_param : in_dc.m_material->m_texture_parameters)
 	{
-		const auto uniform_loc = program.get_uniform_location(texture_param.m_name.c_str());
-
-		if (!uniform_loc.has_value())
+		if (!program.set_uniform(texture_param.m_name.c_str(), texture_param.m_texture.get()->m_texture.value()))
 		{
 			SIC_LOG_E(g_log_renderer_verbose,
 				"Texture parameter: {0}, not found in material with shaders: {1} and {2}",
 				texture_param.m_name.c_str(), in_dc.m_material->m_vertex_shader_path.c_str(), in_dc.m_material->m_fragment_shader_path.c_str());
-			continue;
 		}
-
-		texture_param.m_texture.get()->m_texture.value().bind(uniform_loc.value(), texture_param_idx);
-
-		++texture_param_idx;
 	}
 
 	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(in_dc.m_mesh->m_index_buffer.value().get_max_elements()), 0);
@@ -614,6 +575,9 @@ void sic::System_renderer::post_load_material(const State_renderer_resources& in
 		out_material.m_program.reset();
 		return;
 	}
+
+	if (out_material.m_is_instanced)
+		out_material.m_program.value().set_uniform_block(out_material.m_instance_data_uniform_block.emplace(out_material.m_instance_block_name.c_str(), GL_DYNAMIC_DRAW, out_material.m_max_elements_per_drawcall * out_material.m_instance_stride));
 
 	for (auto&& uniform_block_mapping : out_material.m_program.value().get_uniform_blocks())
 		if (const OpenGl_uniform_block* block = in_resource_state.get_uniform_block(uniform_block_mapping.first))

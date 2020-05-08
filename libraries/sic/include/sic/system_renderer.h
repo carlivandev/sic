@@ -8,6 +8,7 @@
 #include "sic/double_buffer.h"
 #include "sic/state_render_scene.h"
 #include "sic/opengl_texture.h"
+#include "sic/opengl_draw_interface_instanced.h"
 
 #include "glm/mat4x4.hpp"
 
@@ -93,6 +94,7 @@ namespace sic
 			return it->second.get();
 		}
 
+		OpenGl_draw_interface_instanced m_draw_interface_instanced;
 		std::optional<OpenGl_program> m_pass_through_program;
 		std::optional<OpenGl_vertex_buffer_array
 			<
@@ -138,6 +140,9 @@ namespace sic
 	private:
 		void render_view(Engine_context in_context, const Render_object_window& in_window, Render_object_view& inout_view) const;
 
+		template <typename T_drawcall_type, bool T_custom_blend_mode, bool T_stable_partition>
+		void render_meshes(std::vector<T_drawcall_type>& inout_drawcalls, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix, State_renderer_resources& inout_renderer_resources_state) const;
+
 		void render_mesh(const Drawcall_mesh& in_dc, const glm::mat4& in_mvp) const;
 		void render_views_to_window_backbuffers(const std::unordered_map<sic::Render_object_window*, std::vector<sic::Render_object_view*>>& in_window_to_view_lut) const;
 
@@ -152,4 +157,109 @@ namespace sic
 		void set_depth_mode(Depth_mode in_to_set) const;
 		void set_blend_mode(Material_blend_mode in_to_set) const;
 	};
+	template<typename T_drawcall_type, bool T_custom_blend_mode, bool T_stable_partition>
+	inline void System_renderer::render_meshes(std::vector<T_drawcall_type>& inout_drawcalls, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix, State_renderer_resources& inout_renderer_resources_state) const
+	{
+		auto instanced_begin = T_stable_partition ?
+		std::stable_partition
+		(
+			inout_drawcalls.begin(), inout_drawcalls.end(),
+			[](const T_drawcall_type & in_a)
+			{
+				return !in_a.m_material->m_is_instanced;
+			}
+		)
+		:
+		std::partition
+		(
+			inout_drawcalls.begin(), inout_drawcalls.end(),
+			[](const T_drawcall_type& in_a)
+			{
+				return !in_a.m_material->m_is_instanced;
+			}
+		);
+
+		for (auto it = inout_drawcalls.begin(); it != instanced_begin; ++it)
+		{
+			if constexpr (T_custom_blend_mode)
+				set_blend_mode(it->m_material->m_blend_mode);
+
+			const glm::mat4 mvp = in_projection_matrix * in_view_matrix * it->m_orientation;
+			render_mesh(*it, mvp);
+		}
+
+		auto current_instanced_begin = instanced_begin;
+
+		while (current_instanced_begin != inout_drawcalls.end())
+		{
+			auto next_instanced_begin = T_stable_partition ?
+			std::stable_partition
+			(
+				current_instanced_begin, inout_drawcalls.end(),
+				[current_instanced_begin](const T_drawcall_type& in_a)
+				{
+					return current_instanced_begin->m_material == in_a.m_material && current_instanced_begin->m_mesh == in_a.m_mesh;
+				}
+			)
+			:
+			std::partition
+			(
+				current_instanced_begin, inout_drawcalls.end(),
+				[current_instanced_begin](const T_drawcall_type& in_a)
+				{
+					return current_instanced_begin->m_material == in_a.m_material && current_instanced_begin->m_mesh == in_a.m_mesh;
+				}
+			);
+
+			auto model_matrix_loc_it = current_instanced_begin->m_material->m_instance_data_name_to_offset_lut.find("model_matrix");
+
+			if (model_matrix_loc_it != current_instanced_begin->m_material->m_instance_data_name_to_offset_lut.end())
+			{
+				GLuint model_matrix_loc = model_matrix_loc_it->second;
+				for (auto it = current_instanced_begin; it != next_instanced_begin; ++it)
+				{
+					memcpy(it->m_instance_data + model_matrix_loc, &it->m_orientation, uniform_block_alignment_functions::get_alignment<glm::mat4x4>());
+				}
+			}
+
+			auto mvp_loc_it = current_instanced_begin->m_material->m_instance_data_name_to_offset_lut.find("MVP");
+
+			if (mvp_loc_it != current_instanced_begin->m_material->m_instance_data_name_to_offset_lut.end())
+			{
+				GLuint mvp_loc = mvp_loc_it->second;
+				for (auto it = current_instanced_begin; it != next_instanced_begin; ++it)
+				{
+					const glm::mat4 mvp = in_projection_matrix * in_view_matrix * it->m_orientation;
+					memcpy(it->m_instance_data + mvp_loc, &mvp, uniform_block_alignment_functions::get_alignment<glm::mat4x4>());
+				}
+			}
+
+			for (auto& texture_param : current_instanced_begin->m_material->m_texture_parameters)
+			{
+				auto tex_loc_it = current_instanced_begin->m_material->m_instance_data_name_to_offset_lut.find(texture_param.m_name);
+
+				if (tex_loc_it != current_instanced_begin->m_material->m_instance_data_name_to_offset_lut.end())
+				{
+					GLuint tex_loc = tex_loc_it->second;
+					for (auto it = current_instanced_begin; it != next_instanced_begin; ++it)
+					{
+						auto bindless_handle = texture_param.m_texture.get()->m_texture.value().get_bindless_handle();
+						memcpy(it->m_instance_data + tex_loc, &bindless_handle, uniform_block_alignment_functions::get_alignment<GLuint64>());
+					}
+				}
+			}
+
+			if constexpr (T_custom_blend_mode)
+				set_blend_mode(current_instanced_begin->m_material->m_blend_mode);
+
+			inout_renderer_resources_state.m_draw_interface_instanced.begin_frame(*current_instanced_begin->m_mesh, *current_instanced_begin->m_material);
+
+			for (auto it = current_instanced_begin; it != next_instanced_begin; ++it)
+				inout_renderer_resources_state.m_draw_interface_instanced.draw_instance(it->m_instance_data);
+
+			inout_renderer_resources_state.m_draw_interface_instanced.end_frame();
+
+			current_instanced_begin = next_instanced_begin;
+		}
+	}
 }

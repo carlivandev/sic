@@ -3,6 +3,9 @@
 //! #include "../engine/materials/includes/mesh_vert_header.glsl"
 //! #include "../engine/materials/includes/block_view.glsl"
 
+uniform mat4 MVP;
+uniform mat4 model_matrix;
+
 void main()
 {
 	// Output position of the vertex, in clip space : MVP * position
