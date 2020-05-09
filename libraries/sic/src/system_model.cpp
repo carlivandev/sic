@@ -52,8 +52,7 @@ void sic::System_model::on_created(Engine_context in_context)
 		{
 			for (auto& render_object_id : in_out_component.m_render_object_id_collection)
 			{
-				in_out_component.m_render_scene_state->destroy_object(render_object_id);
-				render_object_id.reset();
+				in_out_component.try_destroy_render_object();
 			}
 		}
 	);
