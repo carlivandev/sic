@@ -50,10 +50,7 @@ void sic::System_model::on_created(Engine_context in_context)
 	(
 		[](Engine_context&, Component_model& in_out_component)
 		{
-			for (auto& render_object_id : in_out_component.m_render_object_id_collection)
-			{
-				in_out_component.try_destroy_render_object();
-			}
+			in_out_component.try_destroy_render_object();
 		}
 	);
 }
@@ -83,7 +80,7 @@ void sic::Component_model::set_model(const Asset_ref<Asset_model>& in_model)
 					in_object.m_mesh = &(model.get()->m_meshes[idx]);
 					in_object.m_material->remove_instance_data(in_object.m_instance_data_index);
 
-					in_object.m_material = mat_to_draw.get();
+					in_object.m_material = mat_to_draw.get_mutable();
 					in_object.m_instance_data_index = in_object.m_material->add_instance_data();
 				} 
 			);
@@ -126,7 +123,7 @@ void sic::Component_model::set_material(Asset_ref<Asset_material> in_material, c
 				{
 					in_object.m_material->remove_instance_data(in_object.m_instance_data_index);
 
-					in_object.m_material = override_mat.get();
+					in_object.m_material = override_mat.get_mutable();
 					in_object.m_instance_data_index = in_object.m_material->add_instance_data();
 				} 
 			);
@@ -154,7 +151,7 @@ void sic::Component_model::set_material(Asset_ref<Asset_material> in_material, c
 						{
 							in_object.m_material->remove_instance_data(in_object.m_instance_data_index);
 
-							in_object.m_material = override_mat.get();
+							in_object.m_material = override_mat.get_mutable();
 							in_object.m_instance_data_index = in_object.m_material->add_instance_data();
 						}
 					);
@@ -241,9 +238,9 @@ void sic::Component_model::try_create_render_object()
 				(Render_object_mesh& in_out_object)
 				{
 					in_out_object.m_mesh = &(model.get()->m_meshes[mesh_idx]);
-					in_out_object.m_material = mat_to_draw.get();
+					in_out_object.m_material = mat_to_draw.get_mutable();
 					in_out_object.m_orientation = orientation;
-					in_out_object.m_instance_data_index = mat_to_draw.get()->add_instance_data();
+					in_out_object.m_instance_data_index = in_out_object.m_material->add_instance_data();
 				}
 			)
 		);

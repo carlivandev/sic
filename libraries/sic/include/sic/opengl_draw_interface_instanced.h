@@ -13,7 +13,7 @@ namespace sic
 	struct OpenGl_draw_interface_instanced : Noncopyable
 	{
 		void begin_frame(const Asset_model::Mesh& in_mesh, Asset_material& in_material);
-		void draw_instance(char* in_buffer_data);
+		void draw_instance(const char* in_buffer_data);
 		void end_frame();
 
 	private:

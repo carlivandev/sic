@@ -17,6 +17,7 @@
 #include <mutex>
 #include <vector>
 #include <typeindex>
+#include <functional>
 
 namespace sic
 {
@@ -51,6 +52,8 @@ namespace sic
 					[&in_header, this](std::string&& in_loaded_data)
 					{
 						load_asset_internal<T_asset_type>(std::move(in_loaded_data), in_header.m_loaded_asset);
+						in_header.m_loaded_asset->m_header = &in_header;
+
 						if (in_header.m_loaded_asset.get()->has_post_load())
 						{
 							std::scoped_lock post_load_lock(m_post_load_mutex);
@@ -104,7 +107,7 @@ namespace sic
 
 			for (Asset_header* header : *pre_unload_assets.get())
 			{
-				SIC_LOG(g_log_asset_verbose, "unloaded asset: \"{0}\"", header->m_name.c_str());
+				SIC_LOG(g_log_asset_verbose, "Unloaded asset: \"{0}\"", header->m_name.c_str());
 
 				in_callback(*reinterpret_cast<T_asset_type*>(header->m_loaded_asset.get()));
 				header->m_load_state = Asset_load_state::not_loaded;
@@ -134,6 +137,7 @@ namespace sic
 		{
 			Asset_header* new_header = create_asset_internal(in_asset_name, in_asset_directory, typeid(T_asset_type).name());
 			new_header->m_loaded_asset = std::unique_ptr<Asset>(reinterpret_cast<Asset*>(new T_asset_type()));
+			new_header->m_loaded_asset->m_header = new_header;
 
 			new_header->increment_reference_count();
 
@@ -167,6 +171,17 @@ namespace sic
 			save_asset_internal<T_asset_type>(in_header.m_loaded_asset, in_header.m_asset_path);
 		}
 
+		template <typename T_asset_type>
+		inline void modify_asset(const Asset_ref<T_asset_type>& in_asset_ref, std::function<void(T_asset_type*)> in_modification_functor)
+		{
+			std::scoped_lock lock(m_modification_mutex);
+			in_modification_functor(in_asset_ref.get_mutable());
+		}
+
+		std::mutex& get_modification_mutex()
+		{
+			return m_modification_mutex;
+		}
 
 		void force_unload_unreferenced_assets();
 
@@ -225,6 +240,7 @@ namespace sic
 		std::mutex m_mutex;
 		std::mutex m_post_load_mutex;
 		std::mutex m_pre_unload_mutex;
+		std::mutex m_modification_mutex;
 
 		State_filesystem* m_filesystem_state = nullptr;
 	};

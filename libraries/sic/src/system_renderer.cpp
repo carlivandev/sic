@@ -138,8 +138,16 @@ void sic::System_renderer::on_engine_finalized(Engine_context in_context) const
 	//TODO: CONTINUE YES
 	resources.m_white_texture.emplace(glm::ivec2(white_pixels.size() / (2 * 4), white_pixels.size() / (2 * 4)), GL_RGBA, GL_LINEAR, GL_LINEAR_MIPMAP_LINEAR, white_pixels.data());
 
-	resources.m_error_material = in_context.get_state_checked<State_assetsystem>().create_asset<Asset_material>("mesh_error_material", "content/engine/materials");
-	resources.m_error_material.get()->import("content/engine/materials/mesh_error.vert", "content/engine/materials/mesh_error.frag");
+	State_assetsystem& assetsystem_state = in_context.get_state_checked<State_assetsystem>();
+	resources.m_error_material = assetsystem_state.create_asset<Asset_material>("mesh_error_material", "content/engine/materials");
+	assetsystem_state.modify_asset<Asset_material>
+	(
+		resources.m_error_material,
+		[](Asset_material* material)
+		{
+			material->import("content/engine/materials/mesh_error.vert", "content/engine/materials/mesh_error.frag");
+		}
+	);
 }
 
 void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_time_delta) const
@@ -148,6 +156,9 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 
 	State_window& window_state = in_context.get_state_checked<State_window>();
 	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
+	State_assetsystem& assetsystem_state = in_context.get_state_checked<State_assetsystem>();
+
+	std::scoped_lock asset_modification_lock(assetsystem_state.get_modification_mutex());
 
 	glfwMakeContextCurrent(window_state.m_resource_context);
 
@@ -253,7 +264,7 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 	{
 		Asset_material* mat = mesh.m_material;
 
-		for (const Asset_material::Texture_parameter& texture_param : mat->m_texture_parameters)
+		for (const Material_texture_parameter& texture_param : mat->m_parameters.m_textures)
 		{
 			if (texture_param.m_texture.is_valid())
 			{
@@ -261,7 +272,7 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 			}
 			else
 			{
-				mat = renderer_resources_state.m_error_material.get();
+				mat = renderer_resources_state.m_error_material.get_mutable();
 				break;
 			}
 		}
@@ -285,7 +296,7 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 		{
 		case Material_blend_mode::Opaque:
 		case Material_blend_mode::Masked:
-			scene_state.m_opaque_drawcalls.push_back({ mesh.m_orientation, mesh.m_mesh, mat, instance_buffer });
+			scene_state.m_opaque_drawcalls.push_back({ mesh.m_orientation, mesh.m_mesh, mat, &mat->m_parameters, instance_buffer });
 			break;
 
 		case Material_blend_mode::Translucent:
@@ -298,7 +309,7 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 				mesh.m_orientation[3][2],
 			};
 
-			scene_state.m_translucent_drawcalls.push_back({ mesh.m_orientation, mesh.m_mesh, mat, instance_buffer, glm::length2(mesh_location - view_location) });
+			scene_state.m_translucent_drawcalls.push_back({ mesh.m_orientation, mesh.m_mesh, mat, &mat->m_parameters, instance_buffer, glm::length2(mesh_location - view_location) });
 		}
 		break;
 
@@ -446,14 +457,10 @@ void sic::System_renderer::render_mesh(const Drawcall_mesh& in_dc, const glm::ma
 	if (program.get_uniform_location("model_matrix"))
 		program.set_uniform("model_matrix", in_dc.m_orientation);
 
-	for (auto& texture_param : in_dc.m_material->m_texture_parameters)
+	for (auto& texture_param : in_dc.m_parameters->m_textures)
 	{
 		if (!program.set_uniform(texture_param.m_name.c_str(), texture_param.m_texture.get()->m_texture.value()))
-		{
-			SIC_LOG_E(g_log_renderer_verbose,
-				"Texture parameter: {0}, not found in material with shaders: {1} and {2}",
-				texture_param.m_name.c_str(), in_dc.m_material->m_vertex_shader_path.c_str(), in_dc.m_material->m_fragment_shader_path.c_str());
-		}
+			SIC_LOG_E(g_log_renderer_verbose, "Texture parameter: {0}", texture_param.m_name.c_str());
 	}
 
 	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(in_dc.m_mesh->m_index_buffer.value().get_max_elements()), 0);
@@ -568,6 +575,10 @@ void sic::System_renderer::post_load_material(const State_renderer_resources& in
 	if (out_material.m_vertex_shader_code.empty() || out_material.m_fragment_shader_code.empty())
 		return;
 
+	//if we have a parent we will share its rendering resources, only parameters will be unique
+	if (out_material.m_parent.is_valid())
+		return;
+
 	out_material.m_program.emplace(out_material.m_vertex_shader_path, out_material.m_vertex_shader_code, out_material.m_fragment_shader_path, out_material.m_fragment_shader_code);
 
 	if (!out_material.m_program.value().get_is_valid())
@@ -577,7 +588,26 @@ void sic::System_renderer::post_load_material(const State_renderer_resources& in
 	}
 
 	if (out_material.m_is_instanced)
-		out_material.m_program.value().set_uniform_block(out_material.m_instance_data_uniform_block.emplace(out_material.m_instance_block_name.c_str(), GL_DYNAMIC_DRAW, out_material.m_max_elements_per_drawcall * out_material.m_instance_stride));
+	{
+		out_material.m_instance_data_texture.emplace
+		(
+			glm::ivec2(out_material.m_max_elements_per_drawcall * out_material.m_instance_vec4_stride, 1),
+			GL_RGBA32F,
+			GL_RGBA,
+			GL_FLOAT,
+			GL_LINEAR,
+			GL_LINEAR_MIPMAP_LINEAR,
+			nullptr
+		);
+
+		out_material.m_program.value().set_uniform_block(out_material.m_instance_data_uniform_block.emplace(out_material.m_instance_block_name.c_str(), GL_DYNAMIC_DRAW, uniform_block_alignment_functions::get_alignment<glm::vec4>() + uniform_block_alignment_functions::get_alignment<GLuint64>()));
+
+		float instance_data_texture_vec4_stride = out_material.m_instance_vec4_stride;
+		GLuint64 tex_handle = out_material.m_instance_data_texture.value().get_bindless_handle();
+
+		out_material.m_instance_data_uniform_block.value().set_data_raw(0, sizeof(GLfloat), &instance_data_texture_vec4_stride);
+		out_material.m_instance_data_uniform_block.value().set_data_raw(uniform_block_alignment_functions::get_alignment<glm::vec4>(), sizeof(GLuint64), &tex_handle);
+	}
 
 	for (auto&& uniform_block_mapping : out_material.m_program.value().get_uniform_blocks())
 		if (const OpenGl_uniform_block* block = in_resource_state.get_uniform_block(uniform_block_mapping.first))

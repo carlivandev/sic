@@ -164,7 +164,7 @@ namespace sic
 		std::stable_partition
 		(
 			inout_drawcalls.begin(), inout_drawcalls.end(),
-			[](const T_drawcall_type & in_a)
+			[](const T_drawcall_type& in_a)
 			{
 				return !in_a.m_material->m_is_instanced;
 			}
@@ -234,7 +234,7 @@ namespace sic
 				}
 			}
 
-			for (auto& texture_param : current_instanced_begin->m_material->m_texture_parameters)
+			for (auto& texture_param : current_instanced_begin->m_parameters->m_textures)
 			{
 				auto tex_loc_it = current_instanced_begin->m_material->m_instance_data_name_to_offset_lut.find(texture_param.m_name);
 

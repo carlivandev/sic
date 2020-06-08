@@ -200,7 +200,6 @@ void sic::System_window::on_engine_tick(Engine_context in_context, float in_time
 {
 	in_time_delta;
 
-	//TODO: this should have array of all the windows, windows should NOT be objects in levels because destroying 
 	State_window* window_state = in_context.get_state<State_window>();
 
 	if (!window_state)

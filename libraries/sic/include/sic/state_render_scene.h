@@ -156,8 +156,10 @@ namespace sic
 	{
 		glm::mat4x4 m_orientation = glm::mat4x4(1);
 		
-		Asset_model::Mesh* m_mesh;
-		Asset_material* m_material;
+		const Asset_model::Mesh* m_mesh = nullptr;
+		Asset_material* m_material = nullptr;
+		Material_parameters* m_parameters = nullptr;
+
 		size_t m_instance_data_index;
 	};
 
@@ -301,8 +303,9 @@ namespace sic
 	struct Drawcall_mesh
 	{
 		glm::mat4x4 m_orientation;
-		Asset_model::Mesh* m_mesh;
+		const Asset_model::Mesh* m_mesh;
 		Asset_material* m_material;
+		const Material_parameters* m_parameters;
 		char* m_instance_data;
 	};
 

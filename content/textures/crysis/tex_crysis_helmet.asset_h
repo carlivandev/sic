@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/textures/crysis/tex_crysis_helmet.asset",
-	"id": "892bc4c8-cf4e-4a55-8a6e-ec5c6b52bc6b",
+	"id": "61e1906c-e96f-4507-9249-aee3c9957f9c",
 	"name": "tex_crysis_helmet",
 	"type": "struct sic::Asset_texture"
 }

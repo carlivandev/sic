@@ -1,5 +1,7 @@
 #pragma once
-#include "defines.h"
+#include "sic/defines.h"
+#include "sic/magic_enum.h"
+
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -68,17 +70,48 @@ namespace sic
 	}
 
 	template <typename T_data_type>
+	void serialize_enum(const T_data_type& in_to_serialize, Serialize_stream& out_stream)
+	{
+		out_stream.write(magic_enum::enum_name(in_to_serialize));
+	}
+
+	template <typename T_data_type>
+	void deserialize_enum(Deserialize_stream& in_stream, T_data_type& out_deserialized)
+	{
+		std::string enum_value_name;
+		in_stream.read(enum_value_name);
+		auto enum_value = magic_enum::enum_cast<T_data_type>(enum_value_name);
+
+		if (enum_value.has_value())
+			out_deserialized = enum_value.value();
+	}
+
+	template <typename T_data_type>
 	void serialize(const T_data_type& in_to_serialize, Serialize_stream& out_stream)
 	{
-		static_assert(std::is_trivially_copyable<T_data_type>::value, "Type is not trivially serializable! Please specialize serialize or use Serialize_stream::write_memcpy/write_raw.");
-		serialize_memcpy(in_to_serialize, out_stream);
+		if constexpr (std::is_enum<T_data_type>::value)
+		{
+			serialize_enum(in_to_serialize, out_stream);
+		}
+		else
+		{
+			static_assert(std::is_trivially_copyable<T_data_type>::value, "Type is not trivially serializable! Please specialize serialize or use Serialize_stream::write_memcpy/write_raw.");
+			serialize_memcpy(in_to_serialize, out_stream);
+		}
 	}
 
 	template <typename T_data_type>
 	void deserialize(Deserialize_stream& in_stream, T_data_type& out_deserialized)
 	{
-		static_assert(std::is_trivially_copyable<T_data_type>::value, "Type is not trivially deserializable! Please specialize deserialize or use Deserialize_stream::read_memcpy/read_raw.");
-		deserialize_memcpy(in_stream, out_deserialized);
+		if constexpr (std::is_enum<T_data_type>::value)
+		{
+			deserialize_enum(in_stream, out_deserialized);
+		}
+		else
+		{
+			static_assert(std::is_trivially_copyable<T_data_type>::value, "Type is not trivially deserializable! Please specialize deserialize or use Deserialize_stream::read_memcpy/read_raw.");
+			deserialize_memcpy(in_stream, out_deserialized);
+		}
 	}
 
 	template <typename T_data_type>

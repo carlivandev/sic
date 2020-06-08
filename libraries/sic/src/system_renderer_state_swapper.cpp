@@ -1,5 +1,6 @@
 #include "sic/system_renderer_state_swapper.h"
 #include "sic/system_renderer.h"
+#include "sic/system_asset.h"
 
 #include "sic/state_render_scene.h"
 #include "sic/system_window.h"
@@ -11,6 +12,9 @@ void sic::System_renderer_state_swapper::on_engine_tick(Engine_context in_contex
 	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
 	State_window& window_state = in_context.get_state_checked<State_window>();
 	State_renderer& renderer_state = in_context.get_state_checked<State_renderer>();
+	State_assetsystem& assetsystem_state = in_context.get_state_checked<State_assetsystem>();
+
+	std::scoped_lock asset_modification_lock(assetsystem_state.get_modification_mutex());
 
 	glfwMakeContextCurrent(window_state.m_resource_context);
 
