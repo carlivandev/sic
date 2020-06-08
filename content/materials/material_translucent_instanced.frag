@@ -1,22 +1,12 @@
-#version 330 core
+//? #version 410 core
+//? #extension GL_ARB_bindless_texture : require
+//? #extension GL_NV_gpu_shader5 : require
 
 //! #include "../engine/materials/includes/mesh_translucent_frag_header.glsl"
 //! #include "../engine/materials/includes/lighting_common.glsl"
+//! #include "../engine/materials/includes/instancing_common.glsl"
 
-#extension GL_ARB_bindless_texture : require
-#extension GL_NV_gpu_shader5 : require
-
-struct Instance_data
-{
-	mat4 MVP;
-	mat4 model_matrix;
-	uint64_t tex_albedo;
-};
-
-layout(std140) uniform block_instance
-{
-	Instance_data instance_data[256];
-};
+flat in int frag_instanceID;
 
 void main()
 {
