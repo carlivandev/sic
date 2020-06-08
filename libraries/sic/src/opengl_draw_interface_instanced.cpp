@@ -37,15 +37,13 @@ void sic::OpenGl_draw_interface_instanced::flush()
 {
 	assert(m_mesh && "Did you forget to call begin_frame?");
 
-	//m_material->m_instance_data_uniform_block.value().set_data_raw(0, static_cast<ui32>(m_current_instance - m_instance_buffer.data()), m_instance_buffer.data());
-
 	m_material->m_instance_data_texture.value().update_data({0, 0}, glm::ivec2(m_material->m_max_elements_per_drawcall * m_material->m_instance_vec4_stride, 1), m_instance_buffer.data());
 
-	GLfloat instance_data_texture_vec4_stride = (GLfloat)m_material->m_instance_vec4_stride;
-	GLuint64 tex_handle = m_material->m_instance_data_texture.value().get_bindless_handle();
-	
-	m_material->m_instance_data_uniform_block.value().set_data_raw(0, sizeof(GLfloat), &instance_data_texture_vec4_stride);
-	m_material->m_instance_data_uniform_block.value().set_data_raw(uniform_block_alignment_functions::get_alignment<glm::vec4>(), sizeof(GLuint64), &tex_handle);
+	//GLfloat instance_data_texture_vec4_stride = (GLfloat)m_material->m_instance_vec4_stride;
+	//GLuint64 tex_handle = m_material->m_instance_data_texture.value().get_bindless_handle();
+	//
+	//m_material->m_instance_data_uniform_block.value().set_data_raw(0, sizeof(GLfloat), &instance_data_texture_vec4_stride);
+	//m_material->m_instance_data_uniform_block.value().set_data_raw(uniform_block_alignment_functions::get_alignment<glm::vec4>(), sizeof(GLuint64), &tex_handle);
 
 	m_mesh->m_vertex_buffer_array.value().bind();
 	m_mesh->m_index_buffer.value().bind();

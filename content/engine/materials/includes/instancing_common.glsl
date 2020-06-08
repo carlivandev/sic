@@ -2,7 +2,7 @@
 //?#extension GL_ARB_bindless_texture : require
 //?#extension GL_NV_gpu_shader5 : require
 
-layout(std140) uniform block_instance
+layout(std140) uniform block_instancing
 {
 	//how many vec4 per instance
 	vec4 instance_data_texture_vec4_stride;

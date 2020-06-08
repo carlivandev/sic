@@ -78,6 +78,7 @@ void sic::System_renderer::on_engine_finalized(Engine_context in_context) const
 
 	resources.add_uniform_block<OpenGl_uniform_block_view>();
 	resources.add_uniform_block<OpenGl_uniform_block_lights>();
+	resources.add_uniform_block<OpenGl_uniform_block_instancing>();
 
 	State_debug_drawing& debug_drawer_state = in_context.get_state_checked<State_debug_drawing>();
 	debug_drawer_state.m_draw_interface_debug_lines.emplace(*resources.get_static_uniform_block<OpenGl_uniform_block_view>());
@@ -136,7 +137,7 @@ void sic::System_renderer::on_engine_finalized(Engine_context in_context) const
 	};
 
 	//TODO: CONTINUE YES
-	resources.m_white_texture.emplace(glm::ivec2(white_pixels.size() / (2 * 4), white_pixels.size() / (2 * 4)), GL_RGBA, GL_LINEAR, GL_LINEAR_MIPMAP_LINEAR, white_pixels.data());
+	//resources.m_white_texture.emplace(glm::ivec2(white_pixels.size() / (2 * 4), white_pixels.size() / (2 * 4)), GL_RGBA, GL_LINEAR, GL_LINEAR_MIPMAP_LINEAR, white_pixels.data());
 
 	State_assetsystem& assetsystem_state = in_context.get_state_checked<State_assetsystem>();
 	resources.m_error_material = assetsystem_state.create_asset<Asset_material>("mesh_error_material", "content/engine/materials");
@@ -544,27 +545,34 @@ void sic::System_renderer::do_asset_post_loads(Engine_context in_context) const
 
 void sic::System_renderer::post_load_texture(Asset_texture& out_texture)
 {
-	i32 gl_texture_format = 0;
+	OpenGl_texture_format gl_texture_format = OpenGl_texture_format::invalid;
 
 	switch (out_texture.m_format)
 	{
 	case Texture_format::gray:
-		gl_texture_format = GL_R;
+		gl_texture_format = OpenGl_texture_format::r;
 		break;
 	case Texture_format::gray_a:
-		gl_texture_format = GL_RG;
+		gl_texture_format = OpenGl_texture_format::rg;
 		break;
 	case Texture_format::rgb:
-		gl_texture_format = GL_RGB;
+		gl_texture_format = OpenGl_texture_format::rgb;
 		break;
 	case Texture_format::rgb_a:
-		gl_texture_format = GL_RGBA;
+		gl_texture_format = OpenGl_texture_format::rgba;
 		break;
 	default:
 		break;
 	}
 
-	out_texture.m_texture.emplace(glm::ivec2(out_texture.m_width, out_texture.m_height), gl_texture_format, GL_LINEAR, GL_LINEAR_MIPMAP_LINEAR, out_texture.m_texture_data.get());
+	OpenGl_texture::Creation_params params;
+	params.set_dimensions(glm::ivec2(out_texture.m_width, out_texture.m_height));
+	params.set_format(gl_texture_format);
+	params.set_filtering(OpenGl_texture_mag_filter::linear, OpenGl_texture_min_filter::linear_mipmap_linear);
+	params.set_channel_type(OpenGl_texture_channel_type::unsigned_byte);
+	params.set_data(out_texture.m_texture_data.get());
+
+	out_texture.m_texture.emplace(params);
 
 	if (out_texture.m_free_texture_data_after_setup)
 		out_texture.m_texture_data.reset();
@@ -589,24 +597,13 @@ void sic::System_renderer::post_load_material(const State_renderer_resources& in
 
 	if (out_material.m_is_instanced)
 	{
-		out_material.m_instance_data_texture.emplace
-		(
-			glm::ivec2(out_material.m_max_elements_per_drawcall * out_material.m_instance_vec4_stride, 1),
-			GL_RGBA32F,
-			GL_RGBA,
-			GL_FLOAT,
-			GL_LINEAR,
-			GL_LINEAR_MIPMAP_LINEAR,
-			nullptr
-		);
+		OpenGl_texture::Creation_params params;
+		params.set_dimensions(glm::ivec2(out_material.m_max_elements_per_drawcall * out_material.m_instance_vec4_stride, 1));
+		params.set_format(OpenGl_texture_format::rgba, OpenGl_texture_format_internal::rgba32f);
+		params.set_channel_type(OpenGl_texture_channel_type::whole_float);
+		params.set_filtering(OpenGl_texture_mag_filter::linear, OpenGl_texture_min_filter::linear_mipmap_linear);
 
-		out_material.m_program.value().set_uniform_block(out_material.m_instance_data_uniform_block.emplace(out_material.m_instance_block_name.c_str(), GL_DYNAMIC_DRAW, uniform_block_alignment_functions::get_alignment<glm::vec4>() + uniform_block_alignment_functions::get_alignment<GLuint64>()));
-
-		float instance_data_texture_vec4_stride = out_material.m_instance_vec4_stride;
-		GLuint64 tex_handle = out_material.m_instance_data_texture.value().get_bindless_handle();
-
-		out_material.m_instance_data_uniform_block.value().set_data_raw(0, sizeof(GLfloat), &instance_data_texture_vec4_stride);
-		out_material.m_instance_data_uniform_block.value().set_data_raw(uniform_block_alignment_functions::get_alignment<glm::vec4>(), sizeof(GLuint64), &tex_handle);
+		out_material.m_instance_data_texture.emplace(params);
 	}
 
 	for (auto&& uniform_block_mapping : out_material.m_program.value().get_uniform_blocks())

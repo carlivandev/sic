@@ -252,12 +252,21 @@ namespace sic
 			if constexpr (T_custom_blend_mode)
 				set_blend_mode(current_instanced_begin->m_material->m_blend_mode);
 
-			inout_renderer_resources_state.m_draw_interface_instanced.begin_frame(*current_instanced_begin->m_mesh, *current_instanced_begin->m_material);
+			if (OpenGl_uniform_block_instancing* instancing_block = inout_renderer_resources_state.get_static_uniform_block<OpenGl_uniform_block_instancing>())
+			{
+				GLfloat instance_data_texture_vec4_stride = (GLfloat)current_instanced_begin->m_material->m_instance_vec4_stride;
+				GLuint64 tex_handle = current_instanced_begin->m_material->m_instance_data_texture.value().get_bindless_handle();
 
-			for (auto it = current_instanced_begin; it != next_instanced_begin; ++it)
-				inout_renderer_resources_state.m_draw_interface_instanced.draw_instance(it->m_instance_data);
+				instancing_block->set_data_raw(0, sizeof(GLfloat), &instance_data_texture_vec4_stride);
+				instancing_block->set_data_raw(uniform_block_alignment_functions::get_alignment<glm::vec4>(), sizeof(GLuint64), &tex_handle);
 
-			inout_renderer_resources_state.m_draw_interface_instanced.end_frame();
+				inout_renderer_resources_state.m_draw_interface_instanced.begin_frame(*current_instanced_begin->m_mesh, *current_instanced_begin->m_material);
+
+				for (auto it = current_instanced_begin; it != next_instanced_begin; ++it)
+					inout_renderer_resources_state.m_draw_interface_instanced.draw_instance(it->m_instance_data);
+
+				inout_renderer_resources_state.m_draw_interface_instanced.end_frame();
+			}
 
 			current_instanced_begin = next_instanced_begin;
 		}
