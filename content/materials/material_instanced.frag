@@ -10,7 +10,7 @@ flat in int frag_instanceID;
 
 void main()
 {
-	sampler2D instance_data_texture_sampler = sampler2D(instance_data_texture);
+	samplerBuffer instance_data_texture_sampler = samplerBuffer(instance_data_texture);
 
 	int instance_data_begin = get_instance_data_begin(frag_instanceID);
 	int instance_data_it = 0;

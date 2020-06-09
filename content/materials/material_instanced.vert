@@ -10,11 +10,11 @@ flat out int frag_instanceID;
 
 void main()
 {
-	sampler2D instance_data_texture_sampler = sampler2D(instance_data_texture);
+	samplerBuffer instance_data_texture_sampler = samplerBuffer(instance_data_texture);
 
 	int instance_data_begin = get_instance_data_begin(gl_InstanceID);
 	int instance_data_it = 0;
-
+	
 	mat4 mvp = read_mat4(instance_data_texture_sampler, instance_data_begin, instance_data_it);
 	mat4 model_matrix = read_mat4(instance_data_texture_sampler, instance_data_begin, instance_data_it);
 

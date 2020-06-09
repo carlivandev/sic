@@ -565,12 +565,13 @@ void sic::System_renderer::post_load_texture(Asset_texture& out_texture)
 		break;
 	}
 
-	OpenGl_texture::Creation_params params;
+	OpenGl_texture::Creation_params_2D params;
 	params.set_dimensions(glm::ivec2(out_texture.m_width, out_texture.m_height));
 	params.set_format(gl_texture_format);
 	params.set_filtering(OpenGl_texture_mag_filter::linear, OpenGl_texture_min_filter::linear_mipmap_linear);
 	params.set_channel_type(OpenGl_texture_channel_type::unsigned_byte);
 	params.set_data(out_texture.m_texture_data.get());
+	params.set_debug_name(out_texture.get_header().m_name);
 
 	out_texture.m_texture.emplace(params);
 
@@ -597,11 +598,13 @@ void sic::System_renderer::post_load_material(const State_renderer_resources& in
 
 	if (out_material.m_is_instanced)
 	{
-		OpenGl_texture::Creation_params params;
-		params.set_dimensions(glm::ivec2(out_material.m_max_elements_per_drawcall * out_material.m_instance_vec4_stride, 1));
+		out_material.m_instance_data_buffer.emplace(GL_TEXTURE_BUFFER, GL_DYNAMIC_DRAW).resize<glm::vec4>(out_material.m_max_elements_per_drawcall * out_material.m_instance_vec4_stride);
+
+		OpenGl_texture::Creation_params_buffer params;
 		params.set_format(OpenGl_texture_format::rgba, OpenGl_texture_format_internal::rgba32f);
-		params.set_channel_type(OpenGl_texture_channel_type::whole_float);
-		params.set_filtering(OpenGl_texture_mag_filter::linear, OpenGl_texture_min_filter::linear_mipmap_linear);
+		params.set_buffer(out_material.m_instance_data_buffer.value());
+		
+		params.set_debug_name(fmt::format("{0} instancing data", out_material.get_header().m_name));
 
 		out_material.m_instance_data_texture.emplace(params);
 	}
