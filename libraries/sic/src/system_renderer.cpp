@@ -95,7 +95,7 @@ void sic::System_renderer::on_engine_finalized(Engine_context in_context) const
 	);
 
 	resources.m_quad_vertex_buffer_array.emplace();
-	resources.m_quad_indexbuffer.emplace(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW);
+	resources.m_quad_indexbuffer.emplace(OpenGl_buffer::Creation_params(OpenGl_buffer_target::element_array, OpenGl_buffer_usage::static_draw));
 	const std::vector<GLfloat> positions =
 	{
 		-1.0f, -1.0f,
@@ -598,7 +598,7 @@ void sic::System_renderer::post_load_material(const State_renderer_resources& in
 
 	if (out_material.m_is_instanced)
 	{
-		out_material.m_instance_data_buffer.emplace(GL_TEXTURE_BUFFER, GL_DYNAMIC_DRAW).resize<glm::vec4>(out_material.m_max_elements_per_drawcall * out_material.m_instance_vec4_stride);
+		out_material.m_instance_data_buffer.emplace(OpenGl_buffer::Creation_params(OpenGl_buffer_target::texture, OpenGl_buffer_usage::dynamic_draw)).resize<glm::vec4>(out_material.m_max_elements_per_drawcall * out_material.m_instance_vec4_stride);
 
 		OpenGl_texture::Creation_params_buffer params;
 		params.set_format(OpenGl_texture_format::rgba, OpenGl_texture_format_internal::rgba32f);
@@ -625,7 +625,7 @@ void sic::System_renderer::post_load_mesh(Asset_model::Mesh& inout_mesh)
 	vertex_buffer_array.set_data<OpenGl_vertex_attribute_tangent>(inout_mesh.m_tangents);
 	vertex_buffer_array.set_data<OpenGl_vertex_attribute_bitangent>(inout_mesh.m_bitangents);
 
-	auto& index_buffer = inout_mesh.m_index_buffer.emplace(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW);
+	auto& index_buffer = inout_mesh.m_index_buffer.emplace(OpenGl_buffer::Creation_params(OpenGl_buffer_target::element_array, OpenGl_buffer_usage::static_draw));
 	index_buffer.set_data(inout_mesh.m_indices);
 }
 

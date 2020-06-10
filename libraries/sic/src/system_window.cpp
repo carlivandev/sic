@@ -367,7 +367,7 @@ sic::Window_proxy& sic::State_window::create_window(Engine_context in_context, c
 				quad_fragment_shader_path,
 				Shader_parser::parse_shader(quad_fragment_shader_path).value()
 			);
-			in_out_window.m_quad_indexbuffer.emplace(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW);
+			in_out_window.m_quad_indexbuffer.emplace(OpenGl_buffer::Creation_params(OpenGl_buffer_target::element_array, OpenGl_buffer_usage::static_draw));
 			const std::vector<GLfloat> positions = {
 				-1.0f, -1.0f,
 				-1.0f, 1.0f,
