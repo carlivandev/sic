@@ -6,12 +6,16 @@
 
 #include <vector>
 #include <memory>
+#include <mutex>
 
 namespace sic
 {
 	struct Level : Noncopyable
 	{
-		Level(Engine& in_engine, Level* in_outermost_level, Level* in_parent_level) : m_engine(in_engine), m_outermost_level(in_outermost_level) , m_parent_level(in_parent_level) {}
+		Level(Engine& in_engine, Level* in_outermost_level, Level* in_parent_level) : m_engine(in_engine), m_outermost_level(in_outermost_level) , m_parent_level(in_parent_level)
+		{
+			m_object_exists_flags.reserve(512);
+		}
 
 		template <typename T_object>
 		constexpr T_object& create_object();
@@ -25,12 +29,14 @@ namespace sic
 		void destroy_component(T_component_type& in_component_to_destroy);
 
 		template <typename T_type>
-		void for_each(std::function<void(T_type&)> in_func);
+		void for_each_w(std::function<void(T_type&)> in_func);
 
 		template <typename T_type>
-		void for_each(std::function<void(const T_type&)> in_func) const;
+		void for_each_r(std::function<void(const T_type&)> in_func) const;
 
 		bool get_is_root_level() const { return m_outermost_level == nullptr; }
+
+		bool get_does_object_exist(Object_id in_id, bool in_only_in_this_level) const;
 
 		std::unique_ptr<Component_storage_base>& get_component_storage_at_index(i32 in_index);
 		std::unique_ptr<Object_storage_base>& get_object_storage_at_index(i32 in_index);
@@ -41,9 +47,12 @@ namespace sic
 		std::vector<std::unique_ptr<Level>> m_sublevels;
 		Engine& m_engine;
 
+		std::vector<bool> m_object_exists_flags;
 		Level* m_outermost_level = nullptr;
 		Level* m_parent_level = nullptr;
 		i32 m_level_id = -1;
+		i32 m_current_object_id_ticker = 0;
+		mutable std::mutex m_object_creation_mutex;
 	};
 
 	template <typename T_object>
@@ -59,6 +68,13 @@ namespace sic
 
 		Level_context context(m_engine, *this);
 		T_object& new_instance = reinterpret_cast<Object_storage*>(arch_to_create_from.get())->make_instance<T_object>(context);
+		new_instance.m_id = m_current_object_id_ticker++;
+
+		{
+			std::scoped_lock lock(m_object_creation_mutex);
+			m_object_exists_flags.resize(new_instance.m_id + 1);
+			m_object_exists_flags[new_instance.m_id] = true;
+		}
 
 		m_engine.invoke<event_created<T_object>>(new_instance);
 
@@ -93,7 +109,7 @@ namespace sic
 	}
 
 	template<typename T_type>
-	inline void Level::for_each(std::function<void(T_type&)> in_func)
+	inline void Level::for_each_w(std::function<void(T_type&)> in_func)
 	{
 		constexpr bool is_component = std::is_base_of<Component_base, T_type>::value;
 		constexpr bool is_object = std::is_base_of<Object_base, T_type>::value;
@@ -120,11 +136,11 @@ namespace sic
 		}
 
 		for (auto& sublevel : m_sublevels)
-			sublevel->for_each<T_type>(in_func);
+			sublevel->for_each_w<T_type>(in_func);
 	}
 
 	template<typename T_type>
-	inline void Level::for_each(std::function<void(const T_type&)> in_func) const
+	inline void Level::for_each_r(std::function<void(const T_type&)> in_func) const
 	{
 		constexpr bool is_component = std::is_base_of<Component_base, T_type>::value;
 		constexpr bool is_object = std::is_base_of<Object_base, T_type>::value;
@@ -151,6 +167,6 @@ namespace sic
 		}
 
 		for (auto& sublevel : m_sublevels)
-			sublevel->for_each<T_type>(in_func);
+			sublevel->for_each_w<T_type>(in_func);
 	}
 }

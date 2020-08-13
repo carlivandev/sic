@@ -27,7 +27,7 @@ void sic::Component_view::set_window(Window_proxy* in_window)
 			}
 		);
 
-		m_window->m_on_destroyed.bind(m_on_window_destroyed_handle);
+		m_window->m_on_destroyed.try_bind(m_on_window_destroyed_handle);
 	}
 
 	m_render_scene_state->update_object

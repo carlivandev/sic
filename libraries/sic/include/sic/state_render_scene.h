@@ -305,7 +305,6 @@ namespace sic
 		glm::mat4x4 m_orientation;
 		const Asset_model::Mesh* m_mesh;
 		Asset_material* m_material;
-		const Material_parameters* m_parameters;
 		char* m_instance_data;
 	};
 

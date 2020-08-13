@@ -42,18 +42,18 @@ namespace sic
 
 	void Engine::prepare_threadpool()
 	{
-		const auto processor_count = std::thread::hardware_concurrency();
+		const auto hardware_thread_count = std::thread::hardware_concurrency();
 
-		m_system_ticker_threadpool.spawn(static_cast<ui16>(processor_count - 1));
+		m_system_ticker_threadpool.spawn(static_cast<ui16>(hardware_thread_count - 1));
 
-		m_thread_contexts.resize(processor_count);
+		m_thread_contexts.resize(hardware_thread_count);
 
 		std::vector<bool> finished_thread_context_setup;
-		finished_thread_context_setup.resize(processor_count);
+		finished_thread_context_setup.resize(hardware_thread_count);
 
 		std::vector<Threadpool::Closure> thread_context_initialize_jobs;
 
-		for (size_t i = 1; i < processor_count; i++)
+		for (size_t i = 1; i < hardware_thread_count; i++)
 		{
 			thread_context_initialize_jobs.push_back
 			(
@@ -264,24 +264,35 @@ namespace sic
 
 		if (!m_levels_to_add.empty())
 		{
-			std::scoped_lock levels_lock(m_levels_mutex);
+			std::vector<Level*> added_levels;
 
-			//then add new levels
-			for (auto& level : m_levels_to_add)
 			{
-				Level* added_level = nullptr;
-				//is this a sublevel?
-				if (level->m_outermost_level)
+				std::scoped_lock levels_lock(m_levels_mutex);
+				//then add new levels
+				for (auto& level : m_levels_to_add)
 				{
-					level->m_outermost_level->m_sublevels.push_back(std::move(level));
-					added_level = level->m_outermost_level->m_sublevels.back().get();
-				}
-				else
-				{
-					m_levels.push_back(std::move(level));
-					added_level = m_levels.back().get();
+					Level* added_level = nullptr;
+					//is this a sublevel?
+					if (level->m_outermost_level)
+					{
+						level->m_outermost_level->m_sublevels.push_back(std::move(level));
+						added_level = level->m_outermost_level->m_sublevels.back().get();
+					}
+					else
+					{
+						m_levels.push_back(std::move(level));
+						added_level = m_levels.back().get();
+						m_level_id_to_level_lut[added_level->m_level_id] = added_level;
+					}
+
+					added_levels.push_back(added_level);
 				}
 
+				m_levels_to_add.clear();
+			}
+
+			for (Level* added_level : added_levels)
+			{
 				invoke<event_created<Level>>(*added_level);
 
 				for (auto& system : m_systems)
@@ -290,8 +301,6 @@ namespace sic
 						system->on_begin_simulation(Level_context(*this, *added_level));
 				}
 			}
-
-			m_levels_to_add.clear();
 		}
 	}
 
@@ -320,6 +329,8 @@ namespace sic
 		}
 
 		invoke<event_destroyed<Level>>(in_level);
+
+		m_level_id_to_level_lut.erase(in_level.m_level_id);
 
 		std::vector<std::unique_ptr<Level>>* levels_to_remove_from;
 		if (in_level.m_parent_level)

@@ -21,6 +21,41 @@ namespace sic
 
 		Level_context context(m_engine, *this);
 		storage_to_destroy_from->destroy_instance(context, in_object_to_destroy);
+
+		{
+			std::scoped_lock lock(m_object_creation_mutex);
+			m_object_exists_flags[in_object_to_destroy.m_id] = false;
+		}
+	}
+
+	bool Level::get_does_object_exist(Object_id in_id, bool in_only_in_this_level) const
+	{
+		if (!in_id.get_is_set())
+			return false;
+
+		const i32 id = in_id.get_id();
+
+		if (in_only_in_this_level)
+		{
+			std::scoped_lock lock(m_object_creation_mutex);
+			return m_object_exists_flags.size() > id && m_object_exists_flags[id];
+		}
+		
+		if (m_outermost_level)
+			return m_outermost_level->get_does_object_exist(in_id, false);
+
+		std::scoped_lock lock(m_object_creation_mutex);
+
+		if (m_object_exists_flags.size() > id && m_object_exists_flags[id])
+			return true;
+
+		for (auto&& sublevel : m_sublevels)
+		{
+			if (sublevel->get_does_object_exist(in_id, false))
+				return true;
+		}
+
+		return false;
 	}
 
 	std::unique_ptr<Component_storage_base>& Level::get_component_storage_at_index(i32 in_index)

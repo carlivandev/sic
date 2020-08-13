@@ -263,20 +263,9 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 
 	for (const Render_object_mesh& mesh : meshes.m_objects)
 	{
-		Asset_material* mat = mesh.m_material;
-
-		for (const Material_texture_parameter& texture_param : mat->m_parameters.m_textures)
-		{
-			if (texture_param.m_texture.is_valid())
-			{
-				assert(texture_param.m_texture.get_load_state() == Asset_load_state::loaded);
-			}
-			else
-			{
-				mat = renderer_resources_state.m_error_material.get_mutable();
-				break;
-			}
-		}
+		Asset_material* child_mat = mesh.m_material;
+		Asset_material* mat = mesh.m_material->m_outermost_parent.is_valid() ? mesh.m_material->m_outermost_parent.get_mutable() : mesh.m_material;
+		assert(mat);
 
 		const GLint mat_attrib_count = mat->m_program.value().get_attribute_count();
 		const size_t mesh_attrib_count = mesh.m_mesh->m_vertex_buffer_array.value().get_attribute_count();
@@ -291,13 +280,13 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 			continue;
 		}
 
-		char* instance_buffer = mat->m_is_instanced ? mat->m_instance_buffer.data() + mesh.m_instance_data_index : nullptr;
+		char* instance_buffer = mat->m_instance_buffer.data() + mesh.m_instance_data_index;
 
 		switch (mat->m_blend_mode)
 		{
 		case Material_blend_mode::Opaque:
 		case Material_blend_mode::Masked:
-			scene_state.m_opaque_drawcalls.push_back({ mesh.m_orientation, mesh.m_mesh, mat, &mat->m_parameters, instance_buffer });
+			scene_state.m_opaque_drawcalls.push_back({ mesh.m_orientation, mesh.m_mesh, mat, instance_buffer });
 			break;
 
 		case Material_blend_mode::Translucent:
@@ -310,7 +299,7 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 				mesh.m_orientation[3][2],
 			};
 
-			scene_state.m_translucent_drawcalls.push_back({ mesh.m_orientation, mesh.m_mesh, mat, &mat->m_parameters, instance_buffer, glm::length2(mesh_location - view_location) });
+			scene_state.m_translucent_drawcalls.push_back({ mesh.m_orientation, mesh.m_mesh, mat, instance_buffer, glm::length2(mesh_location - view_location) });
 		}
 		break;
 
@@ -458,9 +447,14 @@ void sic::System_renderer::render_mesh(const Drawcall_mesh& in_dc, const glm::ma
 	if (program.get_uniform_location("model_matrix"))
 		program.set_uniform("model_matrix", in_dc.m_orientation);
 
-	for (auto& texture_param : in_dc.m_parameters->m_textures)
+	for (auto& texture_param : in_dc.m_material->m_parameters.get_textures())
 	{
-		if (!program.set_uniform(texture_param.m_name.c_str(), texture_param.m_texture.get()->m_texture.value()))
+		auto offset = in_dc.m_material->m_instance_data_name_to_offset_lut.find(texture_param.m_name);
+		assert(offset != in_dc.m_material->m_instance_data_name_to_offset_lut.end());
+
+		const GLuint64 texture_handle = *reinterpret_cast<GLuint64*>(in_dc.m_instance_data + offset->second);
+
+		if (!program.set_uniform_from_bindless_handle(texture_param.m_name.c_str(), texture_handle))
 			SIC_LOG_E(g_log_renderer_verbose, "Texture parameter: {0}", texture_param.m_name.c_str());
 	}
 

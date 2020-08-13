@@ -17,7 +17,7 @@ void sic::System_editor_view_controller::on_tick(Level_context in_context, float
 {
 	State_input& input_state = in_context.get_engine_context().get_state_checked<State_input>();
 
-	in_context.for_each<Component_editor_view_controller>
+	in_context.process<Processor_flag_write<Component_editor_view_controller>>().for_each_w<Component_editor_view_controller>
 	(
 		[engine_context = in_context.get_engine_context(), &input_state, in_time_delta](Component_editor_view_controller& evc)
 		{

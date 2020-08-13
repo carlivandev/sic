@@ -9,6 +9,21 @@ namespace sic
 	struct Engine;
 	struct Component_base;
 
+	struct Object_id
+	{
+		Object_id() = default;
+		Object_id(i32 in_object_id, i32 in_level_id) : m_id(in_object_id), m_level_id(in_level_id) {}
+
+		i32 get_id() const { return m_id; }
+		i32 get_level_id() const { return m_level_id; }
+
+		bool get_is_set() const { return m_id != -1 && m_level_id != -1; }
+
+	private:
+		i32 m_id = -1;
+		i32 m_level_id = -1;
+	};
+
 	struct Object_base : Noncopyable
 	{
 		friend struct Engine_context;
@@ -30,6 +45,11 @@ namespace sic
 		constexpr const i32 get_outermost_level_id() const
 		{
 			return m_outermost_level_id;
+		}
+
+		Object_id get_id() const
+		{
+			return Object_id(m_id, m_level_id);
 		}
 
 		template <typename T_component>
@@ -91,6 +111,7 @@ namespace sic
 		std::vector<Object_base*> m_children;
 		Object_base* m_parent = nullptr;
 		i32 m_type_index = -1;
+		i32 m_id = -1;
 		i32 m_level_id = -1;
 		i32 m_outermost_level_id = -1;
 	};

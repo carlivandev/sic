@@ -41,7 +41,7 @@ void sic::System_model::on_created(Engine_context in_context)
 				}
 			);
 
-			transform->m_on_updated.bind(in_out_component.m_on_updated_handle);
+			transform->m_on_updated.try_bind(in_out_component.m_on_updated_handle);
 			in_out_component.try_create_render_object();
 		}
 	);

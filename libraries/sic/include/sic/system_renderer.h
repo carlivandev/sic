@@ -234,31 +234,16 @@ namespace sic
 				}
 			}
 
-			for (auto& texture_param : current_instanced_begin->m_parameters->m_textures)
-			{
-				auto tex_loc_it = current_instanced_begin->m_material->m_instance_data_name_to_offset_lut.find(texture_param.m_name);
-
-				if (tex_loc_it != current_instanced_begin->m_material->m_instance_data_name_to_offset_lut.end())
-				{
-					GLuint tex_loc = tex_loc_it->second;
-					for (auto it = current_instanced_begin; it != next_instanced_begin; ++it)
-					{
-						auto bindless_handle = texture_param.m_texture.get()->m_texture.value().get_bindless_handle();
-						memcpy(it->m_instance_data + tex_loc, &bindless_handle, uniform_block_alignment_functions::get_alignment<GLuint64>());
-					}
-				}
-			}
-
 			if constexpr (T_custom_blend_mode)
 				set_blend_mode(current_instanced_begin->m_material->m_blend_mode);
 
 			if (OpenGl_uniform_block_instancing* instancing_block = inout_renderer_resources_state.get_static_uniform_block<OpenGl_uniform_block_instancing>())
 			{
 				GLfloat instance_data_texture_vec4_stride = (GLfloat)current_instanced_begin->m_material->m_instance_vec4_stride;
-				GLuint64 tex_handle = current_instanced_begin->m_material->m_instance_data_texture.value().get_bindless_handle();
+				GLuint64 instance_data_tex_handle = current_instanced_begin->m_material->m_instance_data_texture.value().get_bindless_handle();
 
 				instancing_block->set_data_raw(0, sizeof(GLfloat), &instance_data_texture_vec4_stride);
-				instancing_block->set_data_raw(uniform_block_alignment_functions::get_alignment<glm::vec4>(), sizeof(GLuint64), &tex_handle);
+				instancing_block->set_data_raw(uniform_block_alignment_functions::get_alignment<glm::vec4>(), sizeof(GLuint64), &instance_data_tex_handle);
 
 				inout_renderer_resources_state.m_draw_interface_instanced.begin_frame(*current_instanced_begin->m_mesh, *current_instanced_begin->m_material);
 

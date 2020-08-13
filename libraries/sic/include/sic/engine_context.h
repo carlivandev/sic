@@ -94,14 +94,14 @@ namespace sic
 			else
 			{
 				for (auto& level : m_engine->m_levels)
-					level->for_each<T_type>(in_func);
+					level->for_each_w<T_type>(in_func);
 			}
 		}
 
 		template<typename T_type>
 		__forceinline void for_each(std::function<void(const T_type&)> in_func) const
 		{
-			m_level.for_each<T_type>(in_func);
+			m_level.for_each_w_w<T_type>(in_func);
 		}
 
 		void create_level(Level* in_parent_level)
@@ -117,6 +117,18 @@ namespace sic
 		void shutdown()
 		{
 			m_engine->shutdown();
+		}
+
+		bool get_does_object_exist(Object_id in_id) const
+		{
+			std::scoped_lock lock(m_engine->m_levels_mutex);
+
+			auto it = m_engine->m_level_id_to_level_lut.find(in_id.get_level_id());
+
+			if (it == m_engine->m_level_id_to_level_lut.end())
+				return false;
+
+			return it->second->get_does_object_exist(in_id, false);
 		}
 
 	private:

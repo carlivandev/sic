@@ -14,6 +14,7 @@ namespace sic
 	struct Component_model : public Component
 	{
 		friend struct System_model;
+		friend struct Material_dynamic_parameters;
 
 	public:
 		void set_model(const Asset_ref<Asset_model>& in_model);

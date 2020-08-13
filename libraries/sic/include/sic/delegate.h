@@ -30,7 +30,7 @@ namespace sic
 			Handle(const Handle& in_other)
 			{
 				if (in_other.m_delegate)
-					in_other.m_delegate->bind(*this);
+					in_other.m_delegate->try_bind(*this);
 
 				m_function = in_other.m_function;
 			}
@@ -39,7 +39,7 @@ namespace sic
 			{
 				if (in_other.m_delegate)
 				{
-					in_other.m_delegate->bind(*this);
+					in_other.m_delegate->try_bind(*this);
 					in_other.m_delegate->unbind(in_other);
 				}
 
@@ -53,7 +53,7 @@ namespace sic
 
 				if (in_other.m_delegate)
 				{
-					in_other.m_delegate->bind(*this);
+					in_other.m_delegate->try_bind(*this);
 					in_other.m_delegate->unbind(in_other);
 				}
 
@@ -68,7 +68,7 @@ namespace sic
 					m_delegate->unbind(*this);
 
 				if (in_other.m_delegate)
-					in_other.m_delegate->bind(*this);
+					in_other.m_delegate->try_bind(*this);
 
 				m_function = in_other.m_function;
 
@@ -123,11 +123,18 @@ namespace sic
 			}
 		}
 
-		void bind(Handle& in_out_handle)
+		void try_bind(Handle& in_out_handle)
 		{
+			if (in_out_handle.m_delegate == this)
+				return;
+			else if (in_out_handle.m_delegate != nullptr)
+				in_out_handle.m_delegate->unbind(in_out_handle);
+
 			std::scoped_lock lock(m_mutex);
 
 			m_handles.push_back(&in_out_handle);
+
+
 			in_out_handle.m_delegate = this;
 		}
 
@@ -149,9 +156,16 @@ namespace sic
 
 		void invoke(std::tuple<t_args...> in_params)
 		{
-			std::scoped_lock lock(m_mutex);
+			std::vector<Handle*> handles_copy;
 
-			for (Handle* it : m_handles)
+			{
+				std::scoped_lock lock(m_mutex);
+				handles_copy = m_handles;
+			}
+
+			std::scoped_lock lock(m_invocation_mutex);
+
+			for (Handle* it : handles_copy)
 			{
 				if (it && it->m_function)
 					std::apply(it->m_function, in_params);
@@ -160,9 +174,16 @@ namespace sic
 
 		void invoke()
 		{
-			std::scoped_lock lock(m_mutex);
+			std::vector<Handle*> handles_copy;
 
-			for (Handle* it : m_handles)
+			{
+				std::scoped_lock lock(m_mutex);
+				handles_copy = m_handles;
+			}
+
+			std::scoped_lock lock(m_invocation_mutex);
+
+			for (Handle* it : handles_copy)
 			{
 				if (it && it->m_function)
 					it->m_function();
@@ -172,5 +193,6 @@ namespace sic
 	private:
 		std::vector<Handle*> m_handles;
 		std::mutex m_mutex;
+		std::mutex m_invocation_mutex;
 	};
 }

@@ -99,6 +99,7 @@ namespace sic
 		std::vector<std::unique_ptr<Level>> m_levels;
 		std::vector<std::unique_ptr<Level>> m_levels_to_add;
 		std::vector<Level*> m_levels_to_remove;
+		std::unordered_map<i32, Level*> m_level_id_to_level_lut;
 		i32 m_level_id_ticker = 0;
 
 		std::vector<std::unique_ptr<Event_base>> m_engine_events;

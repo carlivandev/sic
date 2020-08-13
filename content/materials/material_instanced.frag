@@ -18,7 +18,8 @@ void main()
 	mat4 mvp = read_mat4(instance_data_texture_sampler, instance_data_begin, instance_data_it);
 	mat4 model_matrix = read_mat4(instance_data_texture_sampler, instance_data_begin, instance_data_it);
 	sampler2D albedo_sampler = read_sampler2D(instance_data_texture_sampler, instance_data_begin, instance_data_it);
+	vec4 color_additive = read_vec4(instance_data_texture_sampler, instance_data_begin, instance_data_it);
 
 	vec3 material_diffuse_color = texture(albedo_sampler, texcoord ).rgb;
-	color = (calculate_light_for_fragment(material_diffuse_color, position_worldspace, normal_cameraspace, eye_direction_cameraspace) * 3.f);
+	color = (calculate_light_for_fragment(material_diffuse_color, position_worldspace, normal_cameraspace, eye_direction_cameraspace) * 3.f) + color_additive.xyz;
 }

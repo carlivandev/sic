@@ -32,7 +32,7 @@ void sic::System_view::on_created(Engine_context in_context)
 				}
 			);
 			
-			transform->m_on_updated.bind(in_out_component.m_on_updated_handle);
+			transform->m_on_updated.try_bind(in_out_component.m_on_updated_handle);
 
 			in_out_component.m_render_object_id = in_out_component.m_render_scene_state->create_object<Render_object_view>
 			(
