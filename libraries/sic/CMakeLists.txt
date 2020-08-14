@@ -58,6 +58,7 @@ add_headers(SIC_HEADERS
 	level.h
 	engine_context.h
 	level_context.h
+	weak_ref.h
 	file_management.h
 	system_file.h
 	asset.h
@@ -70,6 +71,7 @@ add_headers(SIC_HEADERS
 	system_window.h
 	system_input.h
 	system_view.h
+	material_dynamic_parameters.h
 	debug_draw_helpers.h
 	input.h
 	gl_includes.h
