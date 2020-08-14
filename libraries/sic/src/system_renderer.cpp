@@ -94,41 +94,81 @@ void sic::System_renderer::on_engine_finalized(Engine_context in_context) const
 		Shader_parser::parse_shader(simple_texture_fragment_shader_path).value()
 	);
 
-	resources.m_quad_vertex_buffer_array.emplace();
-	resources.m_quad_indexbuffer.emplace(OpenGl_buffer::Creation_params(OpenGl_buffer_target::element_array, OpenGl_buffer_usage::static_draw));
-	const std::vector<GLfloat> positions =
 	{
-		-1.0f, -1.0f,
-		-1.0f, 1.0f,
-		1.0f, 1.0f,
-		1.0f, -1.0f
-	};
+		resources.m_quad_vertex_buffer_array.emplace();
+		resources.m_quad_indexbuffer.emplace(OpenGl_buffer::Creation_params(OpenGl_buffer_target::element_array, OpenGl_buffer_usage::static_draw));
+		const std::vector<GLfloat> positions =
+		{
+			-1.0f, -1.0f,
+			-1.0f, 1.0f,
+			1.0f, 1.0f,
+			1.0f, -1.0f
+		};
 
-	const std::vector<GLfloat> tex_coords =
+		const std::vector<GLfloat> tex_coords =
+		{
+			0.0f, 0.0f,
+			0.0f, 1.0f,
+			1.0f, 1.0f,
+			1.0f, 0.0f
+		};
+
+		/*
+		1 2
+		0 3
+		*/
+
+		std::vector<unsigned int> indices =
+		{
+			0, 2, 1,
+			0, 3, 2
+		};
+
+		resources.m_quad_vertex_buffer_array.value().bind();
+
+		resources.m_quad_vertex_buffer_array.value().set_data<OpenGl_vertex_attribute_position2D>(positions);
+		resources.m_quad_vertex_buffer_array.value().set_data<OpenGl_vertex_attribute_texcoord>(tex_coords);
+
+		resources.m_quad_indexbuffer.value().set_data(indices);
+	}
+
 	{
-		0.0f, 0.0f,
-		0.0f, 1.0f,
-		1.0f, 1.0f,
-		1.0f, 0.0f
-	};
+		resources.m_y_flipped_quad_vertex_buffer_array.emplace();
+		resources.m_y_flipped_quad_indexbuffer.emplace(OpenGl_buffer::Creation_params(OpenGl_buffer_target::element_array, OpenGl_buffer_usage::static_draw));
+		const std::vector<GLfloat> positions =
+		{
+			-1.0f, -1.0f,
+			-1.0f, 1.0f,
+			1.0f, 1.0f,
+			1.0f, -1.0f
+		};
 
-	/*
-	1 2
-	0 3
-	*/
+		const std::vector<GLfloat> tex_coords =
+		{
+			0.0f, 1.0f,
+			0.0f, 0.0f,
+			1.0f, 0.0f,
+			1.0f, 1.0f
+		};
 
-	std::vector<unsigned int> indices =
-	{
-		0, 2, 1,
-		0, 3, 2
-	};
+		/*
+		1 2
+		0 3
+		*/
 
-	resources.m_quad_vertex_buffer_array.value().bind();
+		std::vector<unsigned int> indices =
+		{
+			0, 2, 1,
+			0, 3, 2
+		};
 
-	resources.m_quad_vertex_buffer_array.value().set_data<OpenGl_vertex_attribute_position2D>(positions);
-	resources.m_quad_vertex_buffer_array.value().set_data<OpenGl_vertex_attribute_texcoord>(tex_coords);
+		resources.m_y_flipped_quad_vertex_buffer_array.value().bind();
 
-	resources.m_quad_indexbuffer.value().set_data(indices);
+		resources.m_y_flipped_quad_vertex_buffer_array.value().set_data<OpenGl_vertex_attribute_position2D>(positions);
+		resources.m_y_flipped_quad_vertex_buffer_array.value().set_data<OpenGl_vertex_attribute_texcoord>(tex_coords);
+
+		resources.m_y_flipped_quad_indexbuffer.value().set_data(indices);
+	}
 
 	std::vector<unsigned char> white_pixels =
 	{
@@ -246,69 +286,6 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 	if (scene_it == scene_state.m_level_id_to_scene_lut.end())
 		return;
 
-	const Update_list<Render_object_mesh>& meshes = std::get<Update_list<Render_object_mesh>>(scene_it->second);
-
-	scene_state.m_opaque_drawcalls.clear();
-	scene_state.m_translucent_drawcalls.clear();
-
-	scene_state.m_opaque_drawcalls.reserve(meshes.m_objects.size());
-	scene_state.m_translucent_drawcalls.reserve(meshes.m_objects.size());
-
-	const glm::vec3 view_location =
-	{
-		inout_view.m_view_orientation[3][0],
-		inout_view.m_view_orientation[3][1],
-		inout_view.m_view_orientation[3][2],
-	};
-
-	for (const Render_object_mesh& mesh : meshes.m_objects)
-	{
-		Asset_material* child_mat = mesh.m_material;
-		Asset_material* mat = mesh.m_material->m_outermost_parent.is_valid() ? mesh.m_material->m_outermost_parent.get_mutable() : mesh.m_material;
-		assert(mat);
-
-		const GLint mat_attrib_count = mat->m_program.value().get_attribute_count();
-		const size_t mesh_attrib_count = mesh.m_mesh->m_vertex_buffer_array.value().get_attribute_count();
-		if (mat_attrib_count > mesh_attrib_count)
-		{
-			SIC_LOG_E
-			(
-				g_log_renderer, "Failed to add drawcall, material(\"{0})\" expected {1} attributes but mesh only has {2}.",
-				mat->m_vertex_shader_path, mat_attrib_count, mesh_attrib_count
-			);
-
-			continue;
-		}
-
-		char* instance_buffer = mat->m_instance_buffer.data() + mesh.m_instance_data_index;
-
-		switch (mat->m_blend_mode)
-		{
-		case Material_blend_mode::Opaque:
-		case Material_blend_mode::Masked:
-			scene_state.m_opaque_drawcalls.push_back({ mesh.m_orientation, mesh.m_mesh, mat, instance_buffer });
-			break;
-
-		case Material_blend_mode::Translucent:
-		case Material_blend_mode::Additive:
-		{
-			const glm::vec3 mesh_location =
-			{
-				mesh.m_orientation[3][0],
-				mesh.m_orientation[3][1],
-				mesh.m_orientation[3][2],
-			};
-
-			scene_state.m_translucent_drawcalls.push_back({ mesh.m_orientation, mesh.m_mesh, mat, instance_buffer, glm::length2(mesh_location - view_location) });
-		}
-		break;
-
-		case Material_blend_mode::Invalid:
-		default:
-			continue;
-		}
-	}
-
 	sic::i32 current_window_x, current_window_y;
 	glfwGetWindowSize(in_window.m_context, &current_window_x, &current_window_y);
 
@@ -321,6 +298,8 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 		view_dimensions.y != target_dimensions.y)
 	{
 		inout_view.m_render_target.value().resize(target_dimensions);
+		inout_view.m_ui_render_target.value().resize(target_dimensions);
+
 		view_dimensions = target_dimensions;
 	}
 
@@ -350,11 +329,242 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 	const glm::mat4x4 view_mat = glm::inverse(inout_view.m_view_orientation);
 	const glm::mat4x4 view_proj_mat = proj_mat * view_mat;
 
+	const glm::vec3 view_location =
+	{
+		inout_view.m_view_orientation[3][0],
+		inout_view.m_view_orientation[3][1],
+		inout_view.m_view_orientation[3][2],
+	};
+
 	if (OpenGl_uniform_block_view* view_block = renderer_resources_state.get_static_uniform_block<OpenGl_uniform_block_view>())
 	{
 		view_block->set_data(0, view_mat);
 		view_block->set_data(1, proj_mat);
 		view_block->set_data(2, view_proj_mat);
+	}
+
+	{
+		Render_all_3d_objects_data render_data;
+		render_data.m_meshes = &std::get<Update_list<Render_object_mesh>>(scene_it->second);
+		render_data.m_debug_drawer = &std::get<Update_list<Render_object_debug_drawer>>(scene_it->second);
+		render_data.m_scene_state = &scene_state;
+		render_data.m_renderer_resources_state = &renderer_resources_state;
+		render_data.m_debug_drawer_state = &debug_drawer_state;
+		render_data.m_view_mat = view_mat;
+		render_data.m_proj_mat = proj_mat;
+		render_data.m_view_location = view_location;
+
+		render_all_3d_objects(render_data);
+		//insert post-processing here
+	}
+
+	//TODO: draw ui here
+	inout_view.m_ui_render_target.value().bind_as_target(0);
+	inout_view.m_ui_render_target.value().clear();
+
+	glViewport
+	(
+		0,
+		0,
+		view_dimensions.x,
+		view_dimensions.y
+	);
+
+	{
+		auto& ui_elements = std::get<Update_list<Render_object_ui>>(scene_it->second);
+
+		scene_state.m_ui_drawcalls.clear();
+		scene_state.m_ui_drawcalls.reserve(ui_elements.m_objects.size());
+
+		for (const Render_object_ui& element : ui_elements.m_objects)
+		{
+			Asset_material* child_mat = element.m_material;
+			Asset_material* mat = element.m_material->m_outermost_parent.is_valid() ? element.m_material->m_outermost_parent.get_mutable() : element.m_material;
+			assert(mat);
+
+			const GLint mat_attrib_count = mat->m_program.value().get_attribute_count();
+			const size_t mesh_attrib_count = renderer_resources_state.m_y_flipped_quad_vertex_buffer_array.value().get_attribute_count();
+			if (mat_attrib_count > mesh_attrib_count)
+			{
+				SIC_LOG_E
+				(
+					g_log_renderer, "Failed to add drawcall, material(\"{0})\" expected {1} attributes but mesh only has {2}.",
+					mat->m_vertex_shader_path, mat_attrib_count, mesh_attrib_count
+				);
+
+				continue;
+			}
+
+			byte* instance_buffer = mat->m_instance_buffer.data() + element.m_instance_data_index;
+
+			switch (mat->m_blend_mode)
+			{
+			case Material_blend_mode::Opaque:
+			case Material_blend_mode::Masked:
+				SIC_LOG_E(g_log_renderer, "Failed to add UI drawcall, material(\"{0})\" has an invalid blendmode, only Translucent/Additive is supported.", mat->get_header().m_name);
+				continue;
+				break;
+
+			case Material_blend_mode::Translucent:
+			case Material_blend_mode::Additive:
+			{
+				scene_state.m_ui_drawcalls.push_back(Drawcall_ui_element(element.m_topleft, element.m_bottomright, mat, instance_buffer, element.m_sort_priority, element.m_custom_sort_priority));
+			}
+			break;
+
+			case Material_blend_mode::Invalid:
+			default:
+				continue;
+			}
+		}
+
+		set_depth_mode(Depth_mode::disabled);
+		renderer_resources_state.m_y_flipped_quad_vertex_buffer_array.value().bind();
+		renderer_resources_state.m_y_flipped_quad_indexbuffer.value().bind();
+		const GLsizei idx_buffer_max_elements_count = static_cast<GLsizei>(renderer_resources_state.m_y_flipped_quad_indexbuffer.value().get_max_elements());
+
+		std::sort
+		(
+			scene_state.m_ui_drawcalls.begin(), scene_state.m_ui_drawcalls.end(),
+			[](const Drawcall_ui_element& in_a, const Drawcall_ui_element& in_b)
+			{
+				if (in_a.m_sort_priority < in_b.m_sort_priority)
+					return true;
+				else if (in_a.m_sort_priority > in_b.m_sort_priority)
+					return false;
+
+				return in_a.m_custom_sort_priority < in_b.m_sort_priority;
+			}
+		);
+
+		auto instanced_begin = sort_instanced(scene_state.m_ui_drawcalls);
+
+		const char* topleft_bottomright_packed_name = "topleft_bottomright_packed";
+
+		for (auto it = scene_state.m_ui_drawcalls.begin(); it != instanced_begin; ++it)
+		{
+			set_blend_mode(it->m_material->m_blend_mode);
+
+			const auto& program = it->m_material->m_program.value();
+			program.use();
+
+			const glm::vec4 topleft_bottomright_packed = { it->m_topleft.x, it->m_topleft.y, it->m_bottomright.x, it->m_bottomright.y };
+
+			if (program.get_uniform_location(topleft_bottomright_packed_name))
+				program.set_uniform(topleft_bottomright_packed_name, topleft_bottomright_packed);
+
+			apply_parameters(*it->m_material, it->m_instance_data, program);
+
+			OpenGl_draw_strategy_triangle_element::draw(idx_buffer_max_elements_count, 0);
+		}
+
+		//render_meshes_instanced(instanced_begin, scene_state.m_ui_drawcalls.end(), proj_mat, view_mat, renderer_resources_state);
+
+		//insert post-processing here
+	}
+
+	set_depth_mode(Depth_mode::read_write);
+	set_blend_mode(Material_blend_mode::Opaque);
+
+	in_window.m_render_target.value().bind_as_target(0);
+
+	SIC_GL_CHECK(glViewport
+	(
+		static_cast<GLsizei>((current_window_x * inout_view.m_viewport_offset.x)),
+		static_cast<GLsizei>(current_window_y * inout_view.m_viewport_offset.y),
+		static_cast<GLsizei>((current_window_x * inout_view.m_viewport_size.x)),
+		static_cast<GLsizei>(current_window_y * inout_view.m_viewport_size.y)
+	));
+
+	renderer_resources_state.m_quad_vertex_buffer_array.value().bind();
+	renderer_resources_state.m_quad_indexbuffer.value().bind();
+
+	renderer_resources_state.m_pass_through_program.value().use();
+
+	renderer_resources_state.m_pass_through_program.value().set_uniform("uniform_texture", inout_view.m_render_target.value().get_texture());
+	renderer_resources_state.m_pass_through_program.value().set_uniform("topleft_bottomright_packed", glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
+
+	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(renderer_resources_state.m_quad_indexbuffer.value().get_max_elements()), 0);
+
+	if (!scene_state.m_ui_drawcalls.empty())
+	{
+		set_depth_mode(Depth_mode::disabled);
+		set_blend_mode(Material_blend_mode::Translucent);
+
+		renderer_resources_state.m_pass_through_program.value().set_uniform("uniform_texture", inout_view.m_ui_render_target.value().get_texture());
+		renderer_resources_state.m_pass_through_program.value().set_uniform("topleft_bottomright_packed", glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
+
+		OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(renderer_resources_state.m_quad_indexbuffer.value().get_max_elements()), 0);
+	}
+
+	set_depth_mode(Depth_mode::read_write);
+	set_blend_mode(Material_blend_mode::Opaque);
+}
+
+void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_data) const
+{
+	const Update_list<Render_object_mesh>& meshes = *in_data.m_meshes;
+	Update_list<Render_object_debug_drawer>& debug_drawers = *in_data.m_debug_drawer;
+	State_render_scene& scene_state = *in_data.m_scene_state;
+	State_renderer_resources& renderer_resources_state = *in_data.m_renderer_resources_state;
+	State_debug_drawing& debug_drawer_state = *in_data.m_debug_drawer_state;
+
+	const glm::mat4x4 view_mat = in_data.m_view_mat;
+	const glm::mat4x4 proj_mat = in_data.m_proj_mat;
+	const glm::vec3 view_location = in_data.m_view_location;
+
+	scene_state.m_opaque_drawcalls.clear();
+	scene_state.m_translucent_drawcalls.clear();
+
+	scene_state.m_opaque_drawcalls.reserve(meshes.m_objects.size());
+	scene_state.m_translucent_drawcalls.reserve(meshes.m_objects.size());
+
+	for (const Render_object_mesh& mesh : meshes.m_objects)
+	{
+		Asset_material* child_mat = mesh.m_material;
+		Asset_material* mat = mesh.m_material->m_outermost_parent.is_valid() ? mesh.m_material->m_outermost_parent.get_mutable() : mesh.m_material;
+		assert(mat);
+
+		const GLint mat_attrib_count = mat->m_program.value().get_attribute_count();
+		const size_t mesh_attrib_count = mesh.m_mesh->m_vertex_buffer_array.value().get_attribute_count();
+		if (mat_attrib_count > mesh_attrib_count)
+		{
+			SIC_LOG_E
+			(
+				g_log_renderer, "Failed to add drawcall, material(\"{0})\" expected {1} attributes but mesh only has {2}.",
+				mat->m_vertex_shader_path, mat_attrib_count, mesh_attrib_count
+			);
+
+			continue;
+		}
+
+		char* instance_buffer = mat->m_instance_buffer.data() + mesh.m_instance_data_index;
+
+		switch (mat->m_blend_mode)
+		{
+		case Material_blend_mode::Opaque:
+		case Material_blend_mode::Masked:
+			scene_state.m_opaque_drawcalls.push_back(Drawcall_mesh(mesh.m_orientation, mesh.m_mesh, mat, instance_buffer));
+			break;
+
+		case Material_blend_mode::Translucent:
+		case Material_blend_mode::Additive:
+		{
+			const glm::vec3 mesh_location =
+			{
+				mesh.m_orientation[3][0],
+				mesh.m_orientation[3][1],
+				mesh.m_orientation[3][2],
+			};
+
+			scene_state.m_translucent_drawcalls.push_back(Drawcall_mesh_translucent(mesh.m_orientation, mesh.m_mesh, mat, instance_buffer, glm::length2(mesh_location - view_location)));
+		}
+		break;
+
+		case Material_blend_mode::Invalid:
+		default:
+			continue;
+		}
 	}
 
 	const glm::vec3 first_light_pos = glm::vec3(100.0f, 100.0f, -300.0f);
@@ -383,82 +593,42 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 		lights_block->set_data_raw(1, 0, byte_size, relevant_lights.data());
 	}
 
-	set_depth_mode(Depth_mode::read_write);
-	set_blend_mode(Material_blend_mode::Opaque);
+	{
+		set_depth_mode(Depth_mode::read_write);
+		set_blend_mode(Material_blend_mode::Opaque);
 
-	render_meshes<Drawcall_mesh, false, false>(scene_state.m_opaque_drawcalls, proj_mat, view_mat, renderer_resources_state);
+		auto instanced_begin = sort_instanced(scene_state.m_opaque_drawcalls);
+
+		render_meshes(scene_state.m_opaque_drawcalls.begin(), instanced_begin, proj_mat, view_mat);
+		render_meshes_instanced(instanced_begin, scene_state.m_opaque_drawcalls.end(), proj_mat, view_mat, renderer_resources_state);
+	}
 
 	debug_drawer_state.m_draw_interface_debug_lines.value().begin_frame();
 
-	Update_list<Render_object_debug_drawer>& debug_drawers = std::get<Update_list<Render_object_debug_drawer>>(scene_it->second);
+	
 
 	for (Render_object_debug_drawer& debug_drawer : debug_drawers.m_objects)
 		debug_drawer.draw_shapes(debug_drawer_state.m_draw_interface_debug_lines.value());
 
 	debug_drawer_state.m_draw_interface_debug_lines.value().end_frame();
 
-	set_depth_mode(Depth_mode::read);
-
-	std::sort
-	(
-		scene_state.m_translucent_drawcalls.begin(), scene_state.m_translucent_drawcalls.end(),
-		[](const Drawcall_mesh_translucent& in_a, const Drawcall_mesh_translucent& in_b)
-		{
-			return in_a.m_distance_to_view_2 < in_b.m_distance_to_view_2;
-		}
-	);
-
-	render_meshes<Drawcall_mesh_translucent, true, true>(scene_state.m_translucent_drawcalls, proj_mat, view_mat, renderer_resources_state);
-
-	set_depth_mode(Depth_mode::read_write);
-	set_blend_mode(Material_blend_mode::Opaque);
-
-	in_window.m_render_target.value().bind_as_target(0);
-
-	SIC_GL_CHECK(glViewport
-	(
-		static_cast<GLsizei>((current_window_x * inout_view.m_viewport_offset.x)),
-		static_cast<GLsizei>(current_window_y * inout_view.m_viewport_offset.y),
-		static_cast<GLsizei>((current_window_x * inout_view.m_viewport_size.x)),
-		static_cast<GLsizei>(current_window_y * inout_view.m_viewport_size.y)
-	));
-
-	renderer_resources_state.m_quad_vertex_buffer_array.value().bind();
-	renderer_resources_state.m_quad_indexbuffer.value().bind();
-
-	renderer_resources_state.m_pass_through_program.value().use();
-
-	renderer_resources_state.m_pass_through_program.value().set_uniform("uniform_texture", inout_view.m_render_target.value().get_texture());
-
-	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(renderer_resources_state.m_quad_indexbuffer.value().get_max_elements()), 0);
-}
-
-void sic::System_renderer::render_mesh(const Drawcall_mesh& in_dc, const glm::mat4& in_mvp) const
-{
-	in_dc.m_mesh->m_vertex_buffer_array.value().bind();
-	in_dc.m_mesh->m_index_buffer.value().bind();
-
-	auto& program = in_dc.m_material->m_program.value();
-	program.use();
-
-	if (program.get_uniform_location("MVP"))
-		program.set_uniform("MVP", in_mvp);
-
-	if (program.get_uniform_location("model_matrix"))
-		program.set_uniform("model_matrix", in_dc.m_orientation);
-
-	for (auto& texture_param : in_dc.m_material->m_parameters.get_textures())
 	{
-		auto offset = in_dc.m_material->m_instance_data_name_to_offset_lut.find(texture_param.m_name);
-		assert(offset != in_dc.m_material->m_instance_data_name_to_offset_lut.end());
+		set_depth_mode(Depth_mode::read);
 
-		const GLuint64 texture_handle = *reinterpret_cast<GLuint64*>(in_dc.m_instance_data + offset->second);
+		std::sort
+		(
+			scene_state.m_translucent_drawcalls.begin(), scene_state.m_translucent_drawcalls.end(),
+			[](const Drawcall_mesh_translucent& in_a, const Drawcall_mesh_translucent& in_b)
+			{
+				return in_a.m_distance_to_view_2 < in_b.m_distance_to_view_2;
+			}
+		);
 
-		if (!program.set_uniform_from_bindless_handle(texture_param.m_name.c_str(), texture_handle))
-			SIC_LOG_E(g_log_renderer_verbose, "Texture parameter: {0}", texture_param.m_name.c_str());
+		auto instanced_begin = sort_instanced(scene_state.m_translucent_drawcalls);
+
+		render_meshes(scene_state.m_translucent_drawcalls.begin(), instanced_begin, proj_mat, view_mat);
+		render_meshes_instanced(instanced_begin, scene_state.m_translucent_drawcalls.end(), proj_mat, view_mat, renderer_resources_state);
 	}
-
-	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(in_dc.m_mesh->m_index_buffer.value().get_max_elements()), 0);
 }
 
 void sic::System_renderer::render_views_to_window_backbuffers(const std::unordered_map<sic::Render_object_window*, std::vector<sic::Render_object_view*>>& in_window_to_view_lut) const
@@ -469,6 +639,31 @@ void sic::System_renderer::render_views_to_window_backbuffers(const std::unorder
 		window_to_views_it.first->draw_to_backbuffer();
 
 		glfwSwapBuffers(window_to_views_it.first->m_context);
+	}
+}
+
+void sic::System_renderer::apply_parameters(const Asset_material& in_material, const byte* in_instance_data, const OpenGl_program& in_program) const
+{
+	for (auto& param : in_material.m_parameters.get_textures())
+	{
+		auto offset = in_material.m_instance_data_name_to_offset_lut.find(param.m_name);
+		assert(offset != in_material.m_instance_data_name_to_offset_lut.end());
+
+		const GLuint64 texture_handle = *reinterpret_cast<const GLuint64*>(in_instance_data + offset->second);
+
+		if (!in_program.set_uniform_from_bindless_handle(param.m_name.c_str(), texture_handle))
+			SIC_LOG_E(g_log_renderer_verbose, "Texture parameter: {0}", param.m_name.c_str());
+	}
+
+	for (auto& param : in_material.m_parameters.get_vec4s())
+	{
+		auto offset = in_material.m_instance_data_name_to_offset_lut.find(param.m_name);
+		assert(offset != in_material.m_instance_data_name_to_offset_lut.end());
+
+		const glm::vec4 vec4_value = *reinterpret_cast<const glm::vec4*>(in_instance_data + offset->second);
+
+		if (!in_program.set_uniform(param.m_name.c_str(), vec4_value))
+			SIC_LOG_E(g_log_renderer_verbose, "Vec4 parameter: {0}", param.m_name.c_str());
 	}
 }
 

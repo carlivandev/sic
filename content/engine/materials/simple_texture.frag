@@ -1,8 +1,5 @@
 #version 410 core
-
-in vec2 texcoord;
-
-layout(location = 0) out vec4 out_color;
+//! #include "includes/ui_frag_header.glsl"
 
 uniform sampler2D uniform_texture;
 

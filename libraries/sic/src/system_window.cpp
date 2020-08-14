@@ -401,7 +401,7 @@ sic::Window_proxy& sic::State_window::create_window(Engine_context in_context, c
 
 			//we have to initialize fbo on main context cause it is not shared
 			glfwMakeContextCurrent(resource_context);
-			in_out_window.m_render_target.emplace(in_dimensions, false);
+			in_out_window.m_render_target.emplace(in_dimensions, OpenGl_texture_format::rgb,  false);
 		}
 	);
 

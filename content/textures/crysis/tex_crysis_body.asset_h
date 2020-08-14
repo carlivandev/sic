@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/textures/crysis/tex_crysis_body.asset",
-	"id": "d51dac18-264a-450a-935e-8f799c8a0b3a",
+	"id": "c8f730ef-04b3-413d-9c95-8bbe9fca845f",
 	"name": "tex_crysis_body",
 	"type": "struct sic::Asset_texture"
 }

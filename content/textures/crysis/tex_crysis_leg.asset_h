@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/textures/crysis/tex_crysis_leg.asset",
-	"id": "48c72215-83d9-4c1e-9096-333949151404",
+	"id": "d05d98ca-5a58-4cb7-9eee-6af6aba3fc97",
 	"name": "tex_crysis_leg",
 	"type": "struct sic::Asset_texture"
 }

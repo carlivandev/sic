@@ -9,8 +9,10 @@
 #include "sic/state_render_scene.h"
 #include "sic/opengl_texture.h"
 #include "sic/opengl_draw_interface_instanced.h"
+#include "sic/update_list.h"
 
 #include "glm/mat4x4.hpp"
+#include "glm/vec3.hpp"
 
 #include <unordered_map>
 #include <optional>
@@ -21,6 +23,7 @@ namespace sic
 	struct Render_object_window;
 	struct Render_object_view;
 	struct Render_object_debug_drawer;
+	struct Render_object_mesh;
 
 	enum class Depth_mode
 	{
@@ -96,6 +99,7 @@ namespace sic
 
 		OpenGl_draw_interface_instanced m_draw_interface_instanced;
 		std::optional<OpenGl_program> m_pass_through_program;
+		
 		std::optional<OpenGl_vertex_buffer_array
 			<
 			OpenGl_vertex_attribute_position2D,
@@ -103,6 +107,15 @@ namespace sic
 			>> m_quad_vertex_buffer_array;
 
 		std::optional<OpenGl_buffer> m_quad_indexbuffer;
+		
+		std::optional<OpenGl_vertex_buffer_array
+			<
+			OpenGl_vertex_attribute_position2D,
+			OpenGl_vertex_attribute_texcoord
+			>> m_y_flipped_quad_vertex_buffer_array;
+
+		std::optional<OpenGl_buffer> m_y_flipped_quad_indexbuffer;
+
 		std::optional<OpenGl_texture> m_white_texture;
 		Asset_ref<Asset_material> m_error_material;
 
@@ -133,6 +146,19 @@ namespace sic
 
 	struct System_renderer : System
 	{
+		struct Render_all_3d_objects_data
+		{
+			const Update_list<Render_object_mesh>* m_meshes = nullptr;
+			Update_list<Render_object_debug_drawer>* m_debug_drawer = nullptr;
+			State_render_scene* m_scene_state = nullptr;
+			State_renderer_resources* m_renderer_resources_state = nullptr;
+			State_debug_drawing* m_debug_drawer_state = nullptr;
+
+			glm::mat4x4 m_view_mat;
+			glm::mat4x4 m_proj_mat;
+			glm::vec3 m_view_location;
+		};
+
 		virtual void on_created(Engine_context in_context) override;
 		virtual void on_engine_finalized(Engine_context in_context) const override;
 		virtual void on_engine_tick(Engine_context in_context, float in_time_delta) const override;
@@ -140,11 +166,23 @@ namespace sic
 	private:
 		void render_view(Engine_context in_context, const Render_object_window& in_window, Render_object_view& inout_view) const;
 
-		template <typename T_drawcall_type, bool T_custom_blend_mode, bool T_stable_partition>
-		void render_meshes(std::vector<T_drawcall_type>& inout_drawcalls, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix, State_renderer_resources& inout_renderer_resources_state) const;
+		void render_all_3d_objects(Render_all_3d_objects_data in_data) const;
 
-		void render_mesh(const Drawcall_mesh& in_dc, const glm::mat4& in_mvp) const;
+		template <typename T_drawcall_type>
+		auto sort_instanced(std::vector<T_drawcall_type>& inout_drawcalls) const;
+
+		template <typename T_iterator_type>
+		void render_meshes(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix) const;
+
+		template <typename T_iterator_type>
+		void render_meshes_instanced(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix, State_renderer_resources& inout_renderer_resources_state) const;
+
+		template<typename T_drawcall_type>
+		void render_mesh(const T_drawcall_type& in_dc, const glm::mat4& in_mvp) const;
+
 		void render_views_to_window_backbuffers(const std::unordered_map<sic::Render_object_window*, std::vector<sic::Render_object_view*>>& in_window_to_view_lut) const;
+
+		void apply_parameters(const Asset_material& in_material, const byte* in_instance_data, const OpenGl_program& in_program) const;
 
 		void do_asset_post_loads(Engine_context in_context) const;
 
@@ -157,10 +195,11 @@ namespace sic
 		void set_depth_mode(Depth_mode in_to_set) const;
 		void set_blend_mode(Material_blend_mode in_to_set) const;
 	};
-	template<typename T_drawcall_type, bool T_custom_blend_mode, bool T_stable_partition>
-	inline void System_renderer::render_meshes(std::vector<T_drawcall_type>& inout_drawcalls, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix, State_renderer_resources& inout_renderer_resources_state) const
+
+	template<typename T_drawcall_type>
+	inline auto System_renderer::sort_instanced(std::vector<T_drawcall_type>& inout_drawcalls) const
 	{
-		auto instanced_begin = T_stable_partition ?
+		return T_drawcall_type::get_uses_stable_partition() ?
 		std::stable_partition
 		(
 			inout_drawcalls.begin(), inout_drawcalls.end(),
@@ -178,36 +217,42 @@ namespace sic
 				return !in_a.m_material->m_is_instanced;
 			}
 		);
-
-		for (auto it = inout_drawcalls.begin(); it != instanced_begin; ++it)
+	}
+	template<typename T_iterator_type>
+	inline void System_renderer::render_meshes(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix) const
+	{
+		for (auto it = in_begin; it != in_end; ++it)
 		{
-			if constexpr (T_custom_blend_mode)
+			if constexpr (std::iterator_traits<T_iterator_type>::value_type::get_uses_custom_blendmode())
 				set_blend_mode(it->m_material->m_blend_mode);
 
 			const glm::mat4 mvp = in_projection_matrix * in_view_matrix * it->m_orientation;
 			render_mesh(*it, mvp);
 		}
+	}
+	template<typename T_iterator_type>
+	inline void System_renderer::render_meshes_instanced(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix, State_renderer_resources& inout_renderer_resources_state) const
+	{
+		auto current_instanced_begin = in_begin;
 
-		auto current_instanced_begin = instanced_begin;
-
-		while (current_instanced_begin != inout_drawcalls.end())
+		while (current_instanced_begin != in_end)
 		{
-			auto next_instanced_begin = T_stable_partition ?
+			auto next_instanced_begin = std::iterator_traits<T_iterator_type>::value_type::get_uses_stable_partition() ?
 			std::stable_partition
 			(
-				current_instanced_begin, inout_drawcalls.end(),
-				[current_instanced_begin](const T_drawcall_type& in_a)
+				current_instanced_begin, in_end,
+				[current_instanced_begin](const auto& in_a)
 				{
-					return current_instanced_begin->m_material == in_a.m_material && current_instanced_begin->m_mesh == in_a.m_mesh;
+					return in_a.partition(*current_instanced_begin);
 				}
 			)
 			:
 			std::partition
 			(
-				current_instanced_begin, inout_drawcalls.end(),
-				[current_instanced_begin](const T_drawcall_type& in_a)
+				current_instanced_begin, in_end,
+				[current_instanced_begin](const auto& in_a)
 				{
-					return current_instanced_begin->m_material == in_a.m_material && current_instanced_begin->m_mesh == in_a.m_mesh;
+					return in_a.partition(*current_instanced_begin);
 				}
 			);
 
@@ -234,7 +279,7 @@ namespace sic
 				}
 			}
 
-			if constexpr (T_custom_blend_mode)
+			if constexpr (std::iterator_traits<T_iterator_type>::value_type::get_uses_custom_blendmode())
 				set_blend_mode(current_instanced_begin->m_material->m_blend_mode);
 
 			if (OpenGl_uniform_block_instancing* instancing_block = inout_renderer_resources_state.get_static_uniform_block<OpenGl_uniform_block_instancing>())
@@ -255,5 +300,24 @@ namespace sic
 
 			current_instanced_begin = next_instanced_begin;
 		}
+	}
+	template<typename T_drawcall_type>
+	inline void System_renderer::render_mesh(const T_drawcall_type& in_dc, const glm::mat4& in_mvp) const
+	{
+		in_dc.m_mesh->m_vertex_buffer_array.value().bind();
+		in_dc.m_mesh->m_index_buffer.value().bind();
+
+		auto& program = in_dc.m_material->m_program.value();
+		program.use();
+
+		if (program.get_uniform_location("MVP"))
+			program.set_uniform("MVP", in_mvp);
+
+		if (program.get_uniform_location("model_matrix"))
+			program.set_uniform("model_matrix", in_dc.m_orientation);
+
+		apply_parameters(*in_dc.m_material, in_dc.m_instance_data, program);
+
+		OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(in_dc.m_mesh->m_index_buffer.value().get_max_elements()), 0);
 	}
 }

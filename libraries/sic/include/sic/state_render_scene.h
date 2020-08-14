@@ -149,6 +149,7 @@ namespace sic
 		float m_far_plane = 100.0f;
 
 		std::optional<OpenGl_render_target> m_render_target;
+		std::optional<OpenGl_render_target> m_ui_render_target;
 		i32 m_level_id = -1;
 	};
 
@@ -158,7 +159,18 @@ namespace sic
 		
 		const Asset_model::Mesh* m_mesh = nullptr;
 		Asset_material* m_material = nullptr;
-		Material_parameters* m_parameters = nullptr;
+
+		size_t m_instance_data_index;
+	};
+
+	struct Render_object_ui : Noncopyable
+	{
+		glm::vec2 m_topleft = { 0.0f, 0.0f };
+		glm::vec2 m_bottomright = { 0.0f, 0.0f };
+		Asset_material* m_material = nullptr;
+
+		ui32 m_sort_priority = 0;
+		ui32 m_custom_sort_priority = 0;
 
 		size_t m_instance_data_index;
 	};
@@ -300,17 +312,64 @@ namespace sic
 		}
 	};
 
-	struct Drawcall_mesh
+	template <bool T_custom_blendmode, bool T_stable_partition>
+	struct Drawcall
 	{
+		static constexpr bool get_uses_custom_blendmode() { return T_custom_blendmode; }
+		static constexpr bool get_uses_stable_partition() { return T_stable_partition; }
+	};
+
+	struct Drawcall_mesh : Drawcall<false, false>
+	{
+		Drawcall_mesh(const glm::mat4x4& in_orientation, const Asset_model::Mesh* in_mesh, Asset_material* in_material,	char* in_instance_data) : 
+			m_orientation(in_orientation), m_mesh(in_mesh), m_material(in_material), m_instance_data(in_instance_data) {}
+
+		bool partition(const Drawcall_mesh& in_to_partition_with) const
+		{
+			return in_to_partition_with.m_material == m_material && in_to_partition_with.m_mesh == m_mesh;
+		}
+
 		glm::mat4x4 m_orientation;
 		const Asset_model::Mesh* m_mesh;
 		Asset_material* m_material;
 		char* m_instance_data;
 	};
 
-	struct Drawcall_mesh_translucent : Drawcall_mesh
+	struct Drawcall_mesh_translucent : Drawcall<true, true>
 	{
+		Drawcall_mesh_translucent(const glm::mat4x4& in_orientation, const Asset_model::Mesh* in_mesh, Asset_material* in_material, char* in_instance_data, float in_distance_to_view_2) :
+			m_orientation(in_orientation), m_mesh(in_mesh), m_material(in_material), m_instance_data(in_instance_data), m_distance_to_view_2(in_distance_to_view_2) {}
+
+		bool partition(const Drawcall_mesh_translucent& in_to_partition_with) const
+		{
+			return in_to_partition_with.m_material == m_material && in_to_partition_with.m_mesh == m_mesh;
+		}
+
+		glm::mat4x4 m_orientation;
+		const Asset_model::Mesh* m_mesh;
+		Asset_material* m_material;
+		char* m_instance_data;
+
 		float m_distance_to_view_2;
+	};
+
+	struct Drawcall_ui_element : Drawcall<true, true>
+	{
+		Drawcall_ui_element(glm::vec2 in_topleft, glm::vec2 in_bottomright, Asset_material* in_material, char* in_instance_data, ui32 in_sort_priority, ui32 in_custom_sort_priority) :
+			m_topleft(in_topleft), m_bottomright(in_bottomright), m_material(in_material), m_instance_data(in_instance_data), m_sort_priority(in_sort_priority), m_custom_sort_priority(in_custom_sort_priority) {}
+
+		bool partition(const Drawcall_ui_element& in_to_partition_with) const
+		{
+			return in_to_partition_with.m_material == m_material;
+		}
+
+		glm::vec2 m_topleft;
+		glm::vec2 m_bottomright;
+		Asset_material* m_material;
+		char* m_instance_data;
+
+		ui32 m_sort_priority = 0;
+		ui32 m_custom_sort_priority = 0;
 	};
 
 	template <typename T_type>
@@ -338,6 +397,7 @@ namespace sic
 			<
 			Update_list<Render_object_view>,
 			Update_list<Render_object_mesh>,
+			Update_list<Render_object_ui>,
 			Update_list<Render_object_debug_drawer>
 			>;
 
@@ -388,6 +448,7 @@ namespace sic
 
 		std::vector<Drawcall_mesh> m_opaque_drawcalls;
 		std::vector<Drawcall_mesh_translucent> m_translucent_drawcalls;
+		std::vector<Drawcall_ui_element> m_ui_drawcalls;
 
 	protected:
 		void flush_updates();

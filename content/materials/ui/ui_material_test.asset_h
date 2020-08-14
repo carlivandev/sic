@@ -1,0 +1,6 @@
+{
+	"asset_path": "content/materials/ui/ui_material_test.asset",
+	"id": "9a4d77e9-3442-45dc-b9ed-11832f276041",
+	"name": "ui_material_test",
+	"type": "struct sic::Asset_material"
+}
