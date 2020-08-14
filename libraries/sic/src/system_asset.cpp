@@ -1,5 +1,4 @@
 #include "sic/system_asset.h"
-#include "sic/asset_types.h"
 #include "sic/file_management.h"
 
 #include "nlohmann/json.hpp"

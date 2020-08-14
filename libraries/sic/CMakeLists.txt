@@ -122,6 +122,7 @@ add_sources(SIC_SOURCES
 	system_window.cpp
 	system_input.cpp
 	system_view.cpp
+	material_dynamic_parameters.cpp
 	debug_draw_helpers.cpp
 	input.cpp
 	opengl_render_target.cpp
