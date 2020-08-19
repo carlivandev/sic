@@ -28,9 +28,37 @@ void sic::Ui_widget::calculate_render_transform()
 	}
 }
 
-void sic::Ui_widget::make_dirty(std::vector<Ui_widget*>& out_dirty_widgets)
+sic::Ui_widget* sic::Ui_widget::get_outermost_parent()
 {
-	out_dirty_widgets.push_back(this);
+	if (m_parent)
+		return m_parent->get_outermost_parent();
+
+	return this;
+}
+
+void sic::Ui_widget::get_dependencies_not_loaded(std::vector<Asset_header*>& out_assets) const
+{
+	gather_dependencies(out_assets);
+
+	std::remove_if(out_assets.begin(), out_assets.end(), [](Asset_header* in_header) { return in_header->m_load_state != Asset_load_state::loaded; });
+}
+
+bool sic::Ui_widget::get_ready_to_be_shown() const
+{
+	if (m_allow_dependency_streaming)
+		return true;
+
+	std::vector<Asset_header*> not_loaded_assets;
+	get_dependencies_not_loaded(not_loaded_assets);
+
+	return not_loaded_assets.empty();
+}
+
+void sic::Ui_widget::destroy(State_ui& inout_ui_state)
+{
+	inout_ui_state.m_widget_lut.erase(m_key.value());
+	inout_ui_state.m_free_widget_indices.push_back(m_widget_index);
+	inout_ui_state.m_widgets[m_widget_index].reset();
 }
 
 void sic::System_ui::on_created(Engine_context in_context)
@@ -45,48 +73,60 @@ void sic::System_ui::on_engine_tick(Engine_context in_context, float in_time_del
 
 	std::scoped_lock lock(ui_state.m_update_lock);
 
-	for (auto& update : ui_state.m_updates)
-	{
-		update();
+	Ui_context ui_context(ui_state);
 
-		for (Ui_widget* dirty_widget : ui_state.m_dirty_widgets)
-			if (dirty_widget->m_key.has_value() && ui_state.m_widget_lut.find(dirty_widget->m_key.value()) == ui_state.m_widget_lut.end())
-				ui_state.m_widget_lut.insert_or_assign(dirty_widget->m_key.value(), dirty_widget);
-	}
+	for (auto& update : ui_state.m_updates)
+		update(ui_context);
 
 	ui_state.m_updates.clear();
 
 	std::vector<Asset_header*> asset_dependencies;
 
-	for (Ui_widget* dirty_widget : ui_state.m_dirty_widgets)
+	for (Ui_widget* dirty_widget : ui_state.m_dirty_parent_widgets)
 	{
+		if (!dirty_widget->m_key.has_value())
+			dirty_widget->m_key = xg::newGuid().str();
+
+		if (ui_state.m_widget_lut.find(dirty_widget->m_key.value()) == ui_state.m_widget_lut.end())
+			ui_state.m_widget_lut.insert_or_assign(dirty_widget->m_key.value(), dirty_widget);
+
 		asset_dependencies.clear();
 		dirty_widget->gather_dependencies(asset_dependencies);
+
+		bool should_update_render_scene = true;
 
 		for (Asset_header* header : asset_dependencies)
 		{
 			if (header->m_load_state != Asset_load_state::loaded)
 			{
-				//TODO: postpone render object update until loaded
+				//postpone render object update until loaded
 
-				/*
-				also, add setting in widget m_allow_asset_streaming
+				dirty_widget->m_dependencies_loaded_handle.set_callback
+				(
+					[&ui_state, key = dirty_widget->m_key.value()](Asset*)
+					{
+						auto it = ui_state.m_widget_lut.find(key);
+						if (it == ui_state.m_widget_lut.end())
+							return;
 
-				default to false
+						ui_state.m_dirty_parent_widgets.insert(it->second->get_outermost_parent());
+					}
+				);
 
-				then, add get_has_finished_loading() to widget, which checks if itself and all children (recursively) this:
-				return m_allow_asset_streaming || have dependencies.empty();
-				*/
+				header->m_on_loaded_delegate.try_bind(dirty_widget->m_dependencies_loaded_handle);
+
+				should_update_render_scene = false;
+				break;
 				
 			}
 		}
 
-		if (dirty_widget->m_key.has_value() && ui_state.m_widget_lut.find(dirty_widget->m_key.value()) == ui_state.m_widget_lut.end())
-			ui_state.m_widget_lut.insert_or_assign(dirty_widget->m_key.value(), dirty_widget);
+		if (!should_update_render_scene)
+			continue;
 
 		dirty_widget->calculate_render_transform();
 		dirty_widget->update_render_scene(dirty_widget->m_render_translation, dirty_widget->m_render_size, dirty_widget->m_render_rotation, render_scene_state);
 	}
 
-	ui_state.m_dirty_widgets.clear();
+	ui_state.m_dirty_parent_widgets.clear();
 }

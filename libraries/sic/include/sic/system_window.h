@@ -42,6 +42,7 @@ namespace sic
 		void set_input_mode(Window_input_mode in_input_mode);
 
 		const glm::vec2& get_cursor_movement() const { return m_cursor_movement; }
+		const std::string& get_name() const { return m_name; }
 
 		bool m_is_focused = true;
 		double m_scroll_offset_x = 0.0;
@@ -55,6 +56,7 @@ namespace sic
 		Window_input_mode m_input_mode = Window_input_mode::normal;
 		Engine_context m_engine_context;
 
+		std::string m_name;
 		glm::ivec2 m_dimensions = { 1600, 800 };
 		glm::vec2 m_cursor_position = { 0.0f, 0.0f };
 		glm::vec2 m_cursor_movement = { 0.0f, 0.0f };

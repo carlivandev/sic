@@ -115,6 +115,20 @@ namespace sic
 				return;
 
 			wdw->m_dimensions = { in_width, in_height };
+			
+			if (State_ui* ui_state = wdw->m_engine_context.get_state<State_ui>())
+			{
+				ui_state->update
+				(
+					[name = wdw->get_name(), in_width, in_height](Ui_context& inout_ui_context)
+					{
+						Ui_widget_canvas* canvas = inout_ui_context.find_widget<Ui_widget_canvas>(name);
+						assert(canvas);
+
+						canvas->m_reference_dimensions = { in_width, in_height };
+					}
+				);
+			}
 		}
 
 		static void window_focused(GLFWwindow* in_window, int in_focused)
@@ -256,15 +270,7 @@ void sic::System_window::on_engine_tick(Engine_context in_context, float in_time
 				auto to_destroy_it = window_state->m_window_name_to_interfaces_lut.find(window.m_name);
 
 				if (to_destroy_it != window_state->m_window_name_to_interfaces_lut.end())
-				{
-					Window_proxy* to_destroy = to_destroy_it->second.get();
-					to_destroy->m_on_destroyed.invoke();
-
-					Update_list_id<Render_object_window>& id = to_destroy->m_window_id;
-					scene_state->m_windows.destroy_object(id);
-
-					window_state->m_window_name_to_interfaces_lut.erase(to_destroy_it);
-				}
+					window_state->destroy_window(in_context, to_destroy_it->first);
 			}
 		}
 		else
@@ -303,6 +309,7 @@ sic::Window_proxy& sic::State_window::create_window(Engine_context in_context, c
 	if (m_main_window_interface == nullptr)
 		m_main_window_interface = window_interface_ptr_raw;
 
+	window_interface_ptr_raw->m_name = in_name;
 	window_interface_ptr_raw->m_dimensions = in_dimensions;
 	window_interface_ptr_raw->m_engine_context = in_context;
 	window_interface_ptr_raw->m_window_id = scene_state.m_windows.create_object
@@ -412,13 +419,13 @@ sic::Window_proxy& sic::State_window::create_window(Engine_context in_context, c
 
  	if (State_ui* ui_state = in_context.get_state<State_ui>())
  	{
-		ui_state->create_widget<Ui_widget_canvas>
+		ui_state->update
 		(
-			in_name,
-			[in_name, in_dimensions, id = window_interface_ptr_raw->m_window_id](Ui_widget_canvas& inout_canvas)
+			[in_name, in_dimensions, id = window_interface_ptr_raw->m_window_id](Ui_context& inout_ui_context)
 			{
-				inout_canvas.m_reference_dimensions = in_dimensions;
-				inout_canvas.m_window_id = id;
+				Ui_widget_canvas& canvas = inout_ui_context.create_widget<Ui_widget_canvas>(in_name);
+				canvas.m_reference_dimensions = in_dimensions;
+				canvas.m_window_id = id;
 			}
 		);
  	}
@@ -430,14 +437,27 @@ void sic::State_window::destroy_window(Engine_context in_context, const std::str
 {
 	std::scoped_lock lock(m_mutex);
 
-	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
-
 	auto window_interface_ptr = m_window_name_to_interfaces_lut.find(in_name);
 
 	if (window_interface_ptr == m_window_name_to_interfaces_lut.end())
 		return;
 
+	window_interface_ptr->second->m_on_destroyed.invoke();
+
+	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
 	scene_state.m_windows.destroy_object(window_interface_ptr->second->m_window_id);
+
+	if (State_ui* ui_state = in_context.get_state<State_ui>())
+	{
+		ui_state->update
+		(
+			[name = window_interface_ptr->second->get_name()](Ui_context& inout_ui_context)
+			{
+				inout_ui_context.destroy_widget(name);
+			}
+		);
+	}
+	
 	m_window_name_to_interfaces_lut.erase(window_interface_ptr);
 }
 

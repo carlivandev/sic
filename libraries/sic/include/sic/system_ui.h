@@ -37,30 +37,81 @@ namespace sic
 		glm::vec2 m_max = { 0.5f, 0.5f };
 	};
 
+	struct Ui_parent_widget_base;
+	struct State_ui;
+
 	struct Ui_widget
 	{
+		friend struct Ui_context;
 		friend struct System_ui;
+
+		template <typename T_slot_type>
+		friend struct Ui_parent_widget;
 
 		virtual void calculate_render_transform();
 
-		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, State_render_scene& inout_render_scene_state) { in_final_translation; in_final_size; in_final_rotation; inout_render_scene_state; }
+		Ui_widget* get_outermost_parent();
+		const Ui_parent_widget_base* get_parent() const { return m_parent; }
 
-		virtual void make_dirty(std::vector<Ui_widget*>& out_dirty_widgets);
+		ui32 get_slot_index() const { return m_slot_index; }
 
-		virtual void gather_dependencies(std::vector<Asset_header*>& out_assets) { out_assets; }
+		virtual void gather_dependencies(std::vector<Asset_header*>& out_assets) const { out_assets; }
 
-		std::optional<std::string> m_key;
-		struct Ui_parent_widget_base* m_parent = nullptr;
-		i32 m_slot_index = -1;
+		void get_dependencies_not_loaded(std::vector<Asset_header*>& out_assets) const;
+
+		virtual bool get_ready_to_be_shown() const;
+
 		Update_list_id<Render_object_window> m_window_id;
 
 		glm::vec2 m_local_scale = { 1.0f, 1.0f };
 		glm::vec2 m_local_translation = { 0.0f, 0.0f };
 		float m_local_rotation = 0.0f;
 
+		i32 m_widget_index = -1;
+		bool m_allow_dependency_streaming = false;
+
+	protected:
+		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, State_render_scene& inout_render_scene_state) { in_final_translation; in_final_size; in_final_rotation; inout_render_scene_state; }
+
+		virtual void destroy(State_ui& inout_ui_state);
+
 		glm::vec2 m_render_translation;
 		glm::vec2 m_render_size;
 		float m_render_rotation;
+
+	private:
+		std::optional<std::string> m_key;
+		Ui_parent_widget_base* m_parent = nullptr;
+		i32 m_slot_index = -1;
+		On_asset_loaded::Handle m_dependencies_loaded_handle;
+	};
+
+	struct State_ui : State
+	{
+		friend Ui_widget;
+		friend struct Ui_context;
+		friend struct System_ui;
+
+		void update(std::function<void(Ui_context&)> in_update_func)
+		{
+			std::scoped_lock lock(m_update_lock);
+			m_updates.push_back(in_update_func);
+		}
+
+	private:
+		std::mutex m_update_lock;
+		std::vector<std::function<void(Ui_context&)>> m_updates;
+		std::vector<std::unique_ptr<Ui_widget>> m_widgets;
+		std::vector<size_t> m_free_widget_indices;
+		std::unordered_map<std::string, Ui_widget*> m_widget_lut;
+		std::unordered_set<Ui_widget*> m_dirty_parent_widgets;
+
+	};
+
+	struct System_ui : System
+	{
+		void on_created(Engine_context in_context) override;
+		void on_engine_tick(Engine_context in_context, float in_time_delta) const override;
 	};
 
 	struct Ui_parent_widget_base : Ui_widget
@@ -70,6 +121,164 @@ namespace sic
 
 	struct Ui_slot
 	{
+	};
+
+	template <typename T_slot_type>
+	struct Ui_parent_widget : Ui_parent_widget_base
+	{
+		friend struct Ui_context;
+
+		using Slot_type = T_slot_type;
+
+		void calculate_render_transform() override final
+		{
+			Ui_widget::calculate_render_transform();
+
+			for (auto&& child : m_child_widgets)
+				child->calculate_render_transform();
+		}
+
+		void calculate_render_transform_for_slot_base(const Ui_widget& in_widget, glm::vec2& out_translation, glm::vec2& out_size, float& out_rotation) override final
+		{
+			assert(in_widget.get_parent() == this && "Parent mismatch!");
+			calculate_render_transform_for_slot(m_slots[in_widget.get_slot_index()], out_translation, out_size, out_rotation);
+
+			out_translation += m_render_size * (m_render_translation - glm::vec2(0.5f, 0.5f));
+			out_size *= m_render_size;
+			out_rotation += m_render_rotation;
+		}
+
+		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override final
+		{
+			Ui_widget::gather_dependencies(out_assets);
+			for (auto&& child_widget : m_child_widgets)
+				child_widget->gather_dependencies(out_assets);
+		}
+
+		virtual void calculate_render_transform_for_slot(const T_slot_type& in_slot, glm::vec2& out_translation, glm::vec2& out_size, float& out_rotation) = 0;
+
+	protected:
+		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, State_render_scene& inout_render_scene_state) override
+		{
+			Ui_widget::update_render_scene(in_final_translation, in_final_size, in_final_rotation, inout_render_scene_state);
+			for (auto&& child_widget : m_child_widgets)
+				child_widget->update_render_scene(child_widget->m_render_translation, child_widget->m_render_size, child_widget->m_render_rotation, inout_render_scene_state);
+		}
+
+		virtual void destroy(State_ui& inout_ui_state) override final
+		{
+			for (auto&& child_widget : m_child_widgets)
+				child_widget->destroy(inout_ui_state);
+
+			Ui_widget::destroy(inout_ui_state);
+		}
+
+	private:
+		template<typename T_child_type>
+		void add_child(T_child_type& inout_widget, T_slot_type&& in_slot_data)
+		{
+			assert(!inout_widget.m_parent && "Widget has already been added to some parent.");
+			m_slots.emplace_back(in_slot_data);
+			m_child_widgets.emplace_back(&inout_widget);
+			inout_widget.m_parent = this;
+			inout_widget.m_slot_index = static_cast<i32>(m_slots.size() - 1);
+			inout_widget.m_window_id = m_window_id;
+		}
+
+		std::vector<T_slot_type> m_slots;
+		std::vector<Ui_widget*> m_child_widgets;
+	};
+
+	struct Ui_context
+	{
+		Ui_context(State_ui& inout_ui_state) : m_ui_state(inout_ui_state) {}
+
+		template<typename T_widget_type>
+		T_widget_type& create_widget(std::optional<std::string> in_key)
+		{
+			if (!in_key.has_value())
+				in_key = xg::newGuid().str();
+
+			assert(m_ui_state.m_widget_lut.find(in_key.value()) == m_ui_state.m_widget_lut.end() && "Can not have two widgets with same key!");
+
+			size_t new_idx;
+
+			if (m_ui_state.m_free_widget_indices.empty())
+			{
+				new_idx = m_ui_state.m_widgets.size();
+				m_ui_state.m_widgets.push_back(std::make_unique<T_widget_type>());
+			}
+			else
+			{
+				new_idx = m_ui_state.m_free_widget_indices.back();
+				m_ui_state.m_free_widget_indices.pop_back();
+				m_ui_state.m_widgets[new_idx] = std::make_unique<T_widget_type>();
+			}
+
+			auto& widget = m_ui_state.m_widget_lut[in_key.value()] = m_ui_state.m_widgets.back().get();
+			widget->m_key = in_key.value();
+			widget->m_widget_index = new_idx;
+
+			m_ui_state.m_dirty_parent_widgets.insert(widget->get_outermost_parent());
+
+			return *reinterpret_cast<T_widget_type*>(widget);
+		}
+
+		void destroy_widget(const std::string& in_key)
+		{
+			auto it = m_ui_state.m_widget_lut.find(in_key);
+
+			if (it == m_ui_state.m_widget_lut.end())
+				return;
+
+			if (it->second != it->second->get_outermost_parent())
+				m_ui_state.m_dirty_parent_widgets.insert(it->second->get_outermost_parent());
+
+			it->second->destroy(m_ui_state);
+		}
+
+		//finding it with write access causes it to redraw!
+		template<typename T_widget_type>
+		T_widget_type* find_widget(const std::string& in_key)
+		{
+			auto it = m_ui_state.m_widget_lut.find(in_key);
+			if (it == m_ui_state.m_widget_lut.end())
+				return nullptr;
+
+			m_ui_state.m_dirty_parent_widgets.insert(it->second->get_outermost_parent());
+
+			return reinterpret_cast<T_widget_type*>(it->second);
+		}
+
+		template<typename T_widget_type>
+		const T_widget_type* find_widget(const std::string& in_key) const
+		{
+			auto it = m_ui_state.m_widget_lut.find(in_key);
+			if (it == m_ui_state.m_widget_lut.end())
+				return nullptr;
+
+			return reinterpret_cast<T_widget_type*>(it->second);
+		}
+
+		template<typename T_parent_widget_slot_type, typename T_widget_type>
+		void add_child(Ui_parent_widget<T_parent_widget_slot_type>& inout_parent, T_widget_type& inout_widget, T_parent_widget_slot_type&& in_slot_data) const
+		{
+			{
+				auto it = m_ui_state.m_widget_lut.find(inout_widget.m_key.value());
+				assert(it != m_ui_state.m_widget_lut.end() && "Widget was not created properly, please use Ui_context::create_widget");
+				assert(it->second == &inout_widget && "Widget was not created properly, please use Ui_context::create_widget");
+			}
+
+			{
+				auto it = m_ui_state.m_widget_lut.find(inout_parent.m_key.value());
+				assert(it != m_ui_state.m_widget_lut.end() && "Parent widget was not created properly, please use Ui_context::create_widget");
+				assert(it->second == &inout_parent && "Parent widget was not created properly, please use Ui_context::create_widget");
+			}
+
+			inout_parent.add_child(inout_widget, std::move(in_slot_data));
+		}
+
+		State_ui& m_ui_state;
 	};
 
 	struct Ui_slot_canvas : Ui_slot
@@ -82,52 +291,6 @@ namespace sic
 		float m_rotation = 0;
 
 		ui32 m_z_order = 0;
-	};
-
-	template <typename T_slot_type>
-	struct Ui_parent_widget : Ui_parent_widget_base
-	{
-		using Slot_type = T_slot_type;
-		void calculate_render_transform() override final
-		{
-			Ui_widget::calculate_render_transform();
-
-			for (auto&& child : m_child_widgets)
-				child->calculate_render_transform();
-		}
-
-		void calculate_render_transform_for_slot_base(const Ui_widget& in_widget, glm::vec2& out_translation, glm::vec2& out_size, float& out_rotation) override final
-		{
-			assert(in_widget.m_parent == this && "Parent mismatch!");
-			calculate_render_transform_for_slot(m_slots[in_widget.m_slot_index], out_translation, out_size, out_rotation);
-
-			out_translation += m_render_size * (m_render_translation - glm::vec2(0.5f, 0.5f));
-			out_size *= m_render_size;
-			out_rotation += m_render_rotation;
-		}
-
-		virtual void calculate_render_transform_for_slot(const T_slot_type& in_slot, glm::vec2& out_translation, glm::vec2& out_size, float& out_rotation) = 0;
-
-		void make_dirty(std::vector<Ui_widget*>& out_dirty_widgets) final
-		{
-			Ui_widget::make_dirty(out_dirty_widgets);
-			for (auto&& child_widget : m_child_widgets)
-				child_widget->make_dirty(out_dirty_widgets);
-		}
-
-		template<typename T_child_type>
-		void add_child(T_slot_type&& in_slot_data, T_child_type&& in_widget_data)
-		{
-			assert(!in_widget_data.m_parent && "Widget has already been added to some parent.");
-			m_slots.emplace_back(in_slot_data);
-			m_child_widgets.emplace_back(new T_child_type(in_widget_data));
-			m_child_widgets.back()->m_parent = this;
-			m_child_widgets.back()->m_slot_index = static_cast<i32>(m_slots.size() - 1);
-			m_child_widgets.back()->m_window_id = m_window_id;
-		}
-
-		std::vector<T_slot_type> m_slots;
-		std::vector<std::unique_ptr<Ui_widget>> m_child_widgets;
 	};
 
 	struct Ui_widget_canvas : Ui_parent_widget<Ui_slot_canvas>
@@ -157,10 +320,14 @@ namespace sic
 
 	struct Ui_widget_image : Ui_widget
 	{
+		Asset_ref<Asset_material> m_material;
+		glm::vec4 m_color_and_opacity = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+	protected:
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, State_render_scene& inout_render_scene_state) override
 		{
 			auto update_lambda =
-				[in_final_translation, in_final_size, in_final_rotation, mat = m_material, id = m_window_id](Render_object_ui& inout_object)
+			[in_final_translation, in_final_size, in_final_rotation, mat = m_material, id = m_window_id](Render_object_ui& inout_object)
 			{
 				const glm::vec2 half_size = in_final_size * 0.5f;
 				inout_object.m_lefttop = in_final_translation - half_size;
@@ -180,68 +347,7 @@ namespace sic
 				m_ro_id = inout_render_scene_state.m_ui_elements.create_object(update_lambda);
 		}
 
-		void gather_dependencies(std::vector<Asset_header*>& out_assets) override final { if (m_material.is_valid()) out_assets.push_back(m_material.get_header()); }
-
-		Asset_ref<Asset_material> m_material;
-		glm::vec4 m_color_and_opacity = { 1.0f, 1.0f, 1.0f, 1.0f };
-
+		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override final { if (m_material.is_valid()) out_assets.push_back(m_material.get_header()); }
 		Update_list_id<Render_object_ui> m_ro_id;
-	};
-
-	struct State_ui : State
-	{
-		friend struct System_ui;
-
-		template <typename T_widget_type>
-		void update_widget(const std::string& in_key, std::function<void(T_widget_type&)> in_update_func)
-		{
-			std::scoped_lock lock(m_update_lock);
-
-			m_updates.push_back
-			(
-				[in_update_func, in_key, this]()
-				{
-					auto it = m_widget_lut.find(in_key);
-					if (it == m_widget_lut.end())
-						return;
-
-					in_update_func(*reinterpret_cast<T_widget_type*>(it->second));
-					it->second->make_dirty(m_dirty_widgets);
-				}
-			);
-		}
-
-		template <typename T_widget_type>
-		void create_widget(const std::string& in_key, std::function<void(T_widget_type&)> in_update_func)
-		{
-			std::scoped_lock lock(m_update_lock);
-
-			m_updates.push_back
-			(
-				[in_update_func, in_key, this]()
-				{
-					assert(m_widget_lut.find(in_key) == m_widget_lut.end() && "Can not have two widgets with same key!");
-
-					m_widgets.push_back(std::make_unique<T_widget_type>());
-					auto& widget = m_widget_lut[in_key] = m_widgets.back().get();
-
-					in_update_func(*reinterpret_cast<T_widget_type*>(widget));
-					widget->make_dirty(m_dirty_widgets);
-				}
-			);
-		}
-
-	private:
-		std::mutex m_update_lock;
-		std::vector<std::function<void()>> m_updates;
-		std::vector<std::unique_ptr<Ui_widget>> m_widgets;
-		std::unordered_map<std::string, Ui_widget*> m_widget_lut;
-		std::vector<Ui_widget*> m_dirty_widgets;
-	};
-
-	struct System_ui : System
-	{
-		void on_created(Engine_context in_context) override;
-		void on_engine_tick(Engine_context in_context, float in_time_delta) const override;
 	};
 }
