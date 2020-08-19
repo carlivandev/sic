@@ -15,7 +15,7 @@ namespace sic
 	template <typename ...T_processor_flags>
 	struct Processor
 	{
-		Processor(Level_context& in_context) : m_context(in_context) {}
+		Processor(Scene_context& in_context) : m_context(in_context) {}
 
 		template<typename T_type>
 		__forceinline void for_each_w(std::function<void(T_type&)> in_func)
@@ -37,12 +37,12 @@ namespace sic
 		}
 
 	private:
-		Level_context& m_context;
+		Scene_context& m_context;
 	};
 
 	struct Object_base;
 	
-	struct Level_context
+	struct Scene_context
 	{
 		template <typename T_subtype, typename ...T_component>
 		friend struct Object;
@@ -50,7 +50,7 @@ namespace sic
 		template <typename ...T_processor_flags>
 		friend struct Processor;
 
-		Level_context(Engine& inout_engine, Level& inout_level) : m_engine(inout_engine), m_level(inout_level){}
+		Scene_context(Engine& inout_engine, Scene& inout_level) : m_engine(inout_engine), m_level(inout_level){}
 
 		template <typename T_object>
 		__forceinline constexpr T_object& create_object()
@@ -90,7 +90,7 @@ namespace sic
 		}
 
 		Engine& m_engine;
-		Level& m_level;
+		Scene& m_level;
 	};
 }
 

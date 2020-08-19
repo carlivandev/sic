@@ -31,7 +31,7 @@ void sic::System_file::on_created(Engine_context in_context)
 	in_context.get_state<State_filesystem>()->m_worker_pool.spawn(4);
 }
 
-void sic::System_file::on_tick(Level_context in_context, float in_time_delta) const
+void sic::System_file::on_tick(Scene_context in_context, float in_time_delta) const
 {
 	in_time_delta;
 
@@ -85,7 +85,7 @@ void sic::System_file::on_tick(Level_context in_context, float in_time_delta) co
 	file_state->m_load_requests.clear();
 }
 
-void sic::System_file::on_end_simulation(Level_context in_context) const
+void sic::System_file::on_end_simulation(Scene_context in_context) const
 {
 	State_filesystem* file_state = in_context.get_engine_context().get_state<State_filesystem>();
 

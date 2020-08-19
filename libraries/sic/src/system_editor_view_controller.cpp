@@ -13,7 +13,7 @@ void sic::System_editor_view_controller::on_created(Engine_context in_context)
 	in_context.register_object<Object_editor_view_controller>("evc", 1);
 }
 
-void sic::System_editor_view_controller::on_tick(Level_context in_context, float in_time_delta) const
+void sic::System_editor_view_controller::on_tick(Scene_context in_context, float in_time_delta) const
 {
 	State_input& input_state = in_context.get_engine_context().get_state_checked<State_input>();
 

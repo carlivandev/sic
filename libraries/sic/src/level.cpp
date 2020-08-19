@@ -3,7 +3,7 @@
 
 namespace sic
 {
-	void Level::destroy_object(Object_base& in_object_to_destroy)
+	void Scene::destroy_object(Object_base& in_object_to_destroy)
 	{
 		const ui32 type_idx = in_object_to_destroy.m_type_index;
 		assert((type_idx < m_objects.size() || m_objects[type_idx].get() != nullptr) && "type not registered");
@@ -19,7 +19,7 @@ namespace sic
 		//destroy in_obj
 		auto* storage_to_destroy_from = reinterpret_cast<Object_storage*>(m_objects[type_idx].get());
 
-		Level_context context(m_engine, *this);
+		Scene_context context(m_engine, *this);
 		storage_to_destroy_from->destroy_instance(context, in_object_to_destroy);
 
 		{
@@ -28,7 +28,7 @@ namespace sic
 		}
 	}
 
-	bool Level::get_does_object_exist(Object_id in_id, bool in_only_in_this_level) const
+	bool Scene::get_does_object_exist(Object_id in_id, bool in_only_in_this_level) const
 	{
 		if (!in_id.get_is_set())
 			return false;
@@ -58,12 +58,12 @@ namespace sic
 		return false;
 	}
 
-	std::unique_ptr<Component_storage_base>& Level::get_component_storage_at_index(i32 in_index)
+	std::unique_ptr<Component_storage_base>& Scene::get_component_storage_at_index(i32 in_index)
 	{
 		return m_component_storages[in_index];
 	}
 
-	std::unique_ptr<Object_storage_base>& Level::get_object_storage_at_index(i32 in_index)
+	std::unique_ptr<Object_storage_base>& Scene::get_object_storage_at_index(i32 in_index)
 	{
 		return m_objects[in_index];
 	}

@@ -165,6 +165,7 @@ namespace sic
 
 	private:
 		void render_view(Engine_context in_context, const Render_object_window& in_window, Render_object_view& inout_view) const;
+		void render_ui(Engine_context in_context, const Render_object_window& in_window) const;
 
 		void render_all_3d_objects(Render_all_3d_objects_data in_data) const;
 

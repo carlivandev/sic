@@ -26,7 +26,7 @@ namespace sic
 		post_tick //runs after tick, always on main thread
 	};
 
-	struct Level;
+	struct Scene;
 
 	//enginewide state data
 	struct State : Noncopyable
@@ -77,8 +77,8 @@ namespace sic
 		template <typename T_type>
 		constexpr Typeinfo* get_typeinfo();
 
-		void create_level(Level* in_parent_level);
-		void destroy_level(Level& inout_level);
+		void create_level(Scene* in_parent_level);
+		void destroy_level(Scene& inout_level);
 
 		template <typename T_event_type, typename T_functor>
 		void listen(T_functor in_func);
@@ -91,15 +91,15 @@ namespace sic
 
 	private:
 		std::unique_ptr<State>& get_state_at_index(i32 in_index);
-		void destroy_level_internal(Level& in_level);
+		void destroy_level_internal(Scene& in_level);
 
 		std::vector<std::unique_ptr<System>> m_systems;
 		std::vector<std::unique_ptr<State>> m_states;
 		
-		std::vector<std::unique_ptr<Level>> m_levels;
-		std::vector<std::unique_ptr<Level>> m_levels_to_add;
-		std::vector<Level*> m_levels_to_remove;
-		std::unordered_map<i32, Level*> m_level_id_to_level_lut;
+		std::vector<std::unique_ptr<Scene>> m_levels;
+		std::vector<std::unique_ptr<Scene>> m_levels_to_add;
+		std::vector<Scene*> m_levels_to_remove;
+		std::unordered_map<i32, Scene*> m_level_id_to_level_lut;
 		i32 m_level_id_ticker = 0;
 
 		std::vector<std::unique_ptr<Event_base>> m_engine_events;
@@ -130,7 +130,7 @@ namespace sic
 		std::mutex m_levels_mutex;
 
 		//callbacks to run whenever a new level is created
-		std::vector<std::function<void(Level&)>> m_registration_callbacks;
+		std::vector<std::function<void(Scene&)>> m_registration_callbacks;
 	};
 
 	template<typename T_component_type>
@@ -138,7 +138,7 @@ namespace sic
 	{
 		m_registration_callbacks.push_back
 		(
-			[in_initial_capacity](Level& inout_level)
+			[in_initial_capacity](Scene& inout_level)
 			{
 				const ui32 type_idx = Type_index<Component_base>::get<T_component_type>();
 
@@ -161,7 +161,7 @@ namespace sic
 
 		m_registration_callbacks.push_back
 		(
-			[in_initial_capacity, in_bucket_capacity](Level & inout_level)
+			[in_initial_capacity, in_bucket_capacity](Scene & inout_level)
 			{
 				const ui32 type_idx = Type_index<Object_base>::get<T_object>();
 

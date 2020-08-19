@@ -56,7 +56,6 @@ void sic::System_view::on_created(Engine_context in_context)
 					in_object.m_far_plane = far_plane;
 
 					in_object.m_render_target.emplace(viewport_dimensions, OpenGl_texture_format::rgb, true);
-					in_object.m_ui_render_target.emplace(viewport_dimensions, OpenGl_texture_format::rgba, false);
 				}
 			);
 		}

@@ -12,7 +12,7 @@ namespace sic
 	struct Component_base : public Noncopyable
 	{
 		friend struct Engine;
-		friend struct Level;
+		friend struct Scene;
 
 		template <typename T_component_type>
 		friend struct Component_storage;

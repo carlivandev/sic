@@ -14,15 +14,15 @@ void sic::System::on_shutdown(Engine_context) const
 {
 }
 
-void sic::System::on_begin_simulation(Level_context) const
+void sic::System::on_begin_simulation(Scene_context) const
 {
 }
 
-void sic::System::on_tick(Level_context, float) const
+void sic::System::on_tick(Scene_context, float) const
 {
 }
 
-void sic::System::on_end_simulation(Level_context) const
+void sic::System::on_end_simulation(Scene_context) const
 {
 }
 
@@ -38,7 +38,7 @@ void sic::System::execute_engine_finalized(Engine_context in_context) const
 		subsystem->execute_engine_finalized(in_context);
 }
 
-void sic::System::execute_tick(Level_context in_context, float in_time_delta) const
+void sic::System::execute_tick(Scene_context in_context, float in_time_delta) const
 {
 	//printf("system tick: \"%s\"\n", m_name.c_str());
 	on_tick(in_context, in_time_delta);

@@ -39,6 +39,7 @@ namespace sic
 			m_context = in_other.m_context;
 			m_name = std::move(in_other.m_name);
 			m_render_target = std::move(in_other.m_render_target);
+			m_ui_render_target = std::move(in_other.m_ui_render_target);
 			m_quad_program = std::move(in_other.m_quad_program);
 			m_quad_vertex_buffer_array = std::move(in_other.m_quad_vertex_buffer_array);
 			m_quad_indexbuffer = std::move(in_other.m_quad_indexbuffer);
@@ -53,6 +54,7 @@ namespace sic
 			m_context = in_other.m_context;
 			m_name = std::move(in_other.m_name);
 			m_render_target = std::move(in_other.m_render_target);
+			m_ui_render_target = std::move(in_other.m_ui_render_target);
 			m_quad_program = std::move(in_other.m_quad_program);
 			m_quad_vertex_buffer_array = std::move(in_other.m_quad_vertex_buffer_array);
 			m_quad_indexbuffer = std::move(in_other.m_quad_indexbuffer);
@@ -102,6 +104,7 @@ namespace sic
 				GLFWwindow* resource_context = glfwGetCurrentContext();
 				//need destroy RT on resource context
 				m_render_target.reset();
+				m_ui_render_target.reset();
 
 				//and rest on window context
 				glfwMakeContextCurrent(m_context);
@@ -120,6 +123,7 @@ namespace sic
 		GLFWwindow* m_context = nullptr;
 		std::string m_name;
 		std::optional<OpenGl_render_target> m_render_target;
+		std::optional<OpenGl_render_target> m_ui_render_target;
 		std::optional<OpenGl_program> m_quad_program;
 		std::optional
 			<
@@ -149,7 +153,6 @@ namespace sic
 		float m_far_plane = 100.0f;
 
 		std::optional<OpenGl_render_target> m_render_target;
-		std::optional<OpenGl_render_target> m_ui_render_target;
 		i32 m_level_id = -1;
 	};
 
@@ -165,9 +168,11 @@ namespace sic
 
 	struct Render_object_ui : Noncopyable
 	{
-		glm::vec2 m_topleft = { 0.0f, 0.0f };
-		glm::vec2 m_bottomright = { 0.0f, 0.0f };
+		glm::vec2 m_lefttop = { 0.0f, 0.0f };
+		glm::vec2 m_rightbottom = { 0.0f, 0.0f };
 		Asset_material* m_material = nullptr;
+
+		Update_list_id<Render_object_window> m_window_id;
 
 		ui32 m_sort_priority = 0;
 		ui32 m_custom_sort_priority = 0;
@@ -445,6 +450,7 @@ namespace sic
 		}
 
 		Update_list<Render_object_window> m_windows;
+		Update_list<Render_object_ui> m_ui_elements;
 
 		std::vector<Drawcall_mesh> m_opaque_drawcalls;
 		std::vector<Drawcall_mesh_translucent> m_translucent_drawcalls;

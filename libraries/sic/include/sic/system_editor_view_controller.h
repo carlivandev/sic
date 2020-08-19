@@ -31,6 +31,6 @@ namespace sic
 	struct System_editor_view_controller : System
 	{
 		virtual void on_created(Engine_context in_context) override;
-		virtual void on_tick(Level_context in_context, float in_time_delta) const override;
+		virtual void on_tick(Scene_context in_context, float in_time_delta) const override;
 	};
 }

@@ -104,7 +104,7 @@ namespace sic
 						//todo: add time delta support on async systems
 
 						for (auto& level : m_levels)
-								async_system->execute_tick(Level_context(*this, *level.get()), 0.0f);
+								async_system->execute_tick(Scene_context(*this, *level.get()), 0.0f);
 
 						async_system->execute_engine_tick(Engine_context(*this), 0.0f);
 					}
@@ -118,7 +118,7 @@ namespace sic
 		for (auto& pre_tick_system : m_pre_tick_systems)
 		{
 			for (auto& level : m_levels)
-				pre_tick_system->execute_tick(Level_context(*this, *level.get()), m_time_delta);
+				pre_tick_system->execute_tick(Scene_context(*this, *level.get()), m_time_delta);
 
 			pre_tick_system->execute_engine_tick(Engine_context(*this), m_time_delta);
 		}
@@ -137,7 +137,7 @@ namespace sic
 					[this, system_to_tick]()
 					{
 						for (auto& level : m_levels)
-							system_to_tick->execute_tick(Level_context(*this, *level.get()), m_time_delta);
+							system_to_tick->execute_tick(Scene_context(*this, *level.get()), m_time_delta);
 
 						system_to_tick->execute_engine_tick(Engine_context(*this), m_time_delta);
 						system_to_tick->m_finished_tick = true;
@@ -151,7 +151,7 @@ namespace sic
 				m_system_ticker_threadpool.batch(std::move(tasks_to_run));
 
 			for (auto& level : m_levels)
-				m_tick_systems[0]->execute_tick(Level_context(*this, *level.get()), m_time_delta);
+				m_tick_systems[0]->execute_tick(Scene_context(*this, *level.get()), m_time_delta);
 
 			m_tick_systems[0]->execute_engine_tick(Engine_context(*this), m_time_delta);
 			m_tick_systems[0]->m_finished_tick = true;
@@ -174,7 +174,7 @@ namespace sic
 		for (auto& post_tick_system : m_post_tick_systems)
 		{
 			for (auto& level : m_levels)
-				post_tick_system->execute_tick(Level_context(*this, *level.get()), m_time_delta);
+				post_tick_system->execute_tick(Scene_context(*this, *level.get()), m_time_delta);
 
 			post_tick_system->execute_engine_tick(Engine_context(*this), m_time_delta);
 		}
@@ -196,13 +196,13 @@ namespace sic
 			system->on_shutdown(Engine_context(*this));
 	}
 
-	void Engine::create_level(Level* in_parent_level)
+	void Engine::create_level(Scene* in_parent_level)
 	{
 		std::scoped_lock levels_lock(m_levels_mutex);
 
 		assert(m_finished_setup && "Can't create a level before system has finished setup!");
 
-		Level* outermost_level = nullptr;
+		Scene* outermost_level = nullptr;
 
 		if (in_parent_level)
 		{
@@ -212,16 +212,16 @@ namespace sic
 				outermost_level = in_parent_level;
 		}
 
-		m_levels_to_add.push_back(std::make_unique<Level>(*this, outermost_level, in_parent_level));
+		m_levels_to_add.push_back(std::make_unique<Scene>(*this, outermost_level, in_parent_level));
 
-		Level& new_level = *m_levels_to_add.back().get();
+		Scene& new_level = *m_levels_to_add.back().get();
 		new_level.m_level_id = m_level_id_ticker++;
 
 		for (auto&& registration_callback : m_registration_callbacks)
 			registration_callback(new_level);
 	}
 
-	void Engine::destroy_level(Level& inout_level)
+	void Engine::destroy_level(Scene& inout_level)
 	{
 		std::scoped_lock levels_lock(m_levels_mutex);
 
@@ -233,7 +233,7 @@ namespace sic
 			for (auto& system : m_systems)
 			{
 				if (!is_shutting_down())
-					system->on_end_simulation(Level_context(*this, inout_level));
+					system->on_end_simulation(Scene_context(*this, inout_level));
 			}
 
 			m_levels.erase(m_levels.begin() + i);
@@ -256,7 +256,7 @@ namespace sic
 			std::scoped_lock levels_lock(m_levels_mutex);
 
 			//first remove levels
-			for (Level* level : m_levels_to_remove)
+			for (Scene* level : m_levels_to_remove)
 				destroy_level_internal(*level);
 
 			m_levels_to_remove.clear();
@@ -264,14 +264,14 @@ namespace sic
 
 		if (!m_levels_to_add.empty())
 		{
-			std::vector<Level*> added_levels;
+			std::vector<Scene*> added_levels;
 
 			{
 				std::scoped_lock levels_lock(m_levels_mutex);
 				//then add new levels
 				for (auto& level : m_levels_to_add)
 				{
-					Level* added_level = nullptr;
+					Scene* added_level = nullptr;
 					//is this a sublevel?
 					if (level->m_outermost_level)
 					{
@@ -291,14 +291,14 @@ namespace sic
 				m_levels_to_add.clear();
 			}
 
-			for (Level* added_level : added_levels)
+			for (Scene* added_level : added_levels)
 			{
-				invoke<event_created<Level>>(*added_level);
+				invoke<event_created<Scene>>(*added_level);
 
 				for (auto& system : m_systems)
 				{
 					if (!is_shutting_down())
-						system->on_begin_simulation(Level_context(*this, *added_level));
+						system->on_begin_simulation(Scene_context(*this, *added_level));
 				}
 			}
 		}
@@ -312,7 +312,7 @@ namespace sic
 		return m_states[in_index];
 	}
 
-	void Engine::destroy_level_internal(Level& in_level)
+	void Engine::destroy_level_internal(Scene& in_level)
 	{
 		//first, recursively destroy all sublevels
 		const i32 last_sublevel_index = static_cast<i32>(in_level.m_sublevels.size()) - 1;
@@ -325,14 +325,14 @@ namespace sic
 		for (auto& system : m_systems)
 		{
 			if (!is_shutting_down())
-				system->on_end_simulation(Level_context(*this, in_level));
+				system->on_end_simulation(Scene_context(*this, in_level));
 		}
 
-		invoke<event_destroyed<Level>>(in_level);
+		invoke<event_destroyed<Scene>>(in_level);
 
 		m_level_id_to_level_lut.erase(in_level.m_level_id);
 
-		std::vector<std::unique_ptr<Level>>* levels_to_remove_from;
+		std::vector<std::unique_ptr<Scene>>* levels_to_remove_from;
 		if (in_level.m_parent_level)
 			levels_to_remove_from = &in_level.m_parent_level->m_sublevels;
 		else

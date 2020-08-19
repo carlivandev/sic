@@ -10,9 +10,9 @@
 
 namespace sic
 {
-	struct Level : Noncopyable
+	struct Scene : Noncopyable
 	{
-		Level(Engine& in_engine, Level* in_outermost_level, Level* in_parent_level) : m_engine(in_engine), m_outermost_level(in_outermost_level) , m_parent_level(in_parent_level)
+		Scene(Engine& in_engine, Scene* in_outermost_level, Scene* in_parent_level) : m_engine(in_engine), m_outermost_level(in_outermost_level) , m_parent_level(in_parent_level)
 		{
 			m_object_exists_flags.reserve(512);
 		}
@@ -44,19 +44,19 @@ namespace sic
 		std::vector<std::unique_ptr<Component_storage_base>> m_component_storages;
 		std::vector<std::unique_ptr<Object_storage_base>> m_objects;
 
-		std::vector<std::unique_ptr<Level>> m_sublevels;
+		std::vector<std::unique_ptr<Scene>> m_sublevels;
 		Engine& m_engine;
 
 		std::vector<bool> m_object_exists_flags;
-		Level* m_outermost_level = nullptr;
-		Level* m_parent_level = nullptr;
+		Scene* m_outermost_level = nullptr;
+		Scene* m_parent_level = nullptr;
 		i32 m_level_id = -1;
 		i32 m_current_object_id_ticker = 0;
 		mutable std::mutex m_object_creation_mutex;
 	};
 
 	template <typename T_object>
-	inline constexpr T_object& Level::create_object()
+	inline constexpr T_object& Scene::create_object()
 	{
 		static_assert(std::is_base_of<Object_base, T_object>::value, "object must derive from struct Object<>");
 
@@ -66,7 +66,7 @@ namespace sic
 
 		auto& arch_to_create_from = m_objects[type_idx];
 
-		Level_context context(m_engine, *this);
+		Scene_context context(m_engine, *this);
 		T_object& new_instance = reinterpret_cast<Object_storage*>(arch_to_create_from.get())->make_instance<T_object>(context);
 		new_instance.m_id = m_current_object_id_ticker++;
 
@@ -82,7 +82,7 @@ namespace sic
 	}
 
 	template<typename T_component_type>
-	inline typename T_component_type& Level::create_component(Object_base& in_object_to_attach_to)
+	inline typename T_component_type& Scene::create_component(Object_base& in_object_to_attach_to)
 	{
 		const ui32 type_idx = Type_index<Component_base>::get<T_component_type>();
 
@@ -99,7 +99,7 @@ namespace sic
 	}
 
 	template<typename T_component_type>
-	inline void Level::destroy_component(T_component_type& in_component_to_destroy)
+	inline void Scene::destroy_component(T_component_type& in_component_to_destroy)
 	{
 		const ui32 type_idx = Type_index<Component_base>::get<T_component_type>();
 		m_engine.invoke<event_destroyed<T_component_type>>(in_component_to_destroy);
@@ -109,7 +109,7 @@ namespace sic
 	}
 
 	template<typename T_type>
-	inline void Level::for_each_w(std::function<void(T_type&)> in_func)
+	inline void Scene::for_each_w(std::function<void(T_type&)> in_func)
 	{
 		constexpr bool is_component = std::is_base_of<Component_base, T_type>::value;
 		constexpr bool is_object = std::is_base_of<Object_base, T_type>::value;
@@ -140,7 +140,7 @@ namespace sic
 	}
 
 	template<typename T_type>
-	inline void Level::for_each_r(std::function<void(const T_type&)> in_func) const
+	inline void Scene::for_each_r(std::function<void(const T_type&)> in_func) const
 	{
 		constexpr bool is_component = std::is_base_of<Component_base, T_type>::value;
 		constexpr bool is_object = std::is_base_of<Object_base, T_type>::value;

@@ -9,6 +9,7 @@
 #include "sic/logger.h"
 #include "sic/state_render_scene.h"
 #include "sic/shader_parser.h"
+#include "sic/system_ui.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
@@ -274,7 +275,10 @@ void sic::System_window::on_engine_tick(Engine_context in_context, float in_time
 			if (window.m_render_target.value().get_dimensions() != window_dimensions)
 			{
 				if (window_dimensions.x != 0 && window_dimensions.y != 0)
+				{
 					window.m_render_target.value().resize(window_dimensions);
+					window.m_ui_render_target.value().resize(window_dimensions);
+				}
 			}
 		}
 	}
@@ -402,8 +406,22 @@ sic::Window_proxy& sic::State_window::create_window(Engine_context in_context, c
 			//we have to initialize fbo on main context cause it is not shared
 			glfwMakeContextCurrent(resource_context);
 			in_out_window.m_render_target.emplace(in_dimensions, OpenGl_texture_format::rgb,  false);
+			in_out_window.m_ui_render_target.emplace(in_dimensions, OpenGl_texture_format::rgba, false);
 		}
 	);
+
+ 	if (State_ui* ui_state = in_context.get_state<State_ui>())
+ 	{
+		ui_state->create_widget<Ui_widget_canvas>
+		(
+			in_name,
+			[in_name, in_dimensions, id = window_interface_ptr_raw->m_window_id](Ui_widget_canvas& inout_canvas)
+			{
+				inout_canvas.m_reference_dimensions = in_dimensions;
+				inout_canvas.m_window_id = id;
+			}
+		);
+ 	}
 
 	return *window_interface_ptr;
 }
@@ -466,6 +484,7 @@ void sic::Window_proxy::set_dimensions(const glm::ivec2& in_dimensions)
 			{
 				glfwSetWindowSize(inout_window.m_context, in_dimensions.x, in_dimensions.y);
 				inout_window.m_render_target.value().resize(in_dimensions);
+				inout_window.m_ui_render_target.value().resize(in_dimensions);
 			}
 		}
 	);

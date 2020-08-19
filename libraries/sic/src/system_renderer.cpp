@@ -29,9 +29,9 @@ void sic::System_renderer::on_created(Engine_context in_context)
 	in_context.register_state<State_renderer_resources>("State_renderer_resources");
 	in_context.register_state<State_renderer>("State_renderer");
 
-	in_context.listen<event_created<Level>>
+	in_context.listen<event_created<Scene>>
 	(
-		[](Engine_context& in_out_context, Level& in_out_level)
+		[](Engine_context& in_out_context, Scene& in_out_level)
 		{
 			if (in_out_level.get_is_root_level())
 			{
@@ -47,9 +47,9 @@ void sic::System_renderer::on_created(Engine_context in_context)
 		}
 	);
 
-	in_context.listen<event_destroyed<Level>>
+	in_context.listen<event_destroyed<Scene>>
 	(
-		[](Engine_context& in_out_context, Level& in_out_level)
+		[](Engine_context& in_out_context, Scene& in_out_level)
 		{
 			if (in_out_level.get_is_root_level())
 			{
@@ -219,6 +219,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 
 		glfwMakeContextCurrent(window_state.m_resource_context);
 		window.m_render_target.value().clear();
+		window.m_ui_render_target.value().clear();
 	}
 
 	std::unordered_map<Render_object_window*, std::vector<Render_object_view*>> window_to_views_lut;
@@ -249,15 +250,10 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		if (current_window_x == 0 || current_window_y == 0)
 			continue;
 
-		// Enable depth test
-		glEnable(GL_DEPTH_TEST);
-		// Accept fragment if it closer to the camera than the former one
-		glDepthFunc(GL_LESS);
-
-		glEnable(GL_CULL_FACE);
-
 		for (Render_object_view* view : views)
 			render_view(in_context, window, *view);
+
+		render_ui(in_context, window);
 	}
 	
 	render_views_to_window_backbuffers(window_to_views_lut);
@@ -286,6 +282,14 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 	if (scene_it == scene_state.m_level_id_to_scene_lut.end())
 		return;
 
+	set_depth_mode(Depth_mode::read_write);
+	set_blend_mode(Material_blend_mode::Opaque);
+
+	// Accept fragment if it closer to the camera than the former one
+	glDepthFunc(GL_LESS);
+
+	glEnable(GL_CULL_FACE);
+
 	sic::i32 current_window_x, current_window_y;
 	glfwGetWindowSize(in_window.m_context, &current_window_x, &current_window_y);
 
@@ -298,8 +302,6 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 		view_dimensions.y != target_dimensions.y)
 	{
 		inout_view.m_render_target.value().resize(target_dimensions);
-		inout_view.m_ui_render_target.value().resize(target_dimensions);
-
 		view_dimensions = target_dimensions;
 	}
 
@@ -358,111 +360,6 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 		//insert post-processing here
 	}
 
-	//TODO: draw ui here
-	inout_view.m_ui_render_target.value().bind_as_target(0);
-	inout_view.m_ui_render_target.value().clear();
-
-	glViewport
-	(
-		0,
-		0,
-		view_dimensions.x,
-		view_dimensions.y
-	);
-
-	{
-		auto& ui_elements = std::get<Update_list<Render_object_ui>>(scene_it->second);
-
-		scene_state.m_ui_drawcalls.clear();
-		scene_state.m_ui_drawcalls.reserve(ui_elements.m_objects.size());
-
-		for (const Render_object_ui& element : ui_elements.m_objects)
-		{
-			Asset_material* child_mat = element.m_material;
-			Asset_material* mat = element.m_material->m_outermost_parent.is_valid() ? element.m_material->m_outermost_parent.get_mutable() : element.m_material;
-			assert(mat);
-
-			const GLint mat_attrib_count = mat->m_program.value().get_attribute_count();
-			const size_t mesh_attrib_count = renderer_resources_state.m_y_flipped_quad_vertex_buffer_array.value().get_attribute_count();
-			if (mat_attrib_count > mesh_attrib_count)
-			{
-				SIC_LOG_E
-				(
-					g_log_renderer, "Failed to add drawcall, material(\"{0})\" expected {1} attributes but mesh only has {2}.",
-					mat->m_vertex_shader_path, mat_attrib_count, mesh_attrib_count
-				);
-
-				continue;
-			}
-
-			byte* instance_buffer = mat->m_instance_buffer.data() + element.m_instance_data_index;
-
-			switch (mat->m_blend_mode)
-			{
-			case Material_blend_mode::Opaque:
-			case Material_blend_mode::Masked:
-				SIC_LOG_E(g_log_renderer, "Failed to add UI drawcall, material(\"{0})\" has an invalid blendmode, only Translucent/Additive is supported.", mat->get_header().m_name);
-				continue;
-				break;
-
-			case Material_blend_mode::Translucent:
-			case Material_blend_mode::Additive:
-			{
-				scene_state.m_ui_drawcalls.push_back(Drawcall_ui_element(element.m_topleft, element.m_bottomright, mat, instance_buffer, element.m_sort_priority, element.m_custom_sort_priority));
-			}
-			break;
-
-			case Material_blend_mode::Invalid:
-			default:
-				continue;
-			}
-		}
-
-		set_depth_mode(Depth_mode::disabled);
-		renderer_resources_state.m_y_flipped_quad_vertex_buffer_array.value().bind();
-		renderer_resources_state.m_y_flipped_quad_indexbuffer.value().bind();
-		const GLsizei idx_buffer_max_elements_count = static_cast<GLsizei>(renderer_resources_state.m_y_flipped_quad_indexbuffer.value().get_max_elements());
-
-		std::sort
-		(
-			scene_state.m_ui_drawcalls.begin(), scene_state.m_ui_drawcalls.end(),
-			[](const Drawcall_ui_element& in_a, const Drawcall_ui_element& in_b)
-			{
-				if (in_a.m_sort_priority < in_b.m_sort_priority)
-					return true;
-				else if (in_a.m_sort_priority > in_b.m_sort_priority)
-					return false;
-
-				return in_a.m_custom_sort_priority < in_b.m_sort_priority;
-			}
-		);
-
-		auto instanced_begin = sort_instanced(scene_state.m_ui_drawcalls);
-
-		const char* topleft_bottomright_packed_name = "topleft_bottomright_packed";
-
-		for (auto it = scene_state.m_ui_drawcalls.begin(); it != instanced_begin; ++it)
-		{
-			set_blend_mode(it->m_material->m_blend_mode);
-
-			const auto& program = it->m_material->m_program.value();
-			program.use();
-
-			const glm::vec4 topleft_bottomright_packed = { it->m_topleft.x, it->m_topleft.y, it->m_bottomright.x, it->m_bottomright.y };
-
-			if (program.get_uniform_location(topleft_bottomright_packed_name))
-				program.set_uniform(topleft_bottomright_packed_name, topleft_bottomright_packed);
-
-			apply_parameters(*it->m_material, it->m_instance_data, program);
-
-			OpenGl_draw_strategy_triangle_element::draw(idx_buffer_max_elements_count, 0);
-		}
-
-		//render_meshes_instanced(instanced_begin, scene_state.m_ui_drawcalls.end(), proj_mat, view_mat, renderer_resources_state);
-
-		//insert post-processing here
-	}
-
 	set_depth_mode(Depth_mode::read_write);
 	set_blend_mode(Material_blend_mode::Opaque);
 
@@ -482,23 +379,144 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 	renderer_resources_state.m_pass_through_program.value().use();
 
 	renderer_resources_state.m_pass_through_program.value().set_uniform("uniform_texture", inout_view.m_render_target.value().get_texture());
-	renderer_resources_state.m_pass_through_program.value().set_uniform("topleft_bottomright_packed", glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
 
 	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(renderer_resources_state.m_quad_indexbuffer.value().get_max_elements()), 0);
+}
 
-	if (!scene_state.m_ui_drawcalls.empty())
+void sic::System_renderer::render_ui(Engine_context in_context, const Render_object_window& in_window) const
+{
+	State_renderer_resources& renderer_resources_state = in_context.get_state_checked<State_renderer_resources>();
+	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
+
+	auto& ui_elements = scene_state.m_ui_elements;
+
+	scene_state.m_ui_drawcalls.clear();
+	scene_state.m_ui_drawcalls.reserve(ui_elements.m_objects.size());
+
+	for (const Render_object_ui& element : ui_elements.m_objects)
 	{
-		set_depth_mode(Depth_mode::disabled);
-		set_blend_mode(Material_blend_mode::Translucent);
+		if (scene_state.m_windows.find_object(element.m_window_id) != &in_window)
+			continue;
 
-		renderer_resources_state.m_pass_through_program.value().set_uniform("uniform_texture", inout_view.m_ui_render_target.value().get_texture());
-		renderer_resources_state.m_pass_through_program.value().set_uniform("topleft_bottomright_packed", glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
+		Asset_material* child_mat = element.m_material;
+		Asset_material* mat = element.m_material->m_outermost_parent.is_valid() ? element.m_material->m_outermost_parent.get_mutable() : element.m_material;
+		assert(mat);
 
-		OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(renderer_resources_state.m_quad_indexbuffer.value().get_max_elements()), 0);
+		const GLint mat_attrib_count = mat->m_program.value().get_attribute_count();
+		const size_t mesh_attrib_count = renderer_resources_state.m_y_flipped_quad_vertex_buffer_array.value().get_attribute_count();
+		if (mat_attrib_count > mesh_attrib_count)
+		{
+			SIC_LOG_E
+			(
+				g_log_renderer, "Failed to add drawcall, material(\"{0})\" expected {1} attributes but mesh only has {2}.",
+				mat->m_vertex_shader_path, mat_attrib_count, mesh_attrib_count
+			);
+
+			continue;
+		}
+
+		byte* instance_buffer = mat->m_instance_buffer.data() + element.m_instance_data_index;
+
+		switch (mat->m_blend_mode)
+		{
+		case Material_blend_mode::Opaque:
+		case Material_blend_mode::Masked:
+			SIC_LOG_E(g_log_renderer, "Failed to add UI drawcall, material(\"{0})\" has an invalid blendmode, only Translucent/Additive is supported.", mat->get_header().m_name);
+			continue;
+			break;
+
+		case Material_blend_mode::Translucent:
+		case Material_blend_mode::Additive:
+		{
+			scene_state.m_ui_drawcalls.push_back(Drawcall_ui_element(element.m_lefttop, element.m_rightbottom, mat, instance_buffer, element.m_sort_priority, element.m_custom_sort_priority));
+		}
+		break;
+
+		case Material_blend_mode::Invalid:
+		default:
+			continue;
+		}
 	}
 
-	set_depth_mode(Depth_mode::read_write);
-	set_blend_mode(Material_blend_mode::Opaque);
+	if (scene_state.m_ui_drawcalls.empty())
+		return;
+
+	in_window.m_ui_render_target.value().bind_as_target(0);
+	in_window.m_ui_render_target.value().clear();
+
+	glViewport
+	(
+		0,
+		0,
+		in_window.m_render_target->get_dimensions().x,
+		in_window.m_render_target->get_dimensions().y
+	);
+
+	set_depth_mode(Depth_mode::disabled);
+	renderer_resources_state.m_y_flipped_quad_vertex_buffer_array.value().bind();
+	renderer_resources_state.m_y_flipped_quad_indexbuffer.value().bind();
+	const GLsizei idx_buffer_max_elements_count = static_cast<GLsizei>(renderer_resources_state.m_y_flipped_quad_indexbuffer.value().get_max_elements());
+
+	std::sort
+	(
+		scene_state.m_ui_drawcalls.begin(), scene_state.m_ui_drawcalls.end(),
+		[](const Drawcall_ui_element& in_a, const Drawcall_ui_element& in_b)
+		{
+			if (in_a.m_sort_priority < in_b.m_sort_priority)
+				return true;
+			else if (in_a.m_sort_priority > in_b.m_sort_priority)
+				return false;
+
+			return in_a.m_custom_sort_priority < in_b.m_sort_priority;
+		}
+	);
+
+	auto instanced_begin = sort_instanced(scene_state.m_ui_drawcalls);
+
+	const char* lefttop_rightbottom_packed_name = "lefttop_rightbottom_packed";
+
+	for (auto it = scene_state.m_ui_drawcalls.begin(); it != instanced_begin; ++it)
+	{
+		set_blend_mode(it->m_material->m_blend_mode);
+
+		const auto& program = it->m_material->m_program.value();
+		program.use();
+
+		const glm::vec4 lefttop_rightbottom_packed = { it->m_topleft.x, it->m_topleft.y, it->m_bottomright.x, it->m_bottomright.y };
+
+		if (program.get_uniform_location(lefttop_rightbottom_packed_name))
+			program.set_uniform(lefttop_rightbottom_packed_name, lefttop_rightbottom_packed);
+
+		apply_parameters(*it->m_material, it->m_instance_data, program);
+
+		OpenGl_draw_strategy_triangle_element::draw(idx_buffer_max_elements_count, 0);
+	}
+
+	//TODO: render_meshes_instanced(instanced_begin, scene_state.m_ui_drawcalls.end(), proj_mat, view_mat, renderer_resources_state);
+
+	//insert post-processing here
+
+	in_window.m_render_target.value().bind_as_target(0);
+
+	glViewport
+	(
+		0,
+		0,
+		in_window.m_render_target->get_dimensions().x,
+		in_window.m_render_target->get_dimensions().y
+	);
+
+	renderer_resources_state.m_quad_vertex_buffer_array.value().bind();
+	renderer_resources_state.m_quad_indexbuffer.value().bind();
+
+	renderer_resources_state.m_pass_through_program.value().use();
+
+	set_depth_mode(Depth_mode::disabled);
+	set_blend_mode(Material_blend_mode::Translucent);
+
+	renderer_resources_state.m_pass_through_program.value().set_uniform("uniform_texture", in_window.m_ui_render_target.value().get_texture());
+
+	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(renderer_resources_state.m_quad_indexbuffer.value().get_max_elements()), 0);
 }
 
 void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_data) const
@@ -633,6 +651,9 @@ void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_d
 
 void sic::System_renderer::render_views_to_window_backbuffers(const std::unordered_map<sic::Render_object_window*, std::vector<sic::Render_object_view*>>& in_window_to_view_lut) const
 {
+	set_depth_mode(Depth_mode::read_write);
+	set_blend_mode(Material_blend_mode::Opaque);
+
 	for (auto& window_to_views_it : in_window_to_view_lut)
 	{
 		glfwMakeContextCurrent(window_to_views_it.first->m_context);

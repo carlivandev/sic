@@ -27,8 +27,8 @@ namespace sic
 	struct Object_base : Noncopyable
 	{
 		friend struct Engine_context;
-		friend struct Level_context;
-		friend struct Level;
+		friend struct Scene_context;
+		friend struct Scene;
 		friend struct System;
 		friend struct Object_storage;
 
@@ -106,7 +106,7 @@ namespace sic
 	protected:
 		virtual byte* find_internal(i32 in_type_idx) = 0;
 		virtual const byte* find_internal(i32 in_type_idx) const = 0;
-		virtual void destroy_instance(Level_context& inout_level) = 0;
+		virtual void destroy_instance(Scene_context& inout_level) = 0;
 
 		std::vector<Object_base*> m_children;
 		Object_base* m_parent = nullptr;

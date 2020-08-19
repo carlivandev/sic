@@ -70,6 +70,7 @@ add_headers(SIC_HEADERS
 	system_asset.h
 	system_window.h
 	system_input.h
+	system_ui.h
 	system_view.h
 	material_dynamic_parameters.h
 	debug_draw_helpers.h
@@ -121,6 +122,7 @@ add_sources(SIC_SOURCES
 	system_asset.cpp
 	system_window.cpp
 	system_input.cpp
+	system_ui.cpp
 	system_view.cpp
 	material_dynamic_parameters.cpp
 	debug_draw_helpers.cpp

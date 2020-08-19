@@ -54,9 +54,6 @@ void sic::Component_view::set_viewport_dimensions(const glm::ivec2& in_viewport_
 		{
 			inout_view.m_render_target.reset();
 			inout_view.m_render_target.emplace(in_viewport_dimensions, OpenGl_texture_format::rgb, true);
-
-			inout_view.m_ui_render_target.reset();
-			inout_view.m_ui_render_target.emplace(in_viewport_dimensions, OpenGl_texture_format::rgba, false);
 		}
 	);
 }

@@ -86,7 +86,7 @@ namespace sic
 		template<typename T_type>
 		__forceinline void for_each(std::function<void(T_type&)> in_func)
 		{
-			if constexpr (std::is_same<T_type, Level>::value)
+			if constexpr (std::is_same<T_type, Scene>::value)
 			{
 				for (auto& level : m_engine->m_levels)
 					for_each_level(in_func, *level.get());
@@ -104,12 +104,12 @@ namespace sic
 			m_level.for_each_w_w<T_type>(in_func);
 		}
 
-		void create_level(Level* in_parent_level)
+		void create_level(Scene* in_parent_level)
 		{
 			m_engine->create_level(in_parent_level);
 		}
 
-		void destroy_level(Level& inout_level)
+		void destroy_level(Scene& inout_level)
 		{
 			m_engine->destroy_level(inout_level);
 		}
@@ -132,7 +132,7 @@ namespace sic
 		}
 
 	private:
-		void for_each_level(std::function<void(Level&)> in_func, Level& inout_level)
+		void for_each_level(std::function<void(Scene&)> in_func, Scene& inout_level)
 		{
 			in_func(inout_level);
 

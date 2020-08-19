@@ -1,6 +1,8 @@
 #version 410 core
 //! #include "../engine/materials/includes/ui_frag_header.glsl"
 
+//in vec2 out_pos;
+
 uniform sampler2D uniform_texture;
 uniform vec4 topleft_bottomright_packed;
 

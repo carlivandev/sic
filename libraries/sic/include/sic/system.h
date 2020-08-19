@@ -9,7 +9,7 @@
 namespace sic
 {
 	struct Engine_context;
-	struct Level_context;
+	struct Scene_context;
 	struct Engine;
 	struct Component_base;
 	struct Object_base;
@@ -37,18 +37,18 @@ namespace sic
 		/*
 			happens after level has finished setting up
 		*/
-		virtual void on_begin_simulation(Level_context in_context) const;
+		virtual void on_begin_simulation(Scene_context in_context) const;
 
 		/*
 			happens after level has called on_begin_simulation
 			called every frame for each root level
 		*/
-		virtual void on_tick(Level_context in_context, float in_time_delta) const;
+		virtual void on_tick(Scene_context in_context, float in_time_delta) const;
 
 		/*
 			happens when level is destroyed
 		*/
-		virtual void on_end_simulation(Level_context in_context) const;
+		virtual void on_end_simulation(Scene_context in_context) const;
 
 		/*
 			happens after engine has finished setting up
@@ -110,7 +110,7 @@ namespace sic
 
 	protected:
 		void execute_engine_finalized(Engine_context in_context) const;
-		void execute_tick(Level_context in_context, float in_time_delta) const;
+		void execute_tick(Scene_context in_context, float in_time_delta) const;
 		void execute_engine_tick(Engine_context in_context, float in_time_delta) const;
 
 		std::string m_name;

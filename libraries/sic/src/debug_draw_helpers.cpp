@@ -10,7 +10,7 @@ namespace sic
 		namespace private_functions
 		{
 			template <typename T_type>
-			void draw_shape(Level_context& inout_context, const T_type& in_shape)
+			void draw_shape(Scene_context& inout_context, const T_type& in_shape)
 			{
 				Engine_context engine_context = inout_context.get_engine_context();
 
@@ -28,7 +28,7 @@ namespace sic
 			}
 		}
 
-		void line(Level_context& inout_context, const glm::vec3& in_start, const glm::vec3& in_end, const glm::vec4& in_color, float in_lifetime)
+		void line(Scene_context& inout_context, const glm::vec3& in_start, const glm::vec3& in_end, const glm::vec4& in_color, float in_lifetime)
 		{
 			Render_object_debug_drawer::Line shape;
 			shape.m_start = in_start;
@@ -39,7 +39,7 @@ namespace sic
 			private_functions::draw_shape(inout_context, shape);
 		}
 
-		void cube(Level_context& inout_context, const glm::vec3& in_center, const glm::vec3& in_half_size, const glm::quat& in_rotation, const glm::vec4& in_color, float in_lifetime)
+		void cube(Scene_context& inout_context, const glm::vec3& in_center, const glm::vec3& in_half_size, const glm::quat& in_rotation, const glm::vec4& in_color, float in_lifetime)
 		{
 			Render_object_debug_drawer::Cube shape;
 			shape.m_center = in_center;
@@ -51,7 +51,7 @@ namespace sic
 			private_functions::draw_shape(inout_context, shape);
 		}
 
-		void sphere(Level_context& inout_context, const glm::vec3& in_center, float in_radius, i32 in_segments, const glm::vec4& in_color, float in_lifetime)
+		void sphere(Scene_context& inout_context, const glm::vec3& in_center, float in_radius, i32 in_segments, const glm::vec4& in_color, float in_lifetime)
 		{
 			Render_object_debug_drawer::Sphere shape;
 			shape.m_center = in_center;
@@ -64,7 +64,7 @@ namespace sic
 		}
 
 		//angles are in radians
-		void cone(Level_context& inout_context, const glm::vec3& in_origin, const glm::vec3& in_direction, float in_length, float in_angle_width, float in_angle_height, i32 in_num_sides, const glm::vec4& in_color, float in_lifetime)
+		void cone(Scene_context& inout_context, const glm::vec3& in_origin, const glm::vec3& in_direction, float in_length, float in_angle_width, float in_angle_height, i32 in_num_sides, const glm::vec4& in_color, float in_lifetime)
 		{
 			Render_object_debug_drawer::Cone shape;
 			shape.m_origin = in_origin;
@@ -79,7 +79,7 @@ namespace sic
 			private_functions::draw_shape(inout_context, shape);
 		}
 
-		void capsule(Level_context& inout_context, const glm::vec3& in_center, float in_half_height, float in_radius, const glm::quat& in_rotation, const glm::vec4& in_color, float in_lifetime)
+		void capsule(Scene_context& inout_context, const glm::vec3& in_center, float in_half_height, float in_radius, const glm::quat& in_rotation, const glm::vec4& in_color, float in_lifetime)
 		{
 			Render_object_debug_drawer::Capsule shape;
 			shape.m_center = in_center;
@@ -92,7 +92,7 @@ namespace sic
 			private_functions::draw_shape(inout_context, shape);
 		}
 
-		void frustum(Level_context& inout_context, const glm::mat4x4& in_orientation_matrix, const glm::mat4x4& in_projection_matrix, const glm::vec4& in_color, float in_lifetime)
+		void frustum(Scene_context& inout_context, const glm::mat4x4& in_orientation_matrix, const glm::mat4x4& in_projection_matrix, const glm::vec4& in_color, float in_lifetime)
 		{
 			Render_object_debug_drawer::Frustum shape;
 			shape.m_orientation_matrix = in_orientation_matrix;

@@ -76,19 +76,19 @@ namespace sic
 		}
 
 		template<typename T_to_create>
-		constexpr void create_component(Level_context& inout_level)
+		constexpr void create_component(Scene_context& inout_level)
 		{
 			std::get<T_to_create*>(m_components) = &inout_level.m_level.create_component<T_to_create>(*this);
 		}
 
 		template<typename T_to_invoke_on>
-		constexpr void invoke_post_creation_event(Level_context& inout_level)
+		constexpr void invoke_post_creation_event(Scene_context& inout_level)
 		{
 			inout_level.m_engine.invoke<event_post_created<T_to_invoke_on>>(*std::get<T_to_invoke_on*>(m_components));
 		}
 
 		template<typename T_to_destroy>
-		constexpr void destroy_component(Level_context& inout_level)
+		constexpr void destroy_component(Scene_context& inout_level)
 		{
 			auto& destroy_it = std::get<T_to_destroy*>(m_components);
 			inout_level.m_level.destroy_component<T_to_destroy>(*destroy_it);
@@ -96,7 +96,7 @@ namespace sic
 		}
 
 	private:
-		constexpr void make_instance(Level_context& inout_level)
+		constexpr void make_instance(Scene_context& inout_level)
 		{
 			m_level_id = inout_level.get_level_id();
 			m_outermost_level_id = inout_level.get_outermost_level_id();
@@ -105,7 +105,7 @@ namespace sic
 			(invoke_post_creation_event<T_component>(inout_level), ...);
 		}
 
-		void destroy_instance(Level_context& inout_level) override
+		void destroy_instance(Scene_context& inout_level) override
 		{
 			static_assert(std::is_base_of_v<Object_base, T_subtype>, "did you forget T_subtype?");
 			inout_level.m_engine.invoke<event_destroyed<T_subtype>>(*reinterpret_cast<T_subtype*>(this));
@@ -124,7 +124,7 @@ namespace sic
 		}
 
 		template <typename T_object>
-		constexpr T_object& make_instance(Level_context& inout_level)
+		constexpr T_object& make_instance(Scene_context& inout_level)
 		{
 			if (m_free_object_locations.empty())
 			{
@@ -149,7 +149,7 @@ namespace sic
 			return new_instance;
 		}
 
-		void destroy_instance(Level_context& inout_level, Object_base& in_object_to_destroy)
+		void destroy_instance(Scene_context& inout_level, Object_base& in_object_to_destroy)
 		{
 			in_object_to_destroy.destroy_instance(inout_level);
 
