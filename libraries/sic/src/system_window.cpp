@@ -126,6 +126,7 @@ namespace sic
 						assert(canvas);
 
 						canvas->m_reference_dimensions = { in_width, in_height };
+						inout_ui_context.set_window_size(name, { in_width, in_height });
 					}
 				);
 			}
@@ -426,6 +427,8 @@ sic::Window_proxy& sic::State_window::create_window(Engine_context in_context, c
 				Ui_widget_canvas& canvas = inout_ui_context.create_widget<Ui_widget_canvas>(in_name);
 				canvas.m_reference_dimensions = in_dimensions;
 				canvas.m_window_id = id;
+
+				inout_ui_context.set_window_size(in_name, in_dimensions);
 			}
 		);
  	}

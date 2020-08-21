@@ -1,30 +1,14 @@
 #include "sic/system_ui.h"
 
-void sic::Ui_widget::calculate_render_transform()
+void sic::Ui_widget::calculate_render_transform(const glm::vec2& in_window_size)
 {
-	m_render_translation = { 0.0f, 0.0f };
-	m_render_size = { 1.0f, 1.0f };
-	m_render_rotation = 0.0f;
+	in_window_size;
 
-	if (m_parent)
+	if (!m_parent)
 	{
-		m_parent->calculate_render_transform_for_slot_base(*this, m_render_translation, m_render_size, m_render_rotation);
-
-		m_render_translation += m_local_translation;
-		m_render_size *= m_local_scale;
-		m_render_rotation += m_local_rotation;
-	}
-	else
-	{
-		/*
-		if a widget doesnt have a parent, its size should cover the entire screen (1.0f, 1.0f)
-		otherwise, slot types should use their data to set the correct size
-
-		(ofcourse, locals still apply)
-		*/
-		m_render_translation = glm::vec2(0.5f, 0.5f) + m_local_translation;
-		m_render_size = m_local_scale;
-		m_render_rotation = m_local_rotation;
+		m_render_translation = { 0.0f, 0.0f };
+		m_global_render_size = { 1.0f, 1.0f };
+		m_render_rotation = 0.0f;
 	}
 }
 
@@ -68,6 +52,8 @@ void sic::System_ui::on_created(Engine_context in_context)
 
 void sic::System_ui::on_engine_tick(Engine_context in_context, float in_time_delta) const
 {
+	in_time_delta;
+
 	State_ui& ui_state = in_context.get_state_checked<State_ui>();
 	State_render_scene& render_scene_state = in_context.get_state_checked<State_render_scene>();
 
@@ -124,8 +110,21 @@ void sic::System_ui::on_engine_tick(Engine_context in_context, float in_time_del
 		if (!should_update_render_scene)
 			continue;
 
-		dirty_widget->calculate_render_transform();
-		dirty_widget->update_render_scene(dirty_widget->m_render_translation, dirty_widget->m_render_size, dirty_widget->m_render_rotation, render_scene_state);
+		auto it = ui_state.m_root_to_window_size_lut.find(dirty_widget->m_key.value());
+		assert(it != ui_state.m_root_to_window_size_lut.end() && "Dirty_widget was not a properly setup root widget!");
+
+		const glm::vec2 window_size = it->second;
+
+		dirty_widget->calculate_content_size(window_size);
+		dirty_widget->calculate_render_transform(window_size);
+
+		dirty_widget->update_render_scene
+		(
+			dirty_widget->m_render_translation + dirty_widget->m_local_translation,
+			dirty_widget->m_global_render_size * dirty_widget->m_local_scale,
+			dirty_widget->m_render_rotation + dirty_widget->m_local_rotation,
+			render_scene_state
+		);
 	}
 
 	ui_state.m_dirty_parent_widgets.clear();

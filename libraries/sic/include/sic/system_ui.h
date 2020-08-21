@@ -37,10 +37,76 @@ namespace sic
 		glm::vec2 m_max = { 0.5f, 0.5f };
 	};
 
+	struct Ui_padding
+	{
+		Ui_padding() = default;
+
+		Ui_padding(float in_uniform_padding)
+		{
+			set(in_uniform_padding);
+		}
+
+		Ui_padding(float in_horizontal_padding, float in_vertical_padding)
+		{
+			set(in_horizontal_padding, in_vertical_padding);
+		}
+
+		Ui_padding(float in_left, float in_top, float in_right, float in_bottom)
+		{
+			set(in_left, in_top, in_right, in_bottom);
+		}
+
+		void set(float in_uniform_padding)
+		{
+			m_left = m_top = m_right = m_bottom = in_uniform_padding;
+		}
+
+		void set(float in_horizontal_padding, float in_vertical_padding)
+		{
+			m_left = m_right = in_horizontal_padding;
+			m_top = m_bottom = in_vertical_padding;
+		}
+
+		void set(float in_left, float in_top, float in_right, float in_bottom)
+		{
+			m_left = in_left;
+			m_top = in_top;
+			m_right = in_right;
+			m_bottom = in_bottom;
+		}
+
+		float get_left() const { return m_left; }
+		float get_top() const { return m_top; }
+		float get_right() const { return m_right; }
+		float get_bottom() const { return m_bottom; }
+
+	private:
+		float m_left = 0.0f;
+		float m_top = 0.0f;
+		float m_right = 0.0f;
+		float m_bottom = 0.0f;
+	};
+
+	enum struct Ui_h_alignment
+	{
+		left,
+		center,
+		right,
+		fill
+	};
+
+	enum struct Ui_v_alignment
+	{
+		top,
+		center,
+		bottom,
+		fill
+	};
+
 	struct Ui_parent_widget_base;
 	struct State_ui;
 
-	struct Ui_widget
+	struct Ui_widget : Noncopyable
 	{
 		friend struct Ui_context;
 		friend struct System_ui;
@@ -48,7 +114,10 @@ namespace sic
 		template <typename T_slot_type>
 		friend struct Ui_parent_widget;
 
-		virtual void calculate_render_transform();
+		virtual void calculate_render_transform(const glm::vec2& in_window_size);
+		virtual void calculate_content_size(const glm::vec2& in_window_size) { m_global_render_size = get_content_size(in_window_size); }
+
+		virtual glm::vec2 get_content_size(const glm::vec2& in_window_size) const { in_window_size; return glm::vec2(0.0f, 0.0f); }
 
 		Ui_widget* get_outermost_parent();
 		const Ui_parent_widget_base* get_parent() const { return m_parent; }
@@ -70,14 +139,16 @@ namespace sic
 		i32 m_widget_index = -1;
 		bool m_allow_dependency_streaming = false;
 
+		glm::vec2 m_render_translation;
+		glm::vec2 m_global_render_size;
+		float m_render_rotation;
+
 	protected:
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, State_render_scene& inout_render_scene_state) { in_final_translation; in_final_size; in_final_rotation; inout_render_scene_state; }
 
 		virtual void destroy(State_ui& inout_ui_state);
 
-		glm::vec2 m_render_translation;
-		glm::vec2 m_render_size;
-		float m_render_rotation;
+		explicit Ui_widget() = default;
 
 	private:
 		std::optional<std::string> m_key;
@@ -105,6 +176,7 @@ namespace sic
 		std::vector<size_t> m_free_widget_indices;
 		std::unordered_map<std::string, Ui_widget*> m_widget_lut;
 		std::unordered_set<Ui_widget*> m_dirty_parent_widgets;
+		std::unordered_map<std::string, glm::vec2> m_root_to_window_size_lut;
 
 	};
 
@@ -116,7 +188,6 @@ namespace sic
 
 	struct Ui_parent_widget_base : Ui_widget
 	{
-		virtual void calculate_render_transform_for_slot_base(const Ui_widget& in_widget, glm::vec2& out_translation, glm::vec2& out_size, float& out_rotation) = 0;
 	};
 
 	struct Ui_slot
@@ -130,63 +201,68 @@ namespace sic
 
 		using Slot_type = T_slot_type;
 
-		void calculate_render_transform() override final
+		void calculate_render_transform(const glm::vec2& in_window_size) override
 		{
-			Ui_widget::calculate_render_transform();
+			for (auto&& child : m_children)
+				child.second.calculate_render_transform(in_window_size);
 
-			for (auto&& child : m_child_widgets)
-				child->calculate_render_transform();
-		}
-
-		void calculate_render_transform_for_slot_base(const Ui_widget& in_widget, glm::vec2& out_translation, glm::vec2& out_size, float& out_rotation) override final
-		{
-			assert(in_widget.get_parent() == this && "Parent mismatch!");
-			calculate_render_transform_for_slot(m_slots[in_widget.get_slot_index()], out_translation, out_size, out_rotation);
-
-			out_translation += m_render_size * (m_render_translation - glm::vec2(0.5f, 0.5f));
-			out_size *= m_render_size;
-			out_rotation += m_render_rotation;
+			Ui_widget::calculate_render_transform(in_window_size);
 		}
 
 		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override final
 		{
 			Ui_widget::gather_dependencies(out_assets);
-			for (auto&& child_widget : m_child_widgets)
-				child_widget->gather_dependencies(out_assets);
+			for (auto && child : m_children)
+				child.second.gather_dependencies(out_assets);
 		}
 
-		virtual void calculate_render_transform_for_slot(const T_slot_type& in_slot, glm::vec2& out_translation, glm::vec2& out_size, float& out_rotation) = 0;
+		const Slot_type& get_slot(size_t in_slot_index) const { return m_children[in_slot_index].first; }
+		Slot_type& get_slot(size_t in_slot_index) { return m_children[in_slot_index].first; }
+
+		const Ui_widget& get_widget(size_t in_slot_index) const { return m_children[in_slot_index].second; }
+		Ui_widget& get_widget(size_t in_slot_index) { return m_children[in_slot_index].second; }
+
+		const std::pair<Slot_type, Ui_widget&>& get_child(size_t in_slot_index) const { return m_children[in_slot_index]; }
+		std::pair<Slot_type, Ui_widget&>& get_child(size_t in_slot_index) { return m_children[in_slot_index]; }
 
 	protected:
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, State_render_scene& inout_render_scene_state) override
 		{
 			Ui_widget::update_render_scene(in_final_translation, in_final_size, in_final_rotation, inout_render_scene_state);
-			for (auto&& child_widget : m_child_widgets)
-				child_widget->update_render_scene(child_widget->m_render_translation, child_widget->m_render_size, child_widget->m_render_rotation, inout_render_scene_state);
+			for (auto && child : m_children)
+				child.second.update_render_scene(child.second.m_render_translation, child.second.m_global_render_size, child.second.m_render_rotation, inout_render_scene_state);
 		}
 
 		virtual void destroy(State_ui& inout_ui_state) override final
 		{
-			for (auto&& child_widget : m_child_widgets)
-				child_widget->destroy(inout_ui_state);
+			for (auto&& child : m_children)
+				child.second.destroy(inout_ui_state);
 
 			Ui_widget::destroy(inout_ui_state);
 		}
 
+		size_t get_child_count() const { return m_children.size(); }
+
+		virtual void calculate_content_size(const glm::vec2& in_window_size)
+		{
+			for (auto&& child : m_children)
+				child.second.calculate_content_size(in_window_size);
+
+			Ui_widget::calculate_content_size(in_window_size);
+		}
+
 	private:
 		template<typename T_child_type>
-		void add_child(T_child_type& inout_widget, T_slot_type&& in_slot_data)
+		void add_child(T_child_type& inout_widget, const Slot_type& in_slot_data)
 		{
 			assert(!inout_widget.m_parent && "Widget has already been added to some parent.");
-			m_slots.emplace_back(in_slot_data);
-			m_child_widgets.emplace_back(&inout_widget);
+			m_children.emplace_back(in_slot_data, inout_widget);
 			inout_widget.m_parent = this;
-			inout_widget.m_slot_index = static_cast<i32>(m_slots.size() - 1);
+			inout_widget.m_slot_index = static_cast<i32>(m_children.size() - 1);
 			inout_widget.m_window_id = m_window_id;
 		}
 
-		std::vector<T_slot_type> m_slots;
-		std::vector<Ui_widget*> m_child_widgets;
+		std::vector<std::pair<Slot_type, Ui_widget&>> m_children;
 	};
 
 	struct Ui_context
@@ -217,7 +293,7 @@ namespace sic
 
 			auto& widget = m_ui_state.m_widget_lut[in_key.value()] = m_ui_state.m_widgets.back().get();
 			widget->m_key = in_key.value();
-			widget->m_widget_index = new_idx;
+			widget->m_widget_index = static_cast<i32>(new_idx);
 
 			m_ui_state.m_dirty_parent_widgets.insert(widget->get_outermost_parent());
 
@@ -235,6 +311,8 @@ namespace sic
 				m_ui_state.m_dirty_parent_widgets.insert(it->second->get_outermost_parent());
 
 			it->second->destroy(m_ui_state);
+
+			m_ui_state.m_root_to_window_size_lut.erase(in_key);
 		}
 
 		//finding it with write access causes it to redraw!
@@ -261,7 +339,7 @@ namespace sic
 		}
 
 		template<typename T_parent_widget_slot_type, typename T_widget_type>
-		void add_child(Ui_parent_widget<T_parent_widget_slot_type>& inout_parent, T_widget_type& inout_widget, T_parent_widget_slot_type&& in_slot_data) const
+		void add_child(Ui_parent_widget<T_parent_widget_slot_type>& inout_parent, T_widget_type& inout_widget, const T_parent_widget_slot_type& in_slot_data) const
 		{
 			{
 				auto it = m_ui_state.m_widget_lut.find(inout_widget.m_key.value());
@@ -275,7 +353,12 @@ namespace sic
 				assert(it->second == &inout_parent && "Parent widget was not created properly, please use Ui_context::create_widget");
 			}
 
-			inout_parent.add_child(inout_widget, std::move(in_slot_data));
+			inout_parent.add_child(inout_widget, in_slot_data);
+		}
+
+		void set_window_size(const std::string& in_root_widget_key, const glm::vec2& in_size)
+		{
+			m_ui_state.m_root_to_window_size_lut[in_root_widget_key] = in_size;
 		}
 
 		State_ui& m_ui_state;
@@ -295,43 +378,224 @@ namespace sic
 
 	struct Ui_widget_canvas : Ui_parent_widget<Ui_slot_canvas>
 	{
-		void calculate_render_transform_for_slot(const Ui_slot_canvas& in_slot, glm::vec2& out_translation, glm::vec2& out_size, float& out_rotation) override final
+		void calculate_render_transform(const glm::vec2& in_window_size) override
 		{
-			glm::vec2 anchor_vec = in_slot.m_anchors.get_max() - in_slot.m_anchors.get_min();
-			glm::vec2 anchor_scale = anchor_vec;
+			Ui_widget::calculate_render_transform(in_window_size);
 
-			//if both anchors are 0 on all, translation should be relative to top left
-			//if both anchors are 1 on all, translation should be relative to bottom right
+			for (size_t i = 0; i < get_child_count(); i++)
+			{
+				auto&& [slot, child] = get_child(i);
 
-			//if both anchors are not the same, translation should be relative to center of both
-			glm::vec2 translation = in_slot.m_translation / m_reference_dimensions;
-			translation += in_slot.m_anchors.get_min() + (anchor_vec * 0.5f);
+				child.m_render_translation = m_render_translation;
+				child.m_render_rotation = m_render_rotation;
 
-			//Todo (carl): maaaybe we should support stretching with anchors, so if they are not the same we restrain the size inbetween the anchor points?
+				glm::vec2 anchor_vec = slot.m_anchors.get_max() - slot.m_anchors.get_min();
+				glm::vec2 anchor_scale = anchor_vec;
 
-			out_size *= in_slot.m_size / m_reference_dimensions;
-			out_translation += translation;
-			out_translation -= out_size * (in_slot.m_pivot - glm::vec2(0.5f, 0.5f));
-			out_rotation += in_slot.m_rotation;
+				//if both anchors are 0 on all, translation should be relative to top left
+				//if both anchors are 1 on all, translation should be relative to bottom right
+
+				//if both anchors are not the same, translation should be relative to center of both
+				glm::vec2 translation = slot.m_translation / m_reference_dimensions;
+				translation += slot.m_anchors.get_min() + (anchor_vec * 0.5f);
+
+				//Todo (carl): maaaybe we should support stretching with anchors, so if they are not the same we restrain the size inbetween the anchor points?
+
+				child.m_global_render_size = slot.m_size / m_reference_dimensions;
+				child.m_render_translation += translation;
+				child.m_render_translation -= child.m_global_render_size * slot.m_pivot;
+				child.m_render_rotation += slot.m_rotation;
+
+				child.calculate_render_transform(in_window_size);
+			}
 		}
 
 		glm::vec2 m_reference_dimensions;
+	};
+
+	struct Ui_slot_vertical_box : Ui_slot
+	{
+		Ui_slot_vertical_box& padding(const Ui_padding& in_padding) { m_padding = in_padding; return *this; }
+		Ui_slot_vertical_box& h_align(Ui_h_alignment in_horizontal_alignment) { m_horizontal_alignment = in_horizontal_alignment; return *this; }
+
+		Ui_padding m_padding;
+		Ui_h_alignment m_horizontal_alignment = Ui_h_alignment::fill;
+	};
+
+	struct Ui_widget_vertical_box : Ui_parent_widget<Ui_slot_vertical_box>
+	{
+		void calculate_render_transform(const glm::vec2& in_window_size) override
+		{
+			Ui_widget::calculate_render_transform(in_window_size);
+
+			float prev_y = 0.0f;
+
+			for (size_t i = 0; i < get_child_count(); i++)
+			{
+				const i32 prev_slot_index = static_cast<i32>(i) - 1;
+
+				auto&& [slot, child] = get_child(i);
+
+				child.m_render_translation = m_render_translation;
+				child.m_render_rotation = m_render_rotation;
+
+				child.m_render_translation.x += slot.m_padding.get_left() / in_window_size.x;
+
+				child.m_render_translation.y += prev_y;
+				child.m_render_translation.y += slot.m_padding.get_top() / in_window_size.y;
+
+				if (prev_slot_index >= 0)
+				{
+					const Ui_slot_vertical_box& prev_slot = get_slot(prev_slot_index);
+					child.m_render_translation.y += prev_slot.m_padding.get_bottom() / in_window_size.y;
+				}
+
+				const float new_render_x = m_global_render_size.x - ((slot.m_padding.get_right() + slot.m_padding.get_left()) / in_window_size.x);
+
+				switch (slot.m_horizontal_alignment)
+				{
+				case Ui_h_alignment::fill:
+					child.m_global_render_size.x = new_render_x;
+					break;
+				case Ui_h_alignment::left:
+					child.m_global_render_size.x = glm::min(child.m_global_render_size.x, new_render_x);
+					break;
+				case Ui_h_alignment::right:
+					child.m_global_render_size.x = glm::min(child.m_global_render_size.x, new_render_x);
+					child.m_render_translation.x += new_render_x - child.m_global_render_size.x;
+					break;
+				case Ui_h_alignment::center:
+					child.m_global_render_size.x = glm::min(child.m_global_render_size.x, new_render_x);
+					child.m_render_translation.x += (new_render_x - child.m_global_render_size.x) * 0.5f;
+					break;
+				default:
+					break;
+				}
+
+				child.calculate_render_transform(in_window_size);
+
+				prev_y = child.m_render_translation.y - m_render_translation.y + child.m_global_render_size.y;
+			}
+		}
+
+		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override
+		{
+			glm::vec2 size = { 0.0f, 0.0f };
+
+			for (size_t i = 0; i < get_child_count(); i++)
+			{
+				auto&& [slot, child] = get_child(i);
+				size.y += child.m_global_render_size.y;
+				size.y += (slot.m_padding.get_top() + slot.m_padding.get_bottom()) / in_window_size.y;
+
+				const float child_content_x = child.m_global_render_size.x - ((slot.m_padding.get_left() + slot.m_padding.get_right()) / in_window_size.x);
+
+				size.x = glm::max(size.x, child_content_x);
+			}
+
+			return size;
+		};
+	};
+
+	struct Ui_slot_horizontal_box : Ui_slot
+	{
+		Ui_slot_horizontal_box& padding(const Ui_padding& in_padding) { m_padding = in_padding; return *this; }
+		Ui_slot_horizontal_box& v_align(Ui_v_alignment in_alignment) { m_alignment = in_alignment; return *this; }
+
+		Ui_padding m_padding;
+		Ui_v_alignment m_alignment = Ui_v_alignment::fill;
+	};
+
+	struct Ui_widget_horizontal_box : Ui_parent_widget<Ui_slot_horizontal_box>
+	{
+		void calculate_render_transform(const glm::vec2& in_window_size) override
+		{
+			Ui_widget::calculate_render_transform(in_window_size);
+
+			float prev_x = 0.0f;
+
+			for (size_t i = 0; i < get_child_count(); i++)
+			{
+				const i32 prev_slot_index = static_cast<i32>(i) - 1;
+
+				auto&& [slot, child] = get_child(i);
+
+				child.m_render_translation = m_render_translation;
+				child.m_render_rotation = m_render_rotation;
+
+				child.m_render_translation.x += prev_x;
+				child.m_render_translation.x += slot.m_padding.get_left() / in_window_size.x;
+
+				child.m_render_translation.y += slot.m_padding.get_top() / in_window_size.y;
+
+				if (prev_slot_index >= 0)
+				{
+					const Ui_slot_horizontal_box& prev_slot = get_slot(prev_slot_index);
+					child.m_render_translation.x += prev_slot.m_padding.get_left() / in_window_size.y;
+				}
+
+				const float new_render_y = m_global_render_size.y - ((slot.m_padding.get_top() + slot.m_padding.get_bottom()) / in_window_size.y);
+
+				switch (slot.m_alignment)
+				{
+				case Ui_v_alignment::fill:
+					child.m_global_render_size.y = new_render_y;
+					break;
+				case Ui_v_alignment::top:
+					child.m_global_render_size.y = glm::min(child.m_global_render_size.y, new_render_y);
+					break;
+				case Ui_v_alignment::bottom:
+					child.m_global_render_size.y = glm::min(child.m_global_render_size.y, new_render_y);
+					child.m_render_translation.y += new_render_y - child.m_global_render_size.y;
+					break;
+				case Ui_v_alignment::center:
+					child.m_global_render_size.y = glm::min(child.m_global_render_size.y, new_render_y);
+					child.m_render_translation.y += (new_render_y - child.m_global_render_size.y) * 0.5f;
+					break;
+				default:
+					break;
+				}
+
+				child.calculate_render_transform(in_window_size);
+
+				prev_x = child.m_render_translation.x - m_render_translation.x + child.m_global_render_size.x;
+			}
+		}
+
+		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override
+		{
+			glm::vec2 size = { 0.0f, 0.0f };
+
+			for (size_t i = 0; i < get_child_count(); i++)
+			{
+				auto&& [slot, child] = get_child(i);
+				size.x += child.m_global_render_size.x;
+				size.x += (slot.m_padding.get_left() + slot.m_padding.get_right()) / in_window_size.x;
+
+				const float child_content_y = child.m_global_render_size.y - ((slot.m_padding.get_top() + slot.m_padding.get_bottom()) / in_window_size.y);
+
+				size.y = glm::max(size.y, child_content_y);
+			}
+
+			return size;
+		};
 	};
 
 	struct Ui_widget_image : Ui_widget
 	{
 		Asset_ref<Asset_material> m_material;
 		glm::vec4 m_color_and_opacity = { 1.0f, 1.0f, 1.0f, 1.0f };
+		glm::vec2 m_image_size = { 64.0f, 64.0f };
 
+		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override { return m_image_size / in_window_size; };
 	protected:
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, State_render_scene& inout_render_scene_state) override
 		{
 			auto update_lambda =
 			[in_final_translation, in_final_size, in_final_rotation, mat = m_material, id = m_window_id](Render_object_ui& inout_object)
 			{
-				const glm::vec2 half_size = in_final_size * 0.5f;
-				inout_object.m_lefttop = in_final_translation - half_size;
-				inout_object.m_rightbottom = in_final_translation + half_size;
+				inout_object.m_lefttop = in_final_translation;
+				inout_object.m_rightbottom = in_final_translation + in_final_size;
 				inout_object.m_window_id = id;
 
 				if (!inout_object.m_material)
