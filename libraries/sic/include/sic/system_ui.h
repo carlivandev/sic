@@ -11,6 +11,23 @@ namespace sic
 {
 	struct Ui_anchors
 	{
+		Ui_anchors() = default;
+
+		Ui_anchors(float in_uniform_anchors)
+		{
+			set(in_uniform_anchors);
+		}
+
+		Ui_anchors(float in_horizontal_anchors, float in_vertical_anchors)
+		{
+			set(in_horizontal_anchors, in_horizontal_anchors);
+		}
+
+		Ui_anchors(float in_min_x, float in_min_y, float in_max_x, float in_max_y)
+		{
+			set(in_min_x, in_min_y, in_max_x, in_max_y);
+		}
+
 		void set(float in_uniform_anchors)
 		{
 			m_min = { in_uniform_anchors, in_uniform_anchors };
@@ -148,13 +165,15 @@ namespace sic
 
 		virtual void destroy(State_ui& inout_ui_state);
 
-		explicit Ui_widget() = default;
+		Ui_widget() = default;
 
 	private:
 		std::optional<std::string> m_key;
 		Ui_parent_widget_base* m_parent = nullptr;
 		i32 m_slot_index = -1;
 		On_asset_loaded::Handle m_dependencies_loaded_handle;
+
+		bool m_correctly_added = false;
 	};
 
 	struct State_ui : State
@@ -200,6 +219,18 @@ namespace sic
 		friend struct Ui_context;
 
 		using Slot_type = T_slot_type;
+
+		Ui_parent_widget& add_child(const Slot_type& in_slot_data, Ui_widget& inout_widget)
+		{
+			assert(inout_widget.m_correctly_added && "Widget was not created properly, please use Ui_context::create_widget");
+			assert(!inout_widget.m_parent && "Widget has already been added to some parent.");
+			m_children.emplace_back(in_slot_data, inout_widget);
+			inout_widget.m_parent = this;
+			inout_widget.m_slot_index = static_cast<i32>(m_children.size() - 1);
+			inout_widget.m_window_id = m_window_id;
+
+			return *this;
+		}
 
 		void calculate_render_transform(const glm::vec2& in_window_size) override
 		{
@@ -252,15 +283,6 @@ namespace sic
 		}
 
 	private:
-		template<typename T_child_type>
-		void add_child(T_child_type& inout_widget, const Slot_type& in_slot_data)
-		{
-			assert(!inout_widget.m_parent && "Widget has already been added to some parent.");
-			m_children.emplace_back(in_slot_data, inout_widget);
-			inout_widget.m_parent = this;
-			inout_widget.m_slot_index = static_cast<i32>(m_children.size() - 1);
-			inout_widget.m_window_id = m_window_id;
-		}
 
 		std::vector<std::pair<Slot_type, Ui_widget&>> m_children;
 	};
@@ -294,6 +316,7 @@ namespace sic
 			auto& widget = m_ui_state.m_widget_lut[in_key.value()] = m_ui_state.m_widgets.back().get();
 			widget->m_key = in_key.value();
 			widget->m_widget_index = static_cast<i32>(new_idx);
+			widget->m_correctly_added = true;
 
 			m_ui_state.m_dirty_parent_widgets.insert(widget->get_outermost_parent());
 
@@ -338,23 +361,23 @@ namespace sic
 			return reinterpret_cast<T_widget_type*>(it->second);
 		}
 
-		template<typename T_parent_widget_slot_type, typename T_widget_type>
-		void add_child(Ui_parent_widget<T_parent_widget_slot_type>& inout_parent, T_widget_type& inout_widget, const T_parent_widget_slot_type& in_slot_data) const
-		{
-			{
-				auto it = m_ui_state.m_widget_lut.find(inout_widget.m_key.value());
-				assert(it != m_ui_state.m_widget_lut.end() && "Widget was not created properly, please use Ui_context::create_widget");
-				assert(it->second == &inout_widget && "Widget was not created properly, please use Ui_context::create_widget");
-			}
-
-			{
-				auto it = m_ui_state.m_widget_lut.find(inout_parent.m_key.value());
-				assert(it != m_ui_state.m_widget_lut.end() && "Parent widget was not created properly, please use Ui_context::create_widget");
-				assert(it->second == &inout_parent && "Parent widget was not created properly, please use Ui_context::create_widget");
-			}
-
-			inout_parent.add_child(inout_widget, in_slot_data);
-		}
+// 		template<typename T_parent_widget_slot_type, typename T_widget_type>
+// 		void add_child(Ui_parent_widget<T_parent_widget_slot_type>& inout_parent, T_widget_type& inout_widget, const T_parent_widget_slot_type& in_slot_data) const
+// 		{
+// 			{
+// 				auto it = m_ui_state.m_widget_lut.find(inout_widget.m_key.value());
+// 				assert(it != m_ui_state.m_widget_lut.end() && "Widget was not created properly, please use Ui_context::create_widget");
+// 				assert(it->second == &inout_widget && "Widget was not created properly, please use Ui_context::create_widget");
+// 			}
+// 
+// 			{
+// 				auto it = m_ui_state.m_widget_lut.find(inout_parent.m_key.value());
+// 				assert(it != m_ui_state.m_widget_lut.end() && "Parent widget was not created properly, please use Ui_context::create_widget");
+// 				assert(it->second == &inout_parent && "Parent widget was not created properly, please use Ui_context::create_widget");
+// 			}
+// 
+// 			inout_parent.add_child(inout_widget, in_slot_data);
+// 		}
 
 		void set_window_size(const std::string& in_root_widget_key, const glm::vec2& in_size)
 		{
@@ -366,6 +389,13 @@ namespace sic
 
 	struct Ui_slot_canvas : Ui_slot
 	{
+		Ui_slot_canvas& anchors(const Ui_anchors& in_anchors) { m_anchors = in_anchors; return *this; }
+		Ui_slot_canvas& translation(const glm::vec2& in_translation) { m_translation = in_translation; return *this; }
+		Ui_slot_canvas& size(const glm::vec2& in_size) { m_size = in_size; return *this; }
+		Ui_slot_canvas& pivot(const glm::vec2& in_pivot) { m_pivot = in_pivot; return *this; }
+		Ui_slot_canvas& rotation(float in_rotation) { m_rotation = in_rotation; return *this; }
+		Ui_slot_canvas& z_order(ui32 in_z_order) { m_z_order = in_z_order; return *this; }
+
 		Ui_anchors m_anchors;
 
 		glm::vec2 m_translation;
@@ -583,11 +613,15 @@ namespace sic
 
 	struct Ui_widget_image : Ui_widget
 	{
-		Asset_ref<Asset_material> m_material;
-		glm::vec4 m_color_and_opacity = { 1.0f, 1.0f, 1.0f, 1.0f };
-		glm::vec2 m_image_size = { 64.0f, 64.0f };
+		Ui_widget_image& material(const Asset_ref<Asset_material>& in_asset_ref) { m_material = in_asset_ref; return *this; }
+		Ui_widget_image& image_size(const glm::vec2& in_size) { m_image_size = in_size; return *this; }
+
 
 		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override { return m_image_size / in_window_size; };
+
+		Asset_ref<Asset_material> m_material;
+		glm::vec2 m_image_size = { 64.0f, 64.0f };
+
 	protected:
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, State_render_scene& inout_render_scene_state) override
 		{
@@ -612,6 +646,7 @@ namespace sic
 		}
 
 		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override final { if (m_material.is_valid()) out_assets.push_back(m_material.get_header()); }
+
 		Update_list_id<Render_object_ui> m_ro_id;
 	};
 }
