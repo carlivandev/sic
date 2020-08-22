@@ -147,8 +147,6 @@ namespace sic
 
 		virtual bool get_ready_to_be_shown() const;
 
-		Update_list_id<Render_object_window> m_window_id;
-
 		glm::vec2 m_local_scale = { 1.0f, 1.0f };
 		glm::vec2 m_local_translation = { 0.0f, 0.0f };
 		float m_local_rotation = 0.0f;
@@ -161,7 +159,7 @@ namespace sic
 		float m_render_rotation;
 
 	protected:
-		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, State_render_scene& inout_render_scene_state) { in_final_translation; in_final_size; in_final_rotation; inout_render_scene_state; }
+		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, Update_list_id<Render_object_window> in_window_id, State_render_scene& inout_render_scene_state) { in_final_translation; in_final_size; in_final_rotation; in_window_id; inout_render_scene_state; }
 
 		virtual void destroy(State_ui& inout_ui_state);
 
@@ -178,9 +176,18 @@ namespace sic
 
 	struct State_ui : State
 	{
+		struct Window_info
+		{
+			glm::vec2 m_size;
+			Update_list_id<Render_object_window> m_id;
+		};
+
 		friend Ui_widget;
 		friend struct Ui_context;
 		friend struct System_ui;
+
+		template <typename T_slot_type>
+		friend struct Ui_parent_widget;
 
 		void update(std::function<void(Ui_context&)> in_update_func)
 		{
@@ -194,8 +201,8 @@ namespace sic
 		std::vector<std::unique_ptr<Ui_widget>> m_widgets;
 		std::vector<size_t> m_free_widget_indices;
 		std::unordered_map<std::string, Ui_widget*> m_widget_lut;
-		std::unordered_set<Ui_widget*> m_dirty_parent_widgets;
-		std::unordered_map<std::string, glm::vec2> m_root_to_window_size_lut;
+		std::unordered_set<Ui_widget*> m_dirty_root_widgets;
+		std::unordered_map<std::string, Window_info> m_root_to_window_size_lut;
 
 	};
 
@@ -227,7 +234,9 @@ namespace sic
 			m_children.emplace_back(in_slot_data, inout_widget);
 			inout_widget.m_parent = this;
 			inout_widget.m_slot_index = static_cast<i32>(m_children.size() - 1);
-			inout_widget.m_window_id = m_window_id;
+			
+			m_ui_state->m_dirty_root_widgets.erase(&inout_widget);
+			m_ui_state->m_dirty_root_widgets.insert(get_outermost_parent());
 
 			return *this;
 		}
@@ -257,11 +266,11 @@ namespace sic
 		std::pair<Slot_type, Ui_widget&>& get_child(size_t in_slot_index) { return m_children[in_slot_index]; }
 
 	protected:
-		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, State_render_scene& inout_render_scene_state) override
+		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, Update_list_id<Render_object_window> in_window_id, State_render_scene& inout_render_scene_state) override
 		{
-			Ui_widget::update_render_scene(in_final_translation, in_final_size, in_final_rotation, inout_render_scene_state);
+			Ui_widget::update_render_scene(in_final_translation, in_final_size, in_final_rotation, in_window_id, inout_render_scene_state);
 			for (auto && child : m_children)
-				child.second.update_render_scene(child.second.m_render_translation, child.second.m_global_render_size, child.second.m_render_rotation, inout_render_scene_state);
+				child.second.update_render_scene(child.second.m_render_translation, child.second.m_global_render_size, child.second.m_render_rotation, in_window_id, inout_render_scene_state);
 		}
 
 		virtual void destroy(State_ui& inout_ui_state) override final
@@ -283,8 +292,8 @@ namespace sic
 		}
 
 	private:
-
 		std::vector<std::pair<Slot_type, Ui_widget&>> m_children;
+		State_ui* m_ui_state = nullptr;
 	};
 
 	struct Ui_context
@@ -292,7 +301,7 @@ namespace sic
 		Ui_context(State_ui& inout_ui_state) : m_ui_state(inout_ui_state) {}
 
 		template<typename T_widget_type>
-		T_widget_type& create_widget(std::optional<std::string> in_key)
+		T_widget_type& create(std::optional<std::string> in_key)
 		{
 			if (!in_key.has_value())
 				in_key = xg::newGuid().str();
@@ -318,12 +327,19 @@ namespace sic
 			widget->m_widget_index = static_cast<i32>(new_idx);
 			widget->m_correctly_added = true;
 
-			m_ui_state.m_dirty_parent_widgets.insert(widget->get_outermost_parent());
+			T_widget_type& ret_val = *reinterpret_cast<T_widget_type*>(widget);
 
-			return *reinterpret_cast<T_widget_type*>(widget);
+			if constexpr (std::is_base_of<Ui_parent_widget_base, T_widget_type>::value)
+			{
+				ret_val.m_ui_state = &m_ui_state;
+			}
+
+			m_ui_state.m_dirty_root_widgets.insert(widget->get_outermost_parent());
+
+			return ret_val;
 		}
 
-		void destroy_widget(const std::string& in_key)
+		void destroy(const std::string& in_key)
 		{
 			auto it = m_ui_state.m_widget_lut.find(in_key);
 
@@ -331,7 +347,7 @@ namespace sic
 				return;
 
 			if (it->second != it->second->get_outermost_parent())
-				m_ui_state.m_dirty_parent_widgets.insert(it->second->get_outermost_parent());
+				m_ui_state.m_dirty_root_widgets.insert(it->second->get_outermost_parent());
 
 			it->second->destroy(m_ui_state);
 
@@ -340,19 +356,19 @@ namespace sic
 
 		//finding it with write access causes it to redraw!
 		template<typename T_widget_type>
-		T_widget_type* find_widget(const std::string& in_key)
+		T_widget_type* find(const std::string& in_key)
 		{
 			auto it = m_ui_state.m_widget_lut.find(in_key);
 			if (it == m_ui_state.m_widget_lut.end())
 				return nullptr;
 
-			m_ui_state.m_dirty_parent_widgets.insert(it->second->get_outermost_parent());
+			m_ui_state.m_dirty_root_widgets.insert(it->second->get_outermost_parent());
 
 			return reinterpret_cast<T_widget_type*>(it->second);
 		}
 
 		template<typename T_widget_type>
-		const T_widget_type* find_widget(const std::string& in_key) const
+		const T_widget_type* find(const std::string& in_key) const
 		{
 			auto it = m_ui_state.m_widget_lut.find(in_key);
 			if (it == m_ui_state.m_widget_lut.end())
@@ -361,27 +377,11 @@ namespace sic
 			return reinterpret_cast<T_widget_type*>(it->second);
 		}
 
-// 		template<typename T_parent_widget_slot_type, typename T_widget_type>
-// 		void add_child(Ui_parent_widget<T_parent_widget_slot_type>& inout_parent, T_widget_type& inout_widget, const T_parent_widget_slot_type& in_slot_data) const
-// 		{
-// 			{
-// 				auto it = m_ui_state.m_widget_lut.find(inout_widget.m_key.value());
-// 				assert(it != m_ui_state.m_widget_lut.end() && "Widget was not created properly, please use Ui_context::create_widget");
-// 				assert(it->second == &inout_widget && "Widget was not created properly, please use Ui_context::create_widget");
-// 			}
-// 
-// 			{
-// 				auto it = m_ui_state.m_widget_lut.find(inout_parent.m_key.value());
-// 				assert(it != m_ui_state.m_widget_lut.end() && "Parent widget was not created properly, please use Ui_context::create_widget");
-// 				assert(it->second == &inout_parent && "Parent widget was not created properly, please use Ui_context::create_widget");
-// 			}
-// 
-// 			inout_parent.add_child(inout_widget, in_slot_data);
-// 		}
-
-		void set_window_size(const std::string& in_root_widget_key, const glm::vec2& in_size)
+		void set_window_info(const std::string& in_root_widget_key, const glm::vec2& in_size, Update_list_id<Render_object_window> in_id)
 		{
-			m_ui_state.m_root_to_window_size_lut[in_root_widget_key] = in_size;
+			auto&& it = m_ui_state.m_root_to_window_size_lut[in_root_widget_key];
+			it.m_size = in_size;
+			it.m_id = in_id;
 		}
 
 		State_ui& m_ui_state;
@@ -623,10 +623,10 @@ namespace sic
 		glm::vec2 m_image_size = { 64.0f, 64.0f };
 
 	protected:
-		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, State_render_scene& inout_render_scene_state) override
+		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, Update_list_id<Render_object_window> in_window_id, State_render_scene& inout_render_scene_state) override
 		{
 			auto update_lambda =
-			[in_final_translation, in_final_size, in_final_rotation, mat = m_material, id = m_window_id](Render_object_ui& inout_object)
+			[in_final_translation, in_final_size, in_final_rotation, mat = m_material, id = in_window_id](Render_object_ui& inout_object)
 			{
 				inout_object.m_lefttop = in_final_translation;
 				inout_object.m_rightbottom = in_final_translation + in_final_size;

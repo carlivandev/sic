@@ -120,13 +120,13 @@ namespace sic
 			{
 				ui_state->update
 				(
-					[name = wdw->get_name(), in_width, in_height](Ui_context& inout_ui_context)
+					[name = wdw->get_name(), id = wdw->m_window_id, in_width, in_height](Ui_context& inout_ui_context)
 					{
-						Ui_widget_canvas* canvas = inout_ui_context.find_widget<Ui_widget_canvas>(name);
+						Ui_widget_canvas* canvas = inout_ui_context.find<Ui_widget_canvas>(name);
 						assert(canvas);
 
 						canvas->m_reference_dimensions = { in_width, in_height };
-						inout_ui_context.set_window_size(name, { in_width, in_height });
+						inout_ui_context.set_window_info(name, { in_width, in_height }, id);
 					}
 				);
 			}
@@ -424,11 +424,10 @@ sic::Window_proxy& sic::State_window::create_window(Engine_context in_context, c
 		(
 			[in_name, in_dimensions, id = window_interface_ptr_raw->m_window_id](Ui_context& inout_ui_context)
 			{
-				Ui_widget_canvas& canvas = inout_ui_context.create_widget<Ui_widget_canvas>(in_name);
+				Ui_widget_canvas& canvas = inout_ui_context.create<Ui_widget_canvas>(in_name);
 				canvas.m_reference_dimensions = in_dimensions;
-				canvas.m_window_id = id;
 
-				inout_ui_context.set_window_size(in_name, in_dimensions);
+				inout_ui_context.set_window_info(in_name, in_dimensions, id);
 			}
 		);
  	}
@@ -456,7 +455,7 @@ void sic::State_window::destroy_window(Engine_context in_context, const std::str
 		(
 			[name = window_interface_ptr->second->get_name()](Ui_context& inout_ui_context)
 			{
-				inout_ui_context.destroy_widget(name);
+				inout_ui_context.destroy(name);
 			}
 		);
 	}

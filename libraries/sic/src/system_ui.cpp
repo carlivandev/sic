@@ -68,7 +68,7 @@ void sic::System_ui::on_engine_tick(Engine_context in_context, float in_time_del
 
 	std::vector<Asset_header*> asset_dependencies;
 
-	for (Ui_widget* dirty_widget : ui_state.m_dirty_parent_widgets)
+	for (Ui_widget* dirty_widget : ui_state.m_dirty_root_widgets)
 	{
 		if (!dirty_widget->m_key.has_value())
 			dirty_widget->m_key = xg::newGuid().str();
@@ -95,7 +95,7 @@ void sic::System_ui::on_engine_tick(Engine_context in_context, float in_time_del
 						if (it == ui_state.m_widget_lut.end())
 							return;
 
-						ui_state.m_dirty_parent_widgets.insert(it->second->get_outermost_parent());
+						ui_state.m_dirty_root_widgets.insert(it->second->get_outermost_parent());
 					}
 				);
 
@@ -113,7 +113,7 @@ void sic::System_ui::on_engine_tick(Engine_context in_context, float in_time_del
 		auto it = ui_state.m_root_to_window_size_lut.find(dirty_widget->m_key.value());
 		assert(it != ui_state.m_root_to_window_size_lut.end() && "Dirty_widget was not a properly setup root widget!");
 
-		const glm::vec2 window_size = it->second;
+		const glm::vec2 window_size = it->second.m_size;
 
 		dirty_widget->calculate_content_size(window_size);
 		dirty_widget->calculate_render_transform(window_size);
@@ -123,9 +123,10 @@ void sic::System_ui::on_engine_tick(Engine_context in_context, float in_time_del
 			dirty_widget->m_render_translation + dirty_widget->m_local_translation,
 			dirty_widget->m_global_render_size * dirty_widget->m_local_scale,
 			dirty_widget->m_render_rotation + dirty_widget->m_local_rotation,
+			it->second.m_id,
 			render_scene_state
 		);
 	}
 
-	ui_state.m_dirty_parent_widgets.clear();
+	ui_state.m_dirty_root_widgets.clear();
 }
