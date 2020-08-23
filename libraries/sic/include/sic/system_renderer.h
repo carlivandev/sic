@@ -167,8 +167,21 @@ namespace sic
 		template <typename T_iterator_type>
 		void render_meshes(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix) const;
 
-		template <typename T_iterator_type, typename T_pre_render_func_type>
-		void render_instanced(T_iterator_type in_begin, T_iterator_type in_end, T_pre_render_func_type pre_render_func, State_renderer_resources& inout_renderer_resources_state) const;
+		template <typename T_iterator_type>
+		void render_meshes_instanced(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix, State_renderer_resources& inout_renderer_resources_state) const;
+
+		template <typename T_iterator_type>
+		struct Instancing_chunk
+		{
+			T_iterator_type m_begin;
+			T_iterator_type m_end;
+		};
+
+		template <typename T_iterator_type>
+		std::vector<Instancing_chunk<T_iterator_type>> gather_instancing_chunks(T_iterator_type in_begin, T_iterator_type in_end) const;
+
+		template <typename T_iterator_type>
+		void render_instancing_chunk(Instancing_chunk<T_iterator_type> in_chunk, const OpenGl_vertex_buffer_array_base& in_vba, const OpenGl_buffer& in_index_buffer, State_renderer_resources& inout_renderer_resources_state) const;
 
 		template<typename T_drawcall_type>
 		void render_mesh(const T_drawcall_type& in_dc, const glm::mat4& in_mvp) const;
@@ -224,9 +237,46 @@ namespace sic
 			render_mesh(*it, mvp);
 		}
 	}
-	template<typename T_iterator_type, typename T_pre_render_func_type>
-	inline void System_renderer::render_instanced(T_iterator_type in_begin, T_iterator_type in_end, T_pre_render_func_type pre_render_func, State_renderer_resources& inout_renderer_resources_state) const
+
+	template<typename T_iterator_type>
+	inline void System_renderer::render_meshes_instanced(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix, State_renderer_resources& inout_renderer_resources_state) const
 	{
+		auto&& instancing_chunks = gather_instancing_chunks(in_begin, in_end);
+
+		for (auto&& chunk : instancing_chunks)
+		{
+			auto model_matrix_loc_it = chunk.m_begin->m_material->m_instance_data_name_to_offset_lut.find("model_matrix");
+
+			if (model_matrix_loc_it != chunk.m_begin->m_material->m_instance_data_name_to_offset_lut.end())
+			{
+				GLuint model_matrix_loc = model_matrix_loc_it->second;
+				for (auto it = chunk.m_begin; it != chunk.m_end; ++it)
+				{
+					memcpy(it->m_instance_data + model_matrix_loc, &it->m_orientation, uniform_block_alignment_functions::get_alignment<glm::mat4x4>());
+				}
+			}
+
+			auto mvp_loc_it = chunk.m_begin->m_material->m_instance_data_name_to_offset_lut.find("MVP");
+
+			if (mvp_loc_it != chunk.m_begin->m_material->m_instance_data_name_to_offset_lut.end())
+			{
+				GLuint mvp_loc = mvp_loc_it->second;
+				for (auto it = chunk.m_begin; it != chunk.m_end; ++it)
+				{
+					const glm::mat4 mvp = in_projection_matrix * in_view_matrix * it->m_orientation;
+					memcpy(it->m_instance_data + mvp_loc, &mvp, uniform_block_alignment_functions::get_alignment<glm::mat4x4>());
+				}
+			}
+
+			render_instancing_chunk(chunk, chunk.m_begin->m_mesh->m_vertex_buffer_array.value(), chunk.m_begin->m_mesh->m_index_buffer.value(), inout_renderer_resources_state);
+		}
+	}
+
+	template<typename T_iterator_type>
+	inline std::vector<System_renderer::Instancing_chunk<T_iterator_type>> System_renderer::gather_instancing_chunks(T_iterator_type in_begin, T_iterator_type in_end) const
+	{
+		std::vector<Instancing_chunk<T_iterator_type>> chunks;
+
 		auto current_instanced_begin = in_begin;
 
 		while (current_instanced_begin != in_end)
@@ -250,28 +300,34 @@ namespace sic
 				}
 			);
 
-			pre_render_func(current_instanced_begin, next_instanced_begin);
-
-			if constexpr (std::iterator_traits<T_iterator_type>::value_type::get_uses_custom_blendmode())
-				set_blend_mode(current_instanced_begin->m_material->m_blend_mode);
-
-			if (OpenGl_uniform_block_instancing* instancing_block = inout_renderer_resources_state.get_static_uniform_block<OpenGl_uniform_block_instancing>())
-			{
-				GLfloat instance_data_texture_vec4_stride = (GLfloat)current_instanced_begin->m_material->m_instance_vec4_stride;
-				GLuint64 instance_data_tex_handle = current_instanced_begin->m_material->m_instance_data_texture.value().get_bindless_handle();
-
-				instancing_block->set_data_raw(0, sizeof(GLfloat), &instance_data_texture_vec4_stride);
-				instancing_block->set_data_raw(uniform_block_alignment_functions::get_alignment<glm::vec4>(), sizeof(GLuint64), &instance_data_tex_handle);
-
-				inout_renderer_resources_state.m_draw_interface_instanced.begin_frame(*current_instanced_begin->m_mesh, *current_instanced_begin->m_material);
-
-				for (auto it = current_instanced_begin; it != next_instanced_begin; ++it)
-					inout_renderer_resources_state.m_draw_interface_instanced.draw_instance(it->m_instance_data);
-
-				inout_renderer_resources_state.m_draw_interface_instanced.end_frame();
-			}
+			chunks.push_back({ current_instanced_begin, next_instanced_begin });
 
 			current_instanced_begin = next_instanced_begin;
+		}
+
+		return chunks;
+	}
+
+	template<typename T_iterator_type>
+	inline void System_renderer::render_instancing_chunk(Instancing_chunk<T_iterator_type> in_chunk, const OpenGl_vertex_buffer_array_base& in_vba, const OpenGl_buffer& in_index_buffer, State_renderer_resources& inout_renderer_resources_state) const
+	{
+		if constexpr (std::iterator_traits<T_iterator_type>::value_type::get_uses_custom_blendmode())
+			set_blend_mode(in_chunk.m_begin->m_material->m_blend_mode);
+
+		if (OpenGl_uniform_block_instancing* instancing_block = inout_renderer_resources_state.get_static_uniform_block<OpenGl_uniform_block_instancing>())
+		{
+			GLfloat instance_data_texture_vec4_stride = (GLfloat)in_chunk.m_begin->m_material->m_instance_vec4_stride;
+			GLuint64 instance_data_tex_handle = in_chunk.m_begin->m_material->m_instance_data_texture.value().get_bindless_handle();
+
+			instancing_block->set_data_raw(0, sizeof(GLfloat), &instance_data_texture_vec4_stride);
+			instancing_block->set_data_raw(uniform_block_alignment_functions::get_alignment<glm::vec4>(), sizeof(GLuint64), &instance_data_tex_handle);
+
+			inout_renderer_resources_state.m_draw_interface_instanced.begin_frame(in_vba, in_index_buffer, *in_chunk.m_begin->m_material);
+
+			for (auto it = in_chunk.m_begin; it != in_chunk.m_end; ++it)
+				inout_renderer_resources_state.m_draw_interface_instanced.draw_instance(it->m_instance_data);
+
+			inout_renderer_resources_state.m_draw_interface_instanced.end_frame();
 		}
 	}
 

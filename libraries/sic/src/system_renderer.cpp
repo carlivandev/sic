@@ -246,6 +246,8 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 
 	if (inout_view.m_render_target.is_valid() && inout_view.m_render_target.get_load_state() == Asset_load_state::loaded)
 		view_render_target = &(inout_view.m_render_target.get()->m_render_target.value());
+	else
+		view_render_target = &(in_window.m_render_target.value()); //if no explicit render target is defined, use "fast-path" and render directly to window
 
 	if (!view_render_target)
 		return;
@@ -330,29 +332,6 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 
 	set_depth_mode(Depth_mode::read_write);
 	set_blend_mode(Material_blend_mode::Opaque);
-
-
-
-	//TODO: for now we never do this, but in the future we want each view to have a "fast path" bool where they render immediately into their window render target, skipping the extra step into the UI
-
-// 	in_window.m_render_target.value().bind_as_target(0);
-// 
-// 	SIC_GL_CHECK(glViewport
-// 	(
-// 		static_cast<GLsizei>((view_dimensions.x * inout_view.m_viewport_offset.x)),
-// 		static_cast<GLsizei>(view_dimensions.y * inout_view.m_viewport_offset.y),
-// 		static_cast<GLsizei>((view_dimensions.x * inout_view.m_viewport_size.x)),
-// 		static_cast<GLsizei>(view_dimensions.y * inout_view.m_viewport_size.y)
-// 	));
-// 
-// 	renderer_resources_state.m_quad_vertex_buffer_array.value().bind();
-// 	renderer_resources_state.m_quad_indexbuffer.value().bind();
-// 
-// 	renderer_resources_state.m_pass_through_program.value().use();
-// 
-// 	renderer_resources_state.m_pass_through_program.value().set_uniform("uniform_texture", view_render_target->get_texture());
-// 
-// 	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(renderer_resources_state.m_quad_indexbuffer.value().get_max_elements()), 0);
 }
 
 void sic::System_renderer::render_ui(Engine_context in_context, const Render_object_window& in_window) const
@@ -480,27 +459,28 @@ void sic::System_renderer::render_ui(Engine_context in_context, const Render_obj
 		OpenGl_draw_strategy_triangle_element::draw(idx_buffer_max_elements_count, 0);
 	}
 
-	auto set_instance_standard_parameters_func = [&lefttop_rightbottom_packed_name, window_dimensions = in_window.m_render_target->get_dimensions()](auto in_begin, auto in_end)
-	{
-		auto lefttop_rightbottom_packed_loc_it = in_begin->m_material->m_instance_data_name_to_offset_lut.find(lefttop_rightbottom_packed_name);
+	auto&& chunks = gather_instancing_chunks(instanced_begin, scene_state.m_ui_drawcalls.end());
 
-		if (lefttop_rightbottom_packed_loc_it != in_begin->m_material->m_instance_data_name_to_offset_lut.end())
+	for (auto&& chunk : chunks)
+	{
+		auto lefttop_rightbottom_packed_loc_it = chunk.m_begin->m_material->m_instance_data_name_to_offset_lut.find(lefttop_rightbottom_packed_name);
+
+		if (lefttop_rightbottom_packed_loc_it != chunk.m_begin->m_material->m_instance_data_name_to_offset_lut.end())
 		{
 			GLuint lefttop_rightbottom_packed_loc = lefttop_rightbottom_packed_loc_it->second;
-			for (auto it = in_begin; it != in_end; ++it)
+			for (auto it = chunk.m_begin; it != chunk.m_end; ++it)
 			{
-				const glm::vec2 top_left = Local::round_to_pixel_density(it->m_topleft, window_dimensions);
-				const glm::vec2 bottom_right = Local::round_to_pixel_density(it->m_bottomright, window_dimensions);
+				const glm::vec2 top_left = Local::round_to_pixel_density(it->m_topleft, in_window.m_render_target->get_dimensions());
+				const glm::vec2 bottom_right = Local::round_to_pixel_density(it->m_bottomright, in_window.m_render_target->get_dimensions());
 
 				const glm::vec4 lefttop_rightbottom_packed = { top_left.x, top_left.y, bottom_right.x, bottom_right.y };
 
 				memcpy(it->m_instance_data + lefttop_rightbottom_packed_loc, &lefttop_rightbottom_packed, uniform_block_alignment_functions::get_alignment<glm::vec4>());
 			}
 		}
-	};
 
-	//TODO: finish ui instancing
-	//render_instanced(instanced_begin, scene_state.m_ui_drawcalls.end(), set_instance_standard_parameters_func, renderer_resources_state);
+		render_instancing_chunk(chunk, renderer_resources_state.m_quad_vertex_buffer_array.value(), renderer_resources_state.m_quad_indexbuffer.value(), renderer_resources_state);
+	}
 
 	//insert post-processing here
 
@@ -652,7 +632,7 @@ void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_d
 		auto instanced_begin = sort_instanced(scene_state.m_opaque_drawcalls);
 
 		render_meshes(scene_state.m_opaque_drawcalls.begin(), instanced_begin, proj_mat, view_mat);
-		render_instanced(instanced_begin, scene_state.m_opaque_drawcalls.end(), set_instance_standard_parameters_func, renderer_resources_state);
+ 		render_meshes_instanced(instanced_begin, scene_state.m_opaque_drawcalls.end(), proj_mat, view_mat, renderer_resources_state);
 	}
 
 	debug_drawer_state.m_draw_interface_debug_lines.value().begin_frame();
@@ -679,7 +659,7 @@ void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_d
 		auto instanced_begin = sort_instanced(scene_state.m_translucent_drawcalls);
 
 		render_meshes(scene_state.m_translucent_drawcalls.begin(), instanced_begin, proj_mat, view_mat);
-		render_instanced(instanced_begin, scene_state.m_translucent_drawcalls.end(), set_instance_standard_parameters_func, renderer_resources_state);
+		render_meshes_instanced(instanced_begin, scene_state.m_translucent_drawcalls.end(), proj_mat, view_mat, renderer_resources_state);
 	}
 }
 

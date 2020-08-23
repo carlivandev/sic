@@ -3,8 +3,8 @@
 
 //in vec2 out_pos;
 
-uniform sampler2D uniform_texture;
 uniform vec4 topleft_bottomright_packed;
+uniform sampler2D uniform_texture;
 
 void main()
 {

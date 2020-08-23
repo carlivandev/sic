@@ -2,11 +2,13 @@
 
 #include "sic/opengl_draw_strategies.h"
 
-void sic::OpenGl_draw_interface_instanced::begin_frame(const Asset_model::Mesh& in_mesh, Asset_material& in_material)
+void sic::OpenGl_draw_interface_instanced::begin_frame(const OpenGl_vertex_buffer_array_base& in_vba, const OpenGl_buffer& in_index_buffer, Asset_material& in_material)
 {
 	assert(in_material.m_instance_buffer.size() > 0);
 
-	m_mesh = &in_mesh;
+	m_vba = &in_vba;
+	m_index_buffer = &in_index_buffer;
+
 	m_material = &in_material;
 
 	const ui32 stride = m_material->m_instance_vec4_stride * uniform_block_alignment_functions::get_alignment<glm::vec4>();
@@ -30,24 +32,25 @@ void sic::OpenGl_draw_interface_instanced::end_frame()
 {
 	flush();
 
-	m_mesh = nullptr;
+	m_vba = nullptr;
+	m_index_buffer = nullptr;
 }
 
 void sic::OpenGl_draw_interface_instanced::flush()
 {
-	assert(m_mesh && "Did you forget to call begin_frame?");
+	assert(m_vba && m_index_buffer && "Did you forget to call begin_frame?");
 
 	m_material->m_instance_data_buffer.value().set_data_raw(m_instance_buffer.data(), 0, m_instance_buffer.size());
 
-	m_mesh->m_vertex_buffer_array.value().bind();
-	m_mesh->m_index_buffer.value().bind();
+	m_vba->bind();
+	m_index_buffer->bind();
 
 	m_material->m_program.value().use();
 
 	const ui32 stride = m_material->m_instance_vec4_stride * uniform_block_alignment_functions::get_alignment<glm::vec4>();
 
 	const GLsizei elements_to_draw = static_cast<GLsizei>((m_current_instance - m_instance_buffer.data()) / stride);
-	OpenGl_draw_strategy_triangle_element_instanced::draw(m_mesh->m_index_buffer.value().get_max_elements(), 0, elements_to_draw);
+	OpenGl_draw_strategy_triangle_element_instanced::draw(m_index_buffer->get_max_elements(), 0, elements_to_draw);
 
 	m_current_instance = m_instance_buffer.data();
 }
