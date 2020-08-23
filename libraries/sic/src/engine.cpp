@@ -293,7 +293,7 @@ namespace sic
 
 			for (Scene* added_level : added_levels)
 			{
-				invoke<event_created<Scene>>(*added_level);
+				invoke<Event_created<Scene>>(*added_level);
 
 				for (auto& system : m_systems)
 				{

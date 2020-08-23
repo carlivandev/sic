@@ -76,7 +76,7 @@ namespace sic
 			m_object_exists_flags[new_instance.m_id] = true;
 		}
 
-		m_engine.invoke<event_created<T_object>>(new_instance);
+		m_engine.invoke<Event_created<T_object>>(new_instance);
 
 		return new_instance;
 	}
@@ -93,7 +93,7 @@ namespace sic
 
 		comp.m_owner = &in_object_to_attach_to;
 
-		m_engine.invoke<event_created<T_component_type>>(comp);
+		m_engine.invoke<Event_created<T_component_type>>(comp);
 
 		return comp;
 	}

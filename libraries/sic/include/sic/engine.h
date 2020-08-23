@@ -293,7 +293,7 @@ namespace sic
 
 		comp.m_owner = &in_object_to_attach_to;
 
-		invoke<event_created<T_component_type>>(comp);
+		invoke<Event_created<T_component_type>>(comp);
 
 		return comp;
 	}

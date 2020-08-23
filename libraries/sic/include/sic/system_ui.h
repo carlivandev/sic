@@ -20,7 +20,7 @@ namespace sic
 
 		Ui_anchors(float in_horizontal_anchors, float in_vertical_anchors)
 		{
-			set(in_horizontal_anchors, in_horizontal_anchors);
+			set(in_horizontal_anchors, in_vertical_anchors);
 		}
 
 		Ui_anchors(float in_min_x, float in_min_y, float in_max_x, float in_max_y)

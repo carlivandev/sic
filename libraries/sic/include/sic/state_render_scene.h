@@ -152,7 +152,8 @@ namespace sic
 		float m_near_plane = 0.1f;
 		float m_far_plane = 100.0f;
 
-		std::optional<OpenGl_render_target> m_render_target;
+		Asset_ref<Asset_render_target> m_render_target;
+		//std::optional<OpenGl_render_target> m_render_target;
 		i32 m_level_id = -1;
 	};
 

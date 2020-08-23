@@ -1,0 +1,6 @@
+{
+	"asset_path": "content/materials/ui/ui_material_game_view.asset",
+	"id": "c60301d5-c811-45a6-a107-ab54a58d6700",
+	"name": "ui_material_game_view",
+	"type": "struct sic::Asset_material"
+}

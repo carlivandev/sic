@@ -54,7 +54,7 @@ namespace sic
 	};
 
 	template <typename object_type>
-	struct event_created : public Event<object_type> {};
+	struct Event_created : public Event<object_type> {};
 
 	template <typename object_type>
 	struct event_destroyed : public Event<object_type> {};

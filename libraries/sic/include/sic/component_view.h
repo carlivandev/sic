@@ -19,8 +19,8 @@ namespace sic
 
 		void set_window(Window_proxy* in_window);
 
-		//pixel size
-		void set_viewport_dimensions(const glm::ivec2& in_viewport_dimensions);
+		void set_render_target(Asset_ref<Asset_render_target> in_render_target);
+
 		//offset in percentage(0 - 1) based on window size, bottom-left
 		void set_viewport_offset(const glm::vec2& in_viewport_offset);
 		//size in percentage(0 - 1) based on window size, bottom-left
@@ -28,8 +28,6 @@ namespace sic
 
 		void set_fov(float in_fov);
 		void set_near_and_far_plane(float in_near, float in_far);
-
-		void set_clear_color(const glm::vec4& in_clear_color);
 
 		Window_proxy* get_window() const { return m_window; }
 
@@ -55,6 +53,7 @@ namespace sic
 		Render_object_id<Render_object_view> m_render_object_id;
 		Component_transform::On_updated::Handle m_on_updated_handle;
 		Window_proxy::On_destroyed::Handle m_on_window_destroyed_handle;
+		Asset_ref<Asset_render_target> m_render_target;
 	};
 
 	struct Object_view : public Object<Object_view, Component_view, Component_transform> {};

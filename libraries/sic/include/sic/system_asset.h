@@ -26,6 +26,16 @@ namespace sic
 		friend struct System_asset;
 		friend Asset_header;
 
+		template <typename T_asset_type>
+		void register_type()
+		{
+			m_typename_to_load_function[typeid(T_asset_type).name()] =
+			[this](std::string&& in_asset_data, std::unique_ptr<Asset>& out)
+			{
+				load_asset_internal<T_asset_type>(std::move(in_asset_data), out);
+			};
+		}
+
 		template <typename T_type>
 		Asset_ref<T_type> find_asset(const xg::Guid& in_id) const
 		{
@@ -33,7 +43,6 @@ namespace sic
 			return header_it != m_id_to_header.end() ? Asset_ref<T_type>(header_it->second) : Asset_ref<T_type>();
 		}
 
-		template <typename T_asset_type>
 		void load_asset(Asset_header& in_header)
 		{
 			std::scoped_lock lock(m_mutex);
@@ -51,14 +60,17 @@ namespace sic
 					std::string(in_header.m_asset_path),
 					[&in_header, this](std::string&& in_loaded_data)
 					{
-						load_asset_internal<T_asset_type>(std::move(in_loaded_data), in_header.m_loaded_asset);
+						auto load_func_it = m_typename_to_load_function.find(in_header.m_typename);
+						assert(load_func_it != m_typename_to_load_function.end() && "Asset type was not registered with the asset system!");
+						load_func_it->second(std::move(in_loaded_data), in_header.m_loaded_asset);
+
 						in_header.m_loaded_asset->m_header = &in_header;
 
 						if (in_header.m_loaded_asset.get()->has_post_load())
 						{
 							std::scoped_lock post_load_lock(m_post_load_mutex);
 
-							std::unique_ptr<std::vector<Asset_header*>>& post_load_assets = m_typeindex_to_post_load_assets[std::type_index(typeid(T_asset_type))];
+							std::unique_ptr<std::vector<Asset_header*>>& post_load_assets = m_typename_to_post_load_assets[in_header.m_typename];
 
 							if (!post_load_assets)
 								post_load_assets = std::make_unique<std::vector<Asset_header*>>();
@@ -81,7 +93,7 @@ namespace sic
 			std::scoped_lock lock(m_mutex);
 			std::scoped_lock post_load_lock(m_post_load_mutex);
 
-			std::unique_ptr<std::vector<Asset_header*>>& post_load_assets = m_typeindex_to_post_load_assets[std::type_index(typeid(T_asset_type))];
+			std::unique_ptr<std::vector<Asset_header*>>& post_load_assets = m_typename_to_post_load_assets[typeid(T_asset_type).name()];
 
 			if (!post_load_assets)
 				return;
@@ -148,7 +160,7 @@ namespace sic
 				std::scoped_lock post_load_lock(m_post_load_mutex);
 				new_header->m_load_state = Asset_load_state::loading;
 
-				std::unique_ptr<std::vector<Asset_header*>>& post_load_assets = m_typeindex_to_post_load_assets[std::type_index(typeid(T_asset_type))];
+				std::unique_ptr<std::vector<Asset_header*>>& post_load_assets = m_typename_to_post_load_assets[typeid(T_asset_type).name()];
 
 				if (!post_load_assets)
 					post_load_assets = std::make_unique<std::vector<Asset_header*>>();
@@ -232,8 +244,9 @@ namespace sic
 		std::vector<File_load_request> m_load_requests;
 		Leavable_queue<Asset_header*> m_unload_queue;
 
-		std::unordered_map<std::type_index, std::unique_ptr<std::vector<Asset_header*>>> m_typeindex_to_post_load_assets;
+		std::unordered_map<std::string, std::unique_ptr<std::vector<Asset_header*>>> m_typename_to_post_load_assets;
 		std::unordered_map<std::string, std::unique_ptr<std::vector<Asset_header*>>> m_typename_to_pre_unload_headers;
+		std::unordered_map<std::string, std::function<void(std::string&& in_asset_data, std::unique_ptr<Asset>& out)>> m_typename_to_load_function;
 
 		std::vector<Asset_header*> m_headers_to_mark_as_loaded;
 

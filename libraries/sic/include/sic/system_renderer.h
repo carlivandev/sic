@@ -107,14 +107,6 @@ namespace sic
 			>> m_quad_vertex_buffer_array;
 
 		std::optional<OpenGl_buffer> m_quad_indexbuffer;
-		
-		std::optional<OpenGl_vertex_buffer_array
-			<
-			OpenGl_vertex_attribute_position2D,
-			OpenGl_vertex_attribute_texcoord
-			>> m_y_flipped_quad_vertex_buffer_array;
-
-		std::optional<OpenGl_buffer> m_y_flipped_quad_indexbuffer;
 
 		std::optional<OpenGl_texture> m_white_texture;
 		Asset_ref<Asset_material> m_error_material;
@@ -175,8 +167,8 @@ namespace sic
 		template <typename T_iterator_type>
 		void render_meshes(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix) const;
 
-		template <typename T_iterator_type>
-		void render_meshes_instanced(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix, State_renderer_resources& inout_renderer_resources_state) const;
+		template <typename T_iterator_type, typename T_pre_render_func_type>
+		void render_instanced(T_iterator_type in_begin, T_iterator_type in_end, T_pre_render_func_type pre_render_func, State_renderer_resources& inout_renderer_resources_state) const;
 
 		template<typename T_drawcall_type>
 		void render_mesh(const T_drawcall_type& in_dc, const glm::mat4& in_mvp) const;
@@ -189,6 +181,7 @@ namespace sic
 
 	public:
 		static void post_load_texture(Asset_texture& out_texture);
+		static void post_load_render_target(Asset_render_target& out_rt);
 		static void post_load_material(const State_renderer_resources& in_resource_state, Asset_material& out_material);
 		static void post_load_mesh(Asset_model::Mesh& inout_mesh);
 
@@ -231,8 +224,8 @@ namespace sic
 			render_mesh(*it, mvp);
 		}
 	}
-	template<typename T_iterator_type>
-	inline void System_renderer::render_meshes_instanced(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix, State_renderer_resources& inout_renderer_resources_state) const
+	template<typename T_iterator_type, typename T_pre_render_func_type>
+	inline void System_renderer::render_instanced(T_iterator_type in_begin, T_iterator_type in_end, T_pre_render_func_type pre_render_func, State_renderer_resources& inout_renderer_resources_state) const
 	{
 		auto current_instanced_begin = in_begin;
 
@@ -257,28 +250,7 @@ namespace sic
 				}
 			);
 
-			auto model_matrix_loc_it = current_instanced_begin->m_material->m_instance_data_name_to_offset_lut.find("model_matrix");
-
-			if (model_matrix_loc_it != current_instanced_begin->m_material->m_instance_data_name_to_offset_lut.end())
-			{
-				GLuint model_matrix_loc = model_matrix_loc_it->second;
-				for (auto it = current_instanced_begin; it != next_instanced_begin; ++it)
-				{
-					memcpy(it->m_instance_data + model_matrix_loc, &it->m_orientation, uniform_block_alignment_functions::get_alignment<glm::mat4x4>());
-				}
-			}
-
-			auto mvp_loc_it = current_instanced_begin->m_material->m_instance_data_name_to_offset_lut.find("MVP");
-
-			if (mvp_loc_it != current_instanced_begin->m_material->m_instance_data_name_to_offset_lut.end())
-			{
-				GLuint mvp_loc = mvp_loc_it->second;
-				for (auto it = current_instanced_begin; it != next_instanced_begin; ++it)
-				{
-					const glm::mat4 mvp = in_projection_matrix * in_view_matrix * it->m_orientation;
-					memcpy(it->m_instance_data + mvp_loc, &mvp, uniform_block_alignment_functions::get_alignment<glm::mat4x4>());
-				}
-			}
+			pre_render_func(current_instanced_begin, next_instanced_begin);
 
 			if constexpr (std::iterator_traits<T_iterator_type>::value_type::get_uses_custom_blendmode())
 				set_blend_mode(current_instanced_begin->m_material->m_blend_mode);
@@ -302,6 +274,7 @@ namespace sic
 			current_instanced_begin = next_instanced_begin;
 		}
 	}
+
 	template<typename T_drawcall_type>
 	inline void System_renderer::render_mesh(const T_drawcall_type& in_dc, const glm::mat4& in_mvp) const
 	{

@@ -43,17 +43,16 @@ void sic::Component_view::set_window(Window_proxy* in_window)
 	);
 }
 
-void sic::Component_view::set_viewport_dimensions(const glm::ivec2& in_viewport_dimensions)
+void sic::Component_view::set_render_target(Asset_ref<Asset_render_target> in_render_target)
 {
-	m_viewport_dimensions = in_viewport_dimensions;
+	m_render_target = in_render_target;
 
 	m_render_scene_state->update_object
 	(
 		m_render_object_id,
-		[in_viewport_dimensions](Render_object_view& inout_view)
+		[in_render_target](Render_object_view& inout_view)
 		{
-			inout_view.m_render_target.reset();
-			inout_view.m_render_target.emplace(in_viewport_dimensions, OpenGl_texture_format::rgb, true);
+			inout_view.m_render_target = in_render_target;
 		}
 	);
 }
@@ -112,20 +111,6 @@ void sic::Component_view::set_near_and_far_plane(float in_near, float in_far)
 		{
 			inout_view.m_near_plane = in_near;
 			inout_view.m_far_plane = in_far;
-		}
-	);
-}
-
-void sic::Component_view::set_clear_color(const glm::vec4& in_clear_color)
-{
-	m_clear_color = in_clear_color;
-
-	m_render_scene_state->update_object
-	(
-		m_render_object_id,
-		[in_clear_color](Render_object_view& inout_view)
-		{
-			inout_view.m_render_target.value().set_clear_color(in_clear_color);
 		}
 	);
 }
