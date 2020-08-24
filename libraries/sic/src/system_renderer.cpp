@@ -25,9 +25,6 @@
 #include "msdfgen-master/msdfgen.h"
 #include "msdfgen-master/msdfgen-ext.h"
 
-#include <ft2build.h>
-#include FT_FREETYPE_H
-
 void sic::System_renderer::on_created(Engine_context in_context)
 {
  	msdfgen::FreetypeHandle* ft = msdfgen::initializeFreetype();
