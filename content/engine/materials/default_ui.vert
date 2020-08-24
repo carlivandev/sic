@@ -1,8 +1,6 @@
 #version 410 core
 //! #include "includes/ui_vert_header.glsl"
 
-//out vec2 out_pos;
-
 uniform vec4 lefttop_rightbottom_packed;
 
 void main()

@@ -22,8 +22,48 @@
 
 #include "stb/stb_image.h"
 
+#include "msdfgen-master/msdfgen.h"
+#include "msdfgen-master/msdfgen-ext.h"
+
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 void sic::System_renderer::on_created(Engine_context in_context)
 {
+ 	msdfgen::FreetypeHandle* ft = msdfgen::initializeFreetype();
+	if (ft)
+	{
+		msdfgen::FontHandle* font = msdfgen::loadFont(ft, "C:\\Windows\\Fonts\\arialbd.ttf");
+		if (font)
+		{
+			msdfgen::Shape shape;
+			if (msdfgen::loadGlyph(shape, font, 'A'))
+			{
+				shape.normalize();
+				//                      max. angle
+				msdfgen::edgeColoringSimple(shape, 3.0);
+				//           image width, height
+				msdfgen::Bitmap<float, 3> msdf(32, 32);
+				//                     range, scale, translation
+				msdfgen::generateMSDF(msdf, shape, 4.0, 1.0, msdfgen::Vector2(4.0, 4.0));
+				msdfgen::savePng(msdf, "output.png");
+				
+				std::vector<byte> pixels(3 * msdf.width() * msdf.height());
+				std::vector<byte>::iterator it = pixels.begin();
+				for (int y = msdf.height() - 1; y >= 0; --y)
+					for (int x = 0; x < msdf.width(); ++x)
+					{
+						*it++ = msdfgen::pixelFloatToByte(msdf(x, y)[0]);
+						*it++ = msdfgen::pixelFloatToByte(msdf(x, y)[1]);
+						*it++ = msdfgen::pixelFloatToByte(msdf(x, y)[2]);
+					}
+			}
+			msdfgen::destroyFont(font);
+		}
+		msdfgen::deinitializeFreetype(ft);
+	}
+
+
 	in_context.register_state<State_render_scene>("State_render_scene");
 	in_context.register_state<State_debug_drawing>("State_debug_drawing");
 	in_context.register_state<State_renderer_resources>("State_renderer_resources");
@@ -599,32 +639,6 @@ void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_d
 		lights_block->set_data_raw(1, 0, byte_size, relevant_lights.data());
 	}
 
-	auto set_instance_standard_parameters_func = [&proj_mat, &view_mat](auto in_begin, auto in_end)
-	{
-		auto model_matrix_loc_it = in_begin->m_material->m_instance_data_name_to_offset_lut.find("model_matrix");
-
-		if (model_matrix_loc_it != in_begin->m_material->m_instance_data_name_to_offset_lut.end())
-		{
-			GLuint model_matrix_loc = model_matrix_loc_it->second;
-			for (auto it = in_begin; it != in_end; ++it)
-			{
-				memcpy(it->m_instance_data + model_matrix_loc, &it->m_orientation, uniform_block_alignment_functions::get_alignment<glm::mat4x4>());
-			}
-		}
-
-		auto mvp_loc_it = in_begin->m_material->m_instance_data_name_to_offset_lut.find("MVP");
-
-		if (mvp_loc_it != in_begin->m_material->m_instance_data_name_to_offset_lut.end())
-		{
-			GLuint mvp_loc = mvp_loc_it->second;
-			for (auto it = in_begin; it != in_end; ++it)
-			{
-				const glm::mat4 mvp = proj_mat * view_mat * it->m_orientation;
-				memcpy(it->m_instance_data + mvp_loc, &mvp, uniform_block_alignment_functions::get_alignment<glm::mat4x4>());
-			}
-		}
-	};
-
 	{
 		set_depth_mode(Depth_mode::read_write);
 		set_blend_mode(Material_blend_mode::Opaque);
@@ -636,8 +650,6 @@ void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_d
 	}
 
 	debug_drawer_state.m_draw_interface_debug_lines.value().begin_frame();
-
-	
 
 	for (Render_object_debug_drawer& debug_drawer : debug_drawers.m_objects)
 		debug_drawer.draw_shapes(debug_drawer_state.m_draw_interface_debug_lines.value());

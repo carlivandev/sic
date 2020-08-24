@@ -163,12 +163,26 @@ set (EXTRA_LIBS ${EXTRA_LIBS} crossguid)
 add_subdirectory(libraries/nlohmann-json)
 set (EXTRA_LIBS ${EXTRA_LIBS} nlohmann_json)
 
+add_subdirectory(libraries/freetype-2.10.2)
+set (EXTRA_LIBS ${EXTRA_LIBS} freetype)
+
+set (FREETYPE_LIBRARY ${PROJECT_BINARY_DIR}/libraries/freetype-2.10.2/Debug/freetyped.lib)
+set (FREETYPE_INCLUDE_DIRS libraries/freetype-2.10.2/include)
+
+add_subdirectory(libraries/msdfgen-master)
+set (EXTRA_LIBS ${EXTRA_LIBS} msdfgen)
+set (EXTRA_LIBS ${EXTRA_LIBS} msdfgen-ext)
+
+target_include_directories(msdfgen PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/libraries/freetype-2.10.2/include>)
+
 include_directories(
 	libraries/stb
 	libraries/glew/include
 	libraries/glm-0.9.9.6
 	libraries/crossguid-master/include
-	libraries/nlohmann-json/include)
+	libraries/nlohmann-json/include
+	libraries/freetype-2.10.2/include
+	libraries/msdfgen-master/include)
 	
 add_library(sic STATIC ${SIC_SOURCES} ${SIC_HEADERS} include/sic)
 

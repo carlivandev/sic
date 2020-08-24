@@ -8,11 +8,9 @@ set (TEST_EXTRA_LIBS ${TEST_EXTRA_LIBS} sic)
 
 include_directories(include)
 
-include_directories(
-	libraries/sic/libraries/stb
-	libraries/sic/libraries/glew/include
-	libraries/sic/libraries/glm-0.9.9.6)
 
+include_directories(
+	libraries/sic/libraries/glm-0.9.9.6)
 
 file(GLOB SOURCES "src/*.cpp")
  
