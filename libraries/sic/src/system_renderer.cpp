@@ -25,8 +25,45 @@
 #include "msdfgen-master/msdfgen.h"
 #include "msdfgen-master/msdfgen-ext.h"
 
+#include "msdf-atlas-gen/AtlasGenerator.h"
+#include "msdf-atlas-gen/Charset.h"
+
 void sic::System_renderer::on_created(Engine_context in_context)
 {
+	class FontHolder {
+		msdfgen::FreetypeHandle* ft;
+		msdfgen::FontHandle* font;
+	public:
+		explicit FontHolder(const char* fontFilename) : ft(nullptr), font(nullptr) {
+			if ((ft = msdfgen::initializeFreetype()))
+				font = msdfgen::loadFont(ft, fontFilename);
+		}
+		~FontHolder() {
+			if (ft) {
+				if (font)
+					msdfgen::destroyFont(font);
+				msdfgen::deinitializeFreetype(ft);
+			}
+		}
+		operator msdfgen::FontHandle* () const {
+			return font;
+		}
+	} font("C:\\Windows\\Fonts\\arialbd.ttf");
+
+	const msdf_atlas::Charset& charset = msdf_atlas::Charset::ASCII;
+
+	std::vector<msdf_atlas::GlyphGeometry> glyphs;
+
+	glyphs.clear();
+	glyphs.reserve(charset.size());
+	for (msdf_atlas::unicode_t cp : charset) {
+		msdf_atlas::GlyphGeometry glyph;
+		if (glyph.load(font, cp))
+			glyphs.push_back((msdf_atlas::GlyphGeometry&&)glyph);
+		else
+			printf("Glyph for codepoint 0x%X missing\n", cp);
+	}
+
  	msdfgen::FreetypeHandle* ft = msdfgen::initializeFreetype();
 	if (ft)
 	{

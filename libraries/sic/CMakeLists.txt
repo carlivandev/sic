@@ -142,29 +142,42 @@ add_sources(SIC_SOURCES
 	component_transform.cpp
 	)
 
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
 add_subdirectory(libraries/fmt)
 set (EXTRA_LIBS ${EXTRA_LIBS} fmt)
+set_target_properties (fmt PROPERTIES FOLDER ext)
 
 add_subdirectory(libraries/glfw-3.3)
 set (EXTRA_LIBS ${EXTRA_LIBS} glfw)
+set_target_properties (glfw PROPERTIES FOLDER ext)
 
 add_subdirectory(libraries/glm-0.9.9.6)
 set (EXTRA_LIBS ${EXTRA_LIBS} glm_static)
+set_target_properties (glm_static PROPERTIES FOLDER ext)
 
 add_subdirectory(libraries/glew)
 set (EXTRA_LIBS ${EXTRA_LIBS} libglew_static)
+set_target_properties (libglew_static PROPERTIES FOLDER ext)
 
 add_subdirectory(libraries/assimp-master)
 set (EXTRA_LIBS ${EXTRA_LIBS} assimp)
+set_target_properties (assimp PROPERTIES FOLDER ext)
+set_target_properties (IrrXML PROPERTIES FOLDER ext)
+set_target_properties (UpdateAssimpLibsDebugSymbolsAndDLLs PROPERTIES FOLDER ext)
+set_target_properties (zlib PROPERTIES FOLDER ext)
+set_target_properties (zlibstatic PROPERTIES FOLDER ext)
 
 add_subdirectory(libraries/crossguid-master)
 set (EXTRA_LIBS ${EXTRA_LIBS} crossguid)
+set_target_properties (crossguid PROPERTIES FOLDER ext)
 
 add_subdirectory(libraries/nlohmann-json)
 set (EXTRA_LIBS ${EXTRA_LIBS} nlohmann_json)
 
 add_subdirectory(libraries/freetype-2.10.2)
 set (EXTRA_LIBS ${EXTRA_LIBS} freetype)
+set_target_properties (freetype PROPERTIES FOLDER ext)
 
 set (FREETYPE_LIBRARY ${PROJECT_BINARY_DIR}/libraries/freetype-2.10.2/Debug/freetyped.lib)
 set (FREETYPE_INCLUDE_DIRS libraries/freetype-2.10.2/include)
@@ -172,8 +185,17 @@ set (FREETYPE_INCLUDE_DIRS libraries/freetype-2.10.2/include)
 add_subdirectory(libraries/msdfgen-master)
 set (EXTRA_LIBS ${EXTRA_LIBS} msdfgen)
 set (EXTRA_LIBS ${EXTRA_LIBS} msdfgen-ext)
+set_target_properties (msdfgen PROPERTIES FOLDER ext)
+set_target_properties (msdfgen-ext PROPERTIES FOLDER ext)
 
 target_include_directories(msdfgen PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/libraries/freetype-2.10.2/include>)
+
+add_subdirectory(libraries/msdf-atlas-gen-master)
+set (EXTRA_LIBS ${EXTRA_LIBS} msdfgen-atlas)
+set_target_properties (msdfgen-atlas PROPERTIES FOLDER ext)
+
+target_include_directories(msdfgen-atlas PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/libraries/msdfgen-master>)
+target_include_directories(msdfgen-atlas PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/libraries/msdfgen-master/include>)
 
 include_directories(
 	libraries/stb
@@ -182,7 +204,8 @@ include_directories(
 	libraries/crossguid-master/include
 	libraries/nlohmann-json/include
 	libraries/freetype-2.10.2/include
-	libraries/msdfgen-master/include)
+	libraries/msdfgen-master/include
+	libraries/msdf-atlas-gen-master)
 	
 add_library(sic STATIC ${SIC_SOURCES} ${SIC_HEADERS} include/sic)
 

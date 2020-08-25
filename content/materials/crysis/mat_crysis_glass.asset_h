@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/materials/crysis/mat_crysis_glass.asset",
-	"id": "5424d139-84b0-4b74-950e-932940823e4a",
+	"id": "d835c133-43fb-4bf2-a08a-bdff62f45e23",
 	"name": "mat_crysis_glass",
 	"type": "struct sic::Asset_material"
 }
