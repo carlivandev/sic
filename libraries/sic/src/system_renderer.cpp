@@ -22,82 +22,8 @@
 
 #include "stb/stb_image.h"
 
-#include "msdfgen-master/msdfgen.h"
-#include "msdfgen-master/msdfgen-ext.h"
-
-#include "msdf-atlas-gen/AtlasGenerator.h"
-#include "msdf-atlas-gen/Charset.h"
-
 void sic::System_renderer::on_created(Engine_context in_context)
 {
-	class FontHolder {
-		msdfgen::FreetypeHandle* ft;
-		msdfgen::FontHandle* font;
-	public:
-		explicit FontHolder(const char* fontFilename) : ft(nullptr), font(nullptr) {
-			if ((ft = msdfgen::initializeFreetype()))
-				font = msdfgen::loadFont(ft, fontFilename);
-		}
-		~FontHolder() {
-			if (ft) {
-				if (font)
-					msdfgen::destroyFont(font);
-				msdfgen::deinitializeFreetype(ft);
-			}
-		}
-		operator msdfgen::FontHandle* () const {
-			return font;
-		}
-	} font("C:\\Windows\\Fonts\\arialbd.ttf");
-
-	const msdf_atlas::Charset& charset = msdf_atlas::Charset::ASCII;
-
-	std::vector<msdf_atlas::GlyphGeometry> glyphs;
-
-	glyphs.clear();
-	glyphs.reserve(charset.size());
-	for (msdf_atlas::unicode_t cp : charset) {
-		msdf_atlas::GlyphGeometry glyph;
-		if (glyph.load(font, cp))
-			glyphs.push_back((msdf_atlas::GlyphGeometry&&)glyph);
-		else
-			printf("Glyph for codepoint 0x%X missing\n", cp);
-	}
-
- 	msdfgen::FreetypeHandle* ft = msdfgen::initializeFreetype();
-	if (ft)
-	{
-		msdfgen::FontHandle* font = msdfgen::loadFont(ft, "C:\\Windows\\Fonts\\arialbd.ttf");
-		if (font)
-		{
-			msdfgen::Shape shape;
-			if (msdfgen::loadGlyph(shape, font, 'A'))
-			{
-				shape.normalize();
-				//                      max. angle
-				msdfgen::edgeColoringSimple(shape, 3.0);
-				//           image width, height
-				msdfgen::Bitmap<float, 3> msdf(32, 32);
-				//                     range, scale, translation
-				msdfgen::generateMSDF(msdf, shape, 4.0, 1.0, msdfgen::Vector2(4.0, 4.0));
-				msdfgen::savePng(msdf, "output.png");
-				
-				std::vector<byte> pixels(3 * msdf.width() * msdf.height());
-				std::vector<byte>::iterator it = pixels.begin();
-				for (int y = msdf.height() - 1; y >= 0; --y)
-					for (int x = 0; x < msdf.width(); ++x)
-					{
-						*it++ = msdfgen::pixelFloatToByte(msdf(x, y)[0]);
-						*it++ = msdfgen::pixelFloatToByte(msdf(x, y)[1]);
-						*it++ = msdfgen::pixelFloatToByte(msdf(x, y)[2]);
-					}
-			}
-			msdfgen::destroyFont(font);
-		}
-		msdfgen::deinitializeFreetype(ft);
-	}
-
-
 	in_context.register_state<State_render_scene>("State_render_scene");
 	in_context.register_state<State_debug_drawing>("State_debug_drawing");
 	in_context.register_state<State_renderer_resources>("State_renderer_resources");
@@ -148,6 +74,7 @@ void sic::System_renderer::on_created(Engine_context in_context)
 	assetsystem_state.register_type<Asset_render_target>();
 	assetsystem_state.register_type<Asset_material>();
 	assetsystem_state.register_type<Asset_model>();
+	assetsystem_state.register_type<Asset_font>();
 }
 
 void sic::System_renderer::on_engine_finalized(Engine_context in_context) const
@@ -790,6 +717,15 @@ void sic::System_renderer::do_asset_post_loads(Engine_context in_context) const
 		}
 	);
 
+	assetsystem_state.do_post_load<Asset_font>
+	(
+		[](Asset_font& in_font)
+		{
+			//do opengl load
+			post_load_font(in_font);
+		}
+	);
+
 	assetsystem_state.do_pre_unload<Asset_texture>
 	(
 		[](Asset_texture& in_texture)
@@ -826,6 +762,14 @@ void sic::System_renderer::do_asset_post_loads(Engine_context in_context) const
 				mesh.m_vertex_buffer_array.reset();
 				mesh.m_index_buffer.reset();
 			}
+		}
+	);
+
+	assetsystem_state.do_pre_unload<Asset_font>
+	(
+		[](Asset_font& inout_font)
+		{
+			inout_font.m_texture.reset();
 		}
 	);
 }
@@ -947,6 +891,20 @@ void sic::System_renderer::post_load_mesh(Asset_model::Mesh& inout_mesh)
 
 	auto& index_buffer = inout_mesh.m_index_buffer.emplace(OpenGl_buffer::Creation_params(OpenGl_buffer_target::element_array, OpenGl_buffer_usage::static_draw));
 	index_buffer.set_data(inout_mesh.m_indices);
+}
+
+void sic::System_renderer::post_load_font(Asset_font& inout_font)
+{
+	OpenGl_texture::Creation_params_2D params;
+	params.set_dimensions(glm::ivec2(inout_font.m_width, inout_font.m_height));
+	params.set_format(OpenGl_texture_format::rgb);
+	params.set_filtering(OpenGl_texture_mag_filter::linear, OpenGl_texture_min_filter::linear_mipmap_linear);
+	params.set_channel_type(OpenGl_texture_channel_type::whole_float);
+	params.set_data(inout_font.m_atlas_data.get());
+	params.set_debug_name(inout_font.get_header().m_name);
+
+	inout_font.m_texture.emplace(params);
+	inout_font.m_bindless_handle = inout_font.m_texture.value().get_bindless_handle();
 }
 
 void sic::System_renderer::set_depth_mode(Depth_mode in_to_set) const

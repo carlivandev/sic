@@ -177,10 +177,13 @@ namespace sic
 		}
 
 		template <typename T_asset_type>
-		inline void save_asset(const Asset_header& in_header)
+		inline void save_asset(const Asset_ref<T_asset_type>& in_ref)
 		{
-			save_asset_header(in_header, typeid(T_asset_type).name());
-			save_asset_internal<T_asset_type>(in_header.m_loaded_asset, in_header.m_asset_path);
+			assert(in_ref.get_header() && "Asset_ref was not valid!");
+			assert(in_ref.get_header()->m_loaded_asset && "Asset was not yet loaded!");
+
+			save_asset_header(*in_ref.get_header(), typeid(T_asset_type).name());
+			save_asset_internal<T_asset_type>(in_ref.get_header()->m_loaded_asset, in_ref.get_header()->m_asset_path);
 		}
 
 		template <typename T_asset_type>

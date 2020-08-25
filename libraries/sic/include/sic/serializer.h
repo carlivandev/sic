@@ -23,7 +23,7 @@ namespace sic
 			serialize_memcpy(in, *this);
 		}
 
-		void write_raw(unsigned char* in_buffer, ui32 in_buffer_bytesize);
+		void write_raw(const void* in_buffer, ui32 in_buffer_bytesize);
 
 		std::string m_bytes;
 	};
@@ -44,15 +44,15 @@ namespace sic
 			deserialize_memcpy(*this, out);
 		}
 
-		void read_raw(unsigned char*& out_buffer, ui32& out_buffer_bytesize);
+		void read_raw(void*& out_buffer, ui32& out_buffer_bytesize);
 
 		std::string m_bytes;
 		ui32 m_offset = 0;
 	};
 
-	void serialize_raw(unsigned char* in_buffer, ui32 in_buffer_bytesize, Serialize_stream& out_stream);
+	void serialize_raw(const void* in_buffer, ui32 in_buffer_bytesize, Serialize_stream& out_stream);
 
-	void deserialize_raw(Deserialize_stream& in_stream, unsigned char*& out_buffer, ui32& out_buffer_bytesize);
+	void deserialize_raw(Deserialize_stream& in_stream, void*& out_buffer, ui32& out_buffer_bytesize);
 
 	template <typename T_data_type>
 	void serialize_memcpy(const T_data_type& in_to_serialize, Serialize_stream& out_stream)

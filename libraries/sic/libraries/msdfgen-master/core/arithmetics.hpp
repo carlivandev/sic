@@ -4,6 +4,9 @@
 #include <cstdlib>
 #include <cmath>
 
+#undef min
+#undef max
+
 namespace msdfgen {
 
 /// Returns the smaller of the arguments.

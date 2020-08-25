@@ -197,6 +197,7 @@ namespace sic
 		static void post_load_render_target(Asset_render_target& out_rt);
 		static void post_load_material(const State_renderer_resources& in_resource_state, Asset_material& out_material);
 		static void post_load_mesh(Asset_model::Mesh& inout_mesh);
+		static void post_load_font(Asset_font& inout_font);
 
 	private:
 		void set_depth_mode(Depth_mode in_to_set) const;

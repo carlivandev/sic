@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/textures/crysis/tex_crysis_hand.asset",
-	"id": "6d03df93-12c2-4e7c-9a90-22cdb7c91f21",
+	"id": "8422ffa0-028d-431b-9db2-6ae3e6160e6b",
 	"name": "tex_crysis_hand",
 	"type": "struct sic::Asset_texture"
 }
