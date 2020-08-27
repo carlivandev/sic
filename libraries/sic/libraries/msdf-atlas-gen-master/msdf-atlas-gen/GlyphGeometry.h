@@ -48,10 +48,10 @@ public:
     /// Simplifies to GlyphBox
     operator GlyphBox() const;
 
+    msdfgen::Shape::Bounds bounds;
 private:
     unicode_t codepoint;
     msdfgen::Shape shape;
-    msdfgen::Shape::Bounds bounds;
     bool reverseWinding;
     double advance;
     struct {

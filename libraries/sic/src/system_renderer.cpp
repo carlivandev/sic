@@ -400,8 +400,8 @@ void sic::System_renderer::render_ui(Engine_context in_context, const Render_obj
 	(
 		0,
 		0,
-		in_window.m_render_target->get_dimensions().x,
-		in_window.m_render_target->get_dimensions().y
+		in_window.m_ui_render_target->get_dimensions().x,
+		in_window.m_ui_render_target->get_dimensions().y
 	);
 
 	set_depth_mode(Depth_mode::disabled);

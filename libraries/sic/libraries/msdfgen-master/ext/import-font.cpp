@@ -6,11 +6,12 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_OUTLINE_H
+#include FT_ADVANCES_H
 
 namespace msdfgen {
 
 #define REQUIRE(cond) { if (!(cond)) return false; }
-#define F26DOT6_TO_DOUBLE(x) (1/64.*double(x))
+#define F26DOT6_TO_DOUBLE(x) ((1/64.)*double(x))
 
 class FreetypeHandle {
     friend FreetypeHandle * initializeFreetype();
@@ -137,6 +138,7 @@ bool loadGlyph(Shape &output, FontHandle *font, unicode_t unicode, double *advan
         return false;
     output.contours.clear();
     output.inverseYAxis = false;
+
     if (advance)
         *advance = F26DOT6_TO_DOUBLE(font->face->glyph->advance.x);
 

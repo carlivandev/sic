@@ -17,5 +17,5 @@ void main()
     sampler2D uniform_texture = read_sampler2D(instance_data_texture_sampler, instance_data_begin, instance_data_it);
 
     vec4 sample_result = texture(uniform_texture, texcoord.xy);
-    out_color = sample_result;
+    out_color = vec4(sample_result.rgb, 0.5f);
 }

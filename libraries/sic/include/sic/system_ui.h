@@ -678,7 +678,7 @@ namespace sic
 		Ui_widget_text& text(const std::string in_text) { m_text = in_text; return *this; }
 		Ui_widget_text& font(const Asset_ref<Asset_font>& in_asset_ref) { m_font = in_asset_ref; return *this; }
 		Ui_widget_text& material(const Asset_ref<Asset_material>& in_asset_ref) { m_material = in_asset_ref; return *this; }
-		Ui_widget_text& px(i32 in_px) { m_px = in_px; return *this; }
+		Ui_widget_text& px(float in_px) { m_px = in_px; return *this; }
 
 		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override
 		{
@@ -686,13 +686,19 @@ namespace sic
 
 			glm::vec2 size = { 0.0f, 0.0f };
 
-			for (auto c : m_text)
-				size.x += font->m_glyphs[c].m_pixel_advance;
+			for (size_t i = 0; i < m_text.size(); i++)
+			{
+				size.x += font->m_glyphs[m_text[i]].m_pixel_advance;
+
+				if (i > 0)
+					size.x += font->m_glyphs[m_text[i]].m_kerning_values[m_text[i - 1]];
+			}
 
 			size.y = font->m_max_glyph_height;
 
-			//size /= glm::vec2(font->m_width, font->m_height);
-			//size *= m_px;
+			const float scale_ratio = m_px / font->m_em_size;
+			size *= scale_ratio;
+
 			size /= in_window_size;
 
 			return size;
@@ -701,25 +707,48 @@ namespace sic
 		Asset_ref<Asset_material> m_material;
 		Asset_ref<Asset_font> m_font;
 		std::string m_text;
-		i32 m_px = 12;
+		float m_px = 16.0f;
 
 	protected:
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, State_render_scene& inout_render_scene_state) override
 		{
 			const Asset_font* font = m_font.get();
+			const float scale_ratio = m_px / font->m_em_size;
 
 			m_ro_ids.resize(m_text.size());
 
 			float cur_advance = 0.0f;
+			float cur_line_y = 0.0f;
+
 			for (size_t i = 0; i < m_text.size(); i++)
 			{
 				auto c = m_text[i];
 				auto& ro_id = m_ro_ids[i];
 				const auto& glyph = font->m_glyphs[c];
 
-				const glm::vec2 top_left_start = in_final_translation + glm::vec2(cur_advance / in_window_size.x, 0.0f);
-				const glm::vec2 render_translation = top_left_start + (glyph.m_offset_to_glyph / in_window_size);
-				const glm::vec2 render_size = (glyph.m_atlas_pixel_size / in_window_size);
+				if (c == ' ')
+				{
+					cur_advance += glyph.m_pixel_advance;
+					continue;
+				}
+				else if (c == '\n')
+				{
+					cur_line_y += font->m_max_glyph_height;
+					cur_advance = 0.0f;
+					continue;
+				}
+
+				const glm::vec2 top_left_start = in_final_translation + ((glm::vec2(cur_advance, font->m_em_size + cur_line_y) * scale_ratio) / in_window_size);
+				glm::vec2 render_translation = top_left_start + ((glyph.m_offset_to_glyph * scale_ratio) / in_window_size);
+
+				float kerning = 0.0f;
+				if (i > 0)
+				{
+					kerning = glyph.m_kerning_values[m_text[i - 1]];
+					render_translation.x += (kerning * scale_ratio) / in_window_size.x;
+				}
+
+				const glm::vec2 render_size = ((glyph.m_atlas_pixel_size * scale_ratio) / in_window_size);
 
 				const glm::vec2 atlas_offset = (glyph.m_atlas_pixel_position / glm::vec2(font->m_width, font->m_height));
 				const glm::vec2 atlas_glyph_size = (glyph.m_atlas_pixel_size / glm::vec2(font->m_width, font->m_height));
@@ -745,16 +774,20 @@ namespace sic
 						static glm::vec2 round_to_pixel_density(const glm::vec2& in_vec, const glm::vec2& in_pixel_density)
 						{
 							glm::vec2 ret_val = { in_vec.x * in_pixel_density.x, in_vec.y * in_pixel_density.y };
-							ret_val = glm::round(ret_val);
+							ret_val = glm::trunc(ret_val);
 							ret_val.x /= in_pixel_density.x;
-							ret_val.y /= in_pixel_density.y;
+							//ret_val.y /= in_pixel_density.y;
+							ret_val.y = in_vec.y;
 
 							return ret_val;
 						}
 					};
 
-					const glm::vec2 top_left = /*Local::round_to_pixel_density*/(render_translation/*, in_window_size*/);
-					const glm::vec2 bottom_right = /*Local::round_to_pixel_density*/(render_translation + render_size/*, in_window_size*/);
+					const glm::vec2 top_left = Local::round_to_pixel_density(render_translation, in_window_size * 2.0f);
+					const glm::vec2 bottom_right = Local::round_to_pixel_density(render_translation + render_size, in_window_size * 2.0f);
+
+					//const glm::vec2 top_left = render_translation;
+					//const glm::vec2 bottom_right = render_translation + render_size;
 
 					const glm::vec4 lefttop_rightbottom_packed = { top_left.x, top_left.y, bottom_right.x, bottom_right.y };
 
@@ -768,7 +801,7 @@ namespace sic
 				else
 					ro_id = inout_render_scene_state.m_ui_elements.create_object(update_lambda);
 
-				cur_advance += glyph.m_pixel_advance;
+				cur_advance += glyph.m_pixel_advance + kerning;
 			}
 		}
 
