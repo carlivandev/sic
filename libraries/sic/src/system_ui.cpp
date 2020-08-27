@@ -123,6 +123,7 @@ void sic::System_ui::on_engine_tick(Engine_context in_context, float in_time_del
 			dirty_widget->m_render_translation + dirty_widget->m_local_translation,
 			dirty_widget->m_global_render_size * dirty_widget->m_local_scale,
 			dirty_widget->m_render_rotation + dirty_widget->m_local_rotation,
+			window_size,
 			it->second.m_id,
 			render_scene_state
 		);

@@ -425,35 +425,12 @@ void sic::System_renderer::render_ui(Engine_context in_context, const Render_obj
 
 	auto instanced_begin = sort_instanced(scene_state.m_ui_drawcalls);
 
-	const char* lefttop_rightbottom_packed_name = "lefttop_rightbottom_packed";
-
-	struct Local
-	{
-		static glm::vec2 round_to_pixel_density(const glm::vec2& in_vec, const glm::ivec2& in_pixel_density)
-		{
-			glm::vec2 ret_val = { in_vec.x * in_pixel_density.x, in_vec.y * in_pixel_density.y };
-			ret_val = glm::round(ret_val);
-			ret_val.x /= in_pixel_density.x;
-			ret_val.y /= in_pixel_density.y;
-
-			return ret_val;
-		}
-	};
-
 	for (auto it = scene_state.m_ui_drawcalls.begin(); it != instanced_begin; ++it)
 	{
 		set_blend_mode(it->m_material->m_blend_mode);
 
 		const auto& program = it->m_material->m_program.value();
 		program.use();
-
-		const glm::vec2 top_left = Local::round_to_pixel_density(it->m_topleft, in_window.m_render_target->get_dimensions());
-		const glm::vec2 bottom_right = Local::round_to_pixel_density(it->m_bottomright, in_window.m_render_target->get_dimensions());
-
-		const glm::vec4 lefttop_rightbottom_packed = { top_left.x, top_left.y, bottom_right.x, bottom_right.y };
-
-		if (program.get_uniform_location(lefttop_rightbottom_packed_name))
-			program.set_uniform(lefttop_rightbottom_packed_name, lefttop_rightbottom_packed);
 
 		apply_parameters(*it->m_material, it->m_instance_data, program);
 
@@ -463,25 +440,7 @@ void sic::System_renderer::render_ui(Engine_context in_context, const Render_obj
 	auto&& chunks = gather_instancing_chunks(instanced_begin, scene_state.m_ui_drawcalls.end());
 
 	for (auto&& chunk : chunks)
-	{
-		auto lefttop_rightbottom_packed_loc_it = chunk.m_begin->m_material->m_instance_data_name_to_offset_lut.find(lefttop_rightbottom_packed_name);
-
-		if (lefttop_rightbottom_packed_loc_it != chunk.m_begin->m_material->m_instance_data_name_to_offset_lut.end())
-		{
-			GLuint lefttop_rightbottom_packed_loc = lefttop_rightbottom_packed_loc_it->second;
-			for (auto it = chunk.m_begin; it != chunk.m_end; ++it)
-			{
-				const glm::vec2 top_left = Local::round_to_pixel_density(it->m_topleft, in_window.m_render_target->get_dimensions());
-				const glm::vec2 bottom_right = Local::round_to_pixel_density(it->m_bottomright, in_window.m_render_target->get_dimensions());
-
-				const glm::vec4 lefttop_rightbottom_packed = { top_left.x, top_left.y, bottom_right.x, bottom_right.y };
-
-				memcpy(it->m_instance_data + lefttop_rightbottom_packed_loc, &lefttop_rightbottom_packed, uniform_block_alignment_functions::get_alignment<glm::vec4>());
-			}
-		}
-
 		render_instancing_chunk(chunk, renderer_resources_state.m_quad_vertex_buffer_array.value(), renderer_resources_state.m_quad_indexbuffer.value(), renderer_resources_state);
-	}
 
 	//insert post-processing here
 

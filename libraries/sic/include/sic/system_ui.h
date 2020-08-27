@@ -159,7 +159,8 @@ namespace sic
 		float m_render_rotation;
 
 	protected:
-		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, Update_list_id<Render_object_window> in_window_id, State_render_scene& inout_render_scene_state) { in_final_translation; in_final_size; in_final_rotation; in_window_id; inout_render_scene_state; }
+		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, State_render_scene& inout_render_scene_state)
+		{ in_final_translation; in_final_size; in_final_rotation; in_window_size; in_window_id; inout_render_scene_state; }
 
 		virtual void destroy(State_ui& inout_ui_state);
 
@@ -266,11 +267,10 @@ namespace sic
 		std::pair<Slot_type, Ui_widget&>& get_child(size_t in_slot_index) { return m_children[in_slot_index]; }
 
 	protected:
-		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, Update_list_id<Render_object_window> in_window_id, State_render_scene& inout_render_scene_state) override
+		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, State_render_scene& inout_render_scene_state) override
 		{
-			Ui_widget::update_render_scene(in_final_translation, in_final_size, in_final_rotation, in_window_id, inout_render_scene_state);
 			for (auto && child : m_children)
-				child.second.update_render_scene(child.second.m_render_translation, child.second.m_global_render_size, child.second.m_render_rotation, in_window_id, inout_render_scene_state);
+				child.second.update_render_scene(child.second.m_render_translation, child.second.m_global_render_size, child.second.m_render_rotation, in_window_size, in_window_id, inout_render_scene_state);
 		}
 
 		virtual void destroy(State_ui& inout_ui_state) override final
@@ -623,20 +623,43 @@ namespace sic
 		glm::vec2 m_image_size = { 64.0f, 64.0f };
 
 	protected:
-		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, Update_list_id<Render_object_window> in_window_id, State_render_scene& inout_render_scene_state) override
+		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, State_render_scene& inout_render_scene_state) override
 		{
 			auto update_lambda =
-			[in_final_translation, in_final_size, in_final_rotation, mat = m_material, id = in_window_id](Render_object_ui& inout_object)
+			[in_final_translation, in_final_size, in_final_rotation, mat = m_material, id = in_window_id, in_window_size](Render_object_ui& inout_object)
 			{
 				inout_object.m_lefttop = in_final_translation;
 				inout_object.m_rightbottom = in_final_translation + in_final_size;
 				inout_object.m_window_id = id;
 
-				if (!inout_object.m_material)
+				if (inout_object.m_material != mat.get_mutable())
 				{
+					if (inout_object.m_material)
+						inout_object.m_material->remove_instance_data(inout_object.m_instance_data_index);
+
 					inout_object.m_instance_data_index = mat.get_mutable()->add_instance_data();
 					inout_object.m_material = mat.get_mutable();
 				}
+
+				struct Local
+				{
+					static glm::vec2 round_to_pixel_density(const glm::vec2& in_vec, const glm::vec2& in_pixel_density)
+					{
+						glm::vec2 ret_val = { in_vec.x * in_pixel_density.x, in_vec.y * in_pixel_density.y };
+						ret_val = glm::round(ret_val);
+						ret_val.x /= in_pixel_density.x;
+						ret_val.y /= in_pixel_density.y;
+
+						return ret_val;
+					}
+				};
+
+				const glm::vec2 top_left = Local::round_to_pixel_density(in_final_translation, in_window_size);
+				const glm::vec2 bottom_right = Local::round_to_pixel_density(in_final_translation + in_final_size, in_window_size);
+
+				const glm::vec4 lefttop_rightbottom_packed = { top_left.x, top_left.y, bottom_right.x, bottom_right.y };
+
+				mat.get_mutable()->set_parameter_on_instance("lefttop_rightbottom_packed", lefttop_rightbottom_packed, inout_object.m_instance_data_index);
 			};
 
 			if (m_ro_id.is_valid())
@@ -648,5 +671,109 @@ namespace sic
 		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override final { if (m_material.is_valid()) out_assets.push_back(m_material.get_header()); }
 
 		Update_list_id<Render_object_ui> m_ro_id;
+	};
+
+	struct Ui_widget_text : Ui_widget
+	{
+		Ui_widget_text& text(const std::string in_text) { m_text = in_text; return *this; }
+		Ui_widget_text& font(const Asset_ref<Asset_font>& in_asset_ref) { m_font = in_asset_ref; return *this; }
+		Ui_widget_text& material(const Asset_ref<Asset_material>& in_asset_ref) { m_material = in_asset_ref; return *this; }
+		Ui_widget_text& px(i32 in_px) { m_px = in_px; return *this; }
+
+		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override
+		{
+			const Asset_font* font = m_font.get();
+
+			glm::vec2 size = { 0.0f, 0.0f };
+
+			for (auto c : m_text)
+				size.x += font->m_glyphs[c].m_pixel_advance;
+
+			size.y = font->m_max_glyph_height;
+
+			//size /= glm::vec2(font->m_width, font->m_height);
+			//size *= m_px;
+			size /= in_window_size;
+
+			return size;
+		};
+
+		Asset_ref<Asset_material> m_material;
+		Asset_ref<Asset_font> m_font;
+		std::string m_text;
+		i32 m_px = 12;
+
+	protected:
+		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, State_render_scene& inout_render_scene_state) override
+		{
+			const Asset_font* font = m_font.get();
+
+			m_ro_ids.resize(m_text.size());
+
+			float cur_advance = 0.0f;
+			for (size_t i = 0; i < m_text.size(); i++)
+			{
+				auto c = m_text[i];
+				auto& ro_id = m_ro_ids[i];
+				const auto& glyph = font->m_glyphs[c];
+
+				const glm::vec2 top_left_start = in_final_translation + glm::vec2(cur_advance / in_window_size.x, 0.0f);
+				const glm::vec2 render_translation = top_left_start + (glyph.m_offset_to_glyph / in_window_size);
+				const glm::vec2 render_size = (glyph.m_atlas_pixel_size / in_window_size);
+
+				const glm::vec2 atlas_offset = (glyph.m_atlas_pixel_position / glm::vec2(font->m_width, font->m_height));
+				const glm::vec2 atlas_glyph_size = (glyph.m_atlas_pixel_size / glm::vec2(font->m_width, font->m_height));
+
+				auto update_lambda =
+					[font_ref = m_font, render_translation, render_size, in_final_rotation, mat = m_material, id = in_window_id, in_window_size, atlas_offset, atlas_glyph_size](Render_object_ui& inout_object)
+				{
+					inout_object.m_lefttop = render_translation;
+					inout_object.m_rightbottom = render_translation + render_size;
+					inout_object.m_window_id = id;
+
+					if (inout_object.m_material != mat.get_mutable())
+					{
+						if (inout_object.m_material)
+							inout_object.m_material->remove_instance_data(inout_object.m_instance_data_index);
+
+						inout_object.m_instance_data_index = mat.get_mutable()->add_instance_data();
+						inout_object.m_material = mat.get_mutable();
+					}
+
+					struct Local
+					{
+						static glm::vec2 round_to_pixel_density(const glm::vec2& in_vec, const glm::vec2& in_pixel_density)
+						{
+							glm::vec2 ret_val = { in_vec.x * in_pixel_density.x, in_vec.y * in_pixel_density.y };
+							ret_val = glm::round(ret_val);
+							ret_val.x /= in_pixel_density.x;
+							ret_val.y /= in_pixel_density.y;
+
+							return ret_val;
+						}
+					};
+
+					const glm::vec2 top_left = /*Local::round_to_pixel_density*/(render_translation/*, in_window_size*/);
+					const glm::vec2 bottom_right = /*Local::round_to_pixel_density*/(render_translation + render_size/*, in_window_size*/);
+
+					const glm::vec4 lefttop_rightbottom_packed = { top_left.x, top_left.y, bottom_right.x, bottom_right.y };
+
+					mat.get_mutable()->set_parameter_on_instance("lefttop_rightbottom_packed", lefttop_rightbottom_packed, inout_object.m_instance_data_index);
+					mat.get_mutable()->set_parameter_on_instance("msdf", font_ref, inout_object.m_instance_data_index);
+					mat.get_mutable()->set_parameter_on_instance("offset_and_size", glm::vec4(atlas_offset, atlas_glyph_size), inout_object.m_instance_data_index);
+				};
+
+				if (ro_id.is_valid())
+					inout_render_scene_state.m_ui_elements.update_object(ro_id, update_lambda);
+				else
+					ro_id = inout_render_scene_state.m_ui_elements.create_object(update_lambda);
+
+				cur_advance += glyph.m_pixel_advance;
+			}
+		}
+
+		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override final { if (m_material.is_valid()) out_assets.push_back(m_material.get_header()); }
+
+		std::vector<Update_list_id<Render_object_ui>> m_ro_ids;
 	};
 }
