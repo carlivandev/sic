@@ -678,18 +678,37 @@ namespace sic
 		Ui_widget_text& material(const Asset_ref<Asset_material>& in_asset_ref) { m_material = in_asset_ref; return *this; }
 		Ui_widget_text& px(float in_px) { m_px = in_px; return *this; }
 
+		Ui_widget_text& align(Ui_h_alignment in_alignment) { m_alignment = in_alignment; return *this; }
+		Ui_widget_text& autowrap(bool in_autowrap) { m_autowrap = in_autowrap; return *this; }
+
 		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override
 		{
 			const Asset_font* font = m_font.get();
 
 			glm::vec2 size = { 0.0f, 0.0f };
 
+			if (!m_text.empty())
+				size.y = font->m_max_glyph_height;
+
+			float cur_size_x = 0.0f;
+
 			for (size_t i = 0; i < m_text.size(); i++)
 			{
-				size.x += font->m_glyphs[m_text[i]].m_pixel_advance;
+				const auto c = m_text[i];
+
+				if (c == '\n')
+				{
+					size.y += font->m_max_glyph_height;
+					size.x = glm::max(size.x, cur_size_x);
+
+					cur_size_x = 0.0f;
+					continue;
+				}
+
+				cur_size_x += font->m_glyphs[c].m_pixel_advance;
 
 				if (i > 0)
-					size.x += font->m_glyphs[m_text[i]].m_kerning_values[m_text[i - 1]];
+					cur_size_x += font->m_glyphs[c].m_kerning_values[m_text[i - 1]];
 			}
 
 			size.y = font->m_max_glyph_height;
@@ -705,7 +724,9 @@ namespace sic
 		Asset_ref<Asset_material> m_material;
 		Asset_ref<Asset_font> m_font;
 		std::string m_text;
+		Ui_h_alignment m_alignment = Ui_h_alignment::left;
 		float m_px = 16.0f;
+		bool m_autowrap = false;
 
 	protected:
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, State_render_scene& inout_render_scene_state) override
@@ -713,10 +734,135 @@ namespace sic
 			const Asset_font* font = m_font.get();
 			const float scale_ratio = m_px / font->m_em_size;
 
+			for (size_t i = m_text.size(); i < m_ro_ids.size(); i++)
+				inout_render_scene_state.m_ui_elements.destroy_object(m_ro_ids[i]);
+
 			m_ro_ids.resize(m_text.size());
+
+			generate_lines(in_final_size.x * in_window_size.x);
+
+			if (m_lines.empty())
+			{
+				for (auto& m_ro_id : m_ro_ids)
+				{
+					if (!m_ro_id.is_valid())
+						continue;
+
+					inout_render_scene_state.m_ui_elements.destroy_object(m_ro_id);
+					m_ro_id.reset();
+				}
+
+				return;
+			}
+
+			for (const Text_line& line : m_lines)
+			{
+				float cur_advance = 0.0f;
+
+				if (m_alignment == Ui_h_alignment::right)
+					cur_advance = (in_final_size.x * in_window_size.x) - line.m_total_width;
+				else if (m_alignment == Ui_h_alignment::center)
+					cur_advance = (in_final_size.x * in_window_size.x * 0.5f) - (line.m_total_width * 0.5f);
+
+				for (size_t i = line.m_start_index; i <= line.m_end_index; i++)
+				{
+					auto c = m_text[i];
+					auto& ro_id = m_ro_ids[i];
+					const auto& glyph = font->m_glyphs[c];
+
+					const glm::vec2 top_left_start = in_final_translation + ((glm::vec2(cur_advance, font->m_em_size + line.m_y) * scale_ratio) / in_window_size);
+					glm::vec2 render_translation = top_left_start + ((glyph.m_offset_to_glyph * scale_ratio) / in_window_size);
+
+					float kerning = 0.0f;
+					if (i > line.m_start_index)
+					{
+						kerning = glyph.m_kerning_values[m_text[i - 1]];
+						render_translation.x += (kerning * scale_ratio) / in_window_size.x;
+					}
+
+					cur_advance += glyph.m_pixel_advance + kerning;
+
+					const glm::vec2 render_size = ((glyph.m_atlas_pixel_size * scale_ratio) / in_window_size);
+
+					const glm::vec2 atlas_offset = (glyph.m_atlas_pixel_position / glm::vec2(font->m_width, font->m_height));
+					const glm::vec2 atlas_glyph_size = (glyph.m_atlas_pixel_size / glm::vec2(font->m_width, font->m_height));
+
+					const glm::vec2& top_left = render_translation;
+					const glm::vec2 bottom_right = render_translation + render_size;
+
+					//TODO: fix awf last f getting removed here
+					if (bottom_right.x - (top_left_start.x - render_translation.x) > in_final_translation.x + in_final_size.x)
+					{
+						if (ro_id.is_valid())
+							inout_render_scene_state.m_ui_elements.destroy_object(ro_id);
+						ro_id.reset();
+						continue;
+					}
+					else if (top_left_start.x < in_final_translation.x)
+					{
+						if (ro_id.is_valid())
+							inout_render_scene_state.m_ui_elements.destroy_object(ro_id);
+						ro_id.reset();
+						continue;
+					}
+
+					auto update_lambda =
+						[font_ref = m_font, top_left, bottom_right, in_final_rotation, mat = m_material, id = in_window_id, in_window_size, atlas_offset, atlas_glyph_size](Render_object_ui& inout_object)
+					{
+						inout_object.m_window_id = id;
+
+						if (inout_object.m_material != mat.get_mutable())
+						{
+							if (inout_object.m_material)
+								inout_object.m_material->remove_instance_data(inout_object.m_instance_data_index);
+
+							inout_object.m_instance_data_index = mat.get_mutable()->add_instance_data();
+							inout_object.m_material = mat.get_mutable();
+						}
+
+						const glm::vec4 lefttop_rightbottom_packed = { top_left.x, top_left.y, bottom_right.x, bottom_right.y };
+
+						mat.get_mutable()->set_parameter_on_instance("lefttop_rightbottom_packed", lefttop_rightbottom_packed, inout_object.m_instance_data_index);
+						mat.get_mutable()->set_parameter_on_instance("msdf", font_ref, inout_object.m_instance_data_index);
+						mat.get_mutable()->set_parameter_on_instance("offset_and_size", glm::vec4(atlas_offset, atlas_glyph_size), inout_object.m_instance_data_index);
+					};
+
+					if (ro_id.is_valid())
+						inout_render_scene_state.m_ui_elements.update_object(ro_id, update_lambda);
+					else
+						ro_id = inout_render_scene_state.m_ui_elements.create_object(update_lambda);
+				}
+			}
+		}
+
+		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override final { if (m_material.is_valid()) out_assets.push_back(m_material.get_header()); }
+
+		std::vector<Update_list_id<Render_object_ui>> m_ro_ids;
+
+	private:
+		void generate_lines(float in_max_line_width)
+		{
+			m_lines.clear();
+
+			const Asset_font* font = m_font.get();
+			const float scale_ratio = m_px / font->m_em_size;
+			Text_line* cur_line = nullptr;
+
+			if (!m_text.empty())
+			{
+				m_lines.push_back(Text_line());
+				cur_line = &m_lines.back();
+			}
+			else
+			{
+				return;
+			}
 
 			float cur_advance = 0.0f;
 			float cur_line_y = 0.0f;
+
+			float width_until_last_word = 0.0f;
+			i32 last_word_end = 0;
 
 			for (size_t i = 0; i < m_text.size(); i++)
 			{
@@ -726,66 +872,77 @@ namespace sic
 
 				if (c == ' ')
 				{
+					last_word_end = i - 1;
+					width_until_last_word = cur_advance;
+
 					cur_advance += glyph.m_pixel_advance;
+
 					continue;
 				}
 				else if (c == '\n')
 				{
 					cur_line_y += font->m_max_glyph_height;
+
+					cur_line->m_end_index = i - 1;
+					cur_line->m_total_width = cur_advance;
+
+					Text_line new_line;
+					new_line.m_start_index = i + 1;
+					new_line.m_y = cur_line_y;
+					m_lines.push_back(new_line);
+					cur_line = &m_lines.back();
+
+					last_word_end = i - 1;
+					width_until_last_word = cur_advance;
+
 					cur_advance = 0.0f;
 					continue;
 				}
 
-				const glm::vec2 top_left_start = in_final_translation + ((glm::vec2(cur_advance, font->m_em_size + cur_line_y) * scale_ratio) / in_window_size);
-				glm::vec2 render_translation = top_left_start + ((glyph.m_offset_to_glyph * scale_ratio) / in_window_size);
-
 				float kerning = 0.0f;
 				if (i > 0)
-				{
 					kerning = glyph.m_kerning_values[m_text[i - 1]];
-					render_translation.x += (kerning * scale_ratio) / in_window_size.x;
-				}
-
-				const glm::vec2 render_size = ((glyph.m_atlas_pixel_size * scale_ratio) / in_window_size);
-
-				const glm::vec2 atlas_offset = (glyph.m_atlas_pixel_position / glm::vec2(font->m_width, font->m_height));
-				const glm::vec2 atlas_glyph_size = (glyph.m_atlas_pixel_size / glm::vec2(font->m_width, font->m_height));
-
-				auto update_lambda =
-					[font_ref = m_font, render_translation, render_size, in_final_rotation, mat = m_material, id = in_window_id, in_window_size, atlas_offset, atlas_glyph_size](Render_object_ui& inout_object)
-				{
-					inout_object.m_window_id = id;
-
-					if (inout_object.m_material != mat.get_mutable())
-					{
-						if (inout_object.m_material)
-							inout_object.m_material->remove_instance_data(inout_object.m_instance_data_index);
-
-						inout_object.m_instance_data_index = mat.get_mutable()->add_instance_data();
-						inout_object.m_material = mat.get_mutable();
-					}
-
-					const glm::vec2 top_left = render_translation;
-					const glm::vec2 bottom_right = render_translation + render_size;
-
-					const glm::vec4 lefttop_rightbottom_packed = { top_left.x, top_left.y, bottom_right.x, bottom_right.y };
-
-					mat.get_mutable()->set_parameter_on_instance("lefttop_rightbottom_packed", lefttop_rightbottom_packed, inout_object.m_instance_data_index);
-					mat.get_mutable()->set_parameter_on_instance("msdf", font_ref, inout_object.m_instance_data_index);
-					mat.get_mutable()->set_parameter_on_instance("offset_and_size", glm::vec4(atlas_offset, atlas_glyph_size), inout_object.m_instance_data_index);
-				};
-
-				if (ro_id.is_valid())
-					inout_render_scene_state.m_ui_elements.update_object(ro_id, update_lambda);
-				else
-					ro_id = inout_render_scene_state.m_ui_elements.create_object(update_lambda);
 
 				cur_advance += glyph.m_pixel_advance + kerning;
+
+				cur_line->m_end_index = i;
+				cur_line->m_total_width = cur_advance;
+
+				if (m_autowrap && cur_line->m_total_width * scale_ratio > in_max_line_width)
+				{
+					cur_line_y += font->m_max_glyph_height;
+					
+					Text_line new_line;
+					new_line.m_start_index = last_word_end + 2;
+					new_line.m_end_index = cur_line->m_end_index;
+					new_line.m_y = cur_line_y;
+					new_line.m_total_width = cur_line->m_total_width - width_until_last_word;
+
+					cur_line->m_end_index = glm::max(0, last_word_end);
+					cur_line->m_total_width = width_until_last_word;
+
+					m_lines.push_back(new_line);
+
+					cur_line = &m_lines.back();
+
+					last_word_end = i - 1;
+					width_until_last_word = cur_advance;
+
+					cur_advance = cur_line->m_total_width;
+				}
 			}
 		}
 
-		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override final { if (m_material.is_valid()) out_assets.push_back(m_material.get_header()); }
+		struct Text_line
+		{
+			size_t m_start_index = 0;
+			size_t m_end_index = 0;
 
-		std::vector<Update_list_id<Render_object_ui>> m_ro_ids;
+			float m_total_width = 0.0f;
+			float m_y = 0.0f;
+		};
+
+		std::vector<Text_line> m_lines;
 	};
+
 }

@@ -24,6 +24,7 @@ void main()
 
     sampler2D msdf = read_sampler2D(instance_data_texture_sampler, instance_data_begin, instance_data_it);
     vec4 offset_and_size = read_vec4(instance_data_texture_sampler, instance_data_begin, instance_data_it);
+    vec4 cutoff_box = read_vec4(instance_data_texture_sampler, instance_data_begin, instance_data_it);
 
     //instancing setup end
 
