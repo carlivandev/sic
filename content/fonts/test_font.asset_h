@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/fonts/test_font.asset",
-	"id": "43e10039-10f7-408f-9452-51448741538a",
+	"id": "ba01eee3-05e8-43e7-a49a-4ed12a0d2443",
 	"name": "test_font",
 	"type": "struct sic::Asset_font"
 }

@@ -14,7 +14,6 @@ void main()
 	int instance_data_begin = get_instance_data_begin(gl_InstanceID);
 	int instance_data_it = 0;
 
-    sampler2D uniform_texture = read_sampler2D(instance_data_texture_sampler, instance_data_begin, instance_data_it);
     vec4 lefttop_rightbottom_packed = read_vec4(instance_data_texture_sampler, instance_data_begin, instance_data_it);
 	
     gl_Position = vec4(get_ui_position(lefttop_rightbottom_packed.xy, lefttop_rightbottom_packed.zw), 0.0f, 1.0f);

@@ -628,8 +628,6 @@ namespace sic
 			auto update_lambda =
 			[in_final_translation, in_final_size, in_final_rotation, mat = m_material, id = in_window_id, in_window_size](Render_object_ui& inout_object)
 			{
-				inout_object.m_lefttop = in_final_translation;
-				inout_object.m_rightbottom = in_final_translation + in_final_size;
 				inout_object.m_window_id = id;
 
 				if (inout_object.m_material != mat.get_mutable())
@@ -756,8 +754,6 @@ namespace sic
 				auto update_lambda =
 					[font_ref = m_font, render_translation, render_size, in_final_rotation, mat = m_material, id = in_window_id, in_window_size, atlas_offset, atlas_glyph_size](Render_object_ui& inout_object)
 				{
-					inout_object.m_lefttop = render_translation;
-					inout_object.m_rightbottom = render_translation + render_size;
 					inout_object.m_window_id = id;
 
 					if (inout_object.m_material != mat.get_mutable())
@@ -769,25 +765,8 @@ namespace sic
 						inout_object.m_material = mat.get_mutable();
 					}
 
-					struct Local
-					{
-						static glm::vec2 round_to_pixel_density(const glm::vec2& in_vec, const glm::vec2& in_pixel_density)
-						{
-							glm::vec2 ret_val = { in_vec.x * in_pixel_density.x, in_vec.y * in_pixel_density.y };
-							ret_val = glm::trunc(ret_val);
-							ret_val.x /= in_pixel_density.x;
-							//ret_val.y /= in_pixel_density.y;
-							ret_val.y = in_vec.y;
-
-							return ret_val;
-						}
-					};
-
-					const glm::vec2 top_left = Local::round_to_pixel_density(render_translation, in_window_size * 2.0f);
-					const glm::vec2 bottom_right = Local::round_to_pixel_density(render_translation + render_size, in_window_size * 2.0f);
-
-					//const glm::vec2 top_left = render_translation;
-					//const glm::vec2 bottom_right = render_translation + render_size;
+					const glm::vec2 top_left = render_translation;
+					const glm::vec2 bottom_right = render_translation + render_size;
 
 					const glm::vec4 lefttop_rightbottom_packed = { top_left.x, top_left.y, bottom_right.x, bottom_right.y };
 

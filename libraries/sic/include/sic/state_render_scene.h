@@ -169,8 +169,6 @@ namespace sic
 
 	struct Render_object_ui : Noncopyable
 	{
-		glm::vec2 m_lefttop = { 0.0f, 0.0f };
-		glm::vec2 m_rightbottom = { 0.0f, 0.0f };
 		Asset_material* m_material = nullptr;
 
 		Update_list_id<Render_object_window> m_window_id;
@@ -361,16 +359,14 @@ namespace sic
 
 	struct Drawcall_ui_element : Drawcall<true, true>
 	{
-		Drawcall_ui_element(glm::vec2 in_topleft, glm::vec2 in_bottomright, Asset_material* in_material, char* in_instance_data, ui32 in_sort_priority, ui32 in_custom_sort_priority) :
-			m_topleft(in_topleft), m_bottomright(in_bottomright), m_material(in_material), m_instance_data(in_instance_data), m_sort_priority(in_sort_priority), m_custom_sort_priority(in_custom_sort_priority) {}
+		Drawcall_ui_element(Asset_material* in_material, char* in_instance_data, ui32 in_sort_priority, ui32 in_custom_sort_priority) :
+			m_material(in_material), m_instance_data(in_instance_data), m_sort_priority(in_sort_priority), m_custom_sort_priority(in_custom_sort_priority) {}
 
 		bool partition(const Drawcall_ui_element& in_to_partition_with) const
 		{
 			return in_to_partition_with.m_material == m_material;
 		}
 
-		glm::vec2 m_topleft;
-		glm::vec2 m_bottomright;
 		Asset_material* m_material;
 		char* m_instance_data;
 

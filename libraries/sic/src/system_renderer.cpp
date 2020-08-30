@@ -380,7 +380,7 @@ void sic::System_renderer::render_ui(Engine_context in_context, const Render_obj
 		case Material_blend_mode::Translucent:
 		case Material_blend_mode::Additive:
 		{
-			scene_state.m_ui_drawcalls.push_back(Drawcall_ui_element(element.m_lefttop, element.m_rightbottom, mat, instance_buffer, element.m_sort_priority, element.m_custom_sort_priority));
+			scene_state.m_ui_drawcalls.push_back(Drawcall_ui_element(mat, instance_buffer, element.m_sort_priority, element.m_custom_sort_priority));
 		}
 		break;
 

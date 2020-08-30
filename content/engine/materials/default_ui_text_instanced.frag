@@ -1,8 +1,11 @@
 #version 410 core
-//! #include "includes/ui_frag_header.glsl"
+//?#extension GL_ARB_bindless_texture : require
+//?#extension GL_NV_gpu_shader5 : require
 
-uniform sampler2D msdf;
-uniform vec4 offset_and_size;
+//! #include "includes/ui_frag_header.glsl"
+//! #include "includes/instancing_common.glsl"
+
+flat in int frag_instanceID;
 
 float median(float r, float g, float b)
 {
@@ -14,6 +17,16 @@ const float edge = 0.8f;
 
 void main()
 {
+    samplerBuffer instance_data_texture_sampler = samplerBuffer(instance_data_texture);
+
+	int instance_data_begin = get_instance_data_begin(frag_instanceID);
+	int instance_data_it = 1; //for now assume that leftop_rightbottom is at 0 always, so skip to 1
+
+    sampler2D msdf = read_sampler2D(instance_data_texture_sampler, instance_data_begin, instance_data_it);
+    vec4 offset_and_size = read_vec4(instance_data_texture_sampler, instance_data_begin, instance_data_it);
+
+    //instancing setup end
+
     float pxRange = 32.0f;
     vec4 bgColor = vec4(0.0f, 1.0f, 0.0f, 0.0f);
     vec4 fgColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
