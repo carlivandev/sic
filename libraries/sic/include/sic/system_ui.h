@@ -678,8 +678,13 @@ namespace sic
 		Ui_widget_text& material(const Asset_ref<Asset_material>& in_asset_ref) { m_material = in_asset_ref; return *this; }
 		Ui_widget_text& px(float in_px) { m_px = in_px; return *this; }
 
+		Ui_widget_text& line_height_percentage(float in_line_height_percentage) { m_line_height_percentage = in_line_height_percentage; return *this; }
 		Ui_widget_text& align(Ui_h_alignment in_alignment) { m_alignment = in_alignment; return *this; }
 		Ui_widget_text& autowrap(bool in_autowrap) { m_autowrap = in_autowrap; return *this; }
+		Ui_widget_text& wrap_text_at(std::optional<float> in_wrap_text_at)
+		{
+			m_wrap_text_at = in_wrap_text_at; return *this;
+		}
 
 		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override
 		{
@@ -726,6 +731,8 @@ namespace sic
 		std::string m_text;
 		Ui_h_alignment m_alignment = Ui_h_alignment::left;
 		float m_px = 16.0f;
+		float m_line_height_percentage = 1.0f;
+		std::optional<float> m_wrap_text_at;
 		bool m_autowrap = false;
 
 	protected:
@@ -790,20 +797,23 @@ namespace sic
 					const glm::vec2& top_left = render_translation;
 					const glm::vec2 bottom_right = render_translation + render_size;
 
-					//TODO: fix awf last f getting removed here
-					if (bottom_right.x - (top_left_start.x - render_translation.x) > in_final_translation.x + in_final_size.x)
+					//only cull edges if we are not auto-wrapping
+					if (!m_autowrap)
 					{
-						if (ro_id.is_valid())
-							inout_render_scene_state.m_ui_elements.destroy_object(ro_id);
-						ro_id.reset();
-						continue;
-					}
-					else if (top_left_start.x < in_final_translation.x)
-					{
-						if (ro_id.is_valid())
-							inout_render_scene_state.m_ui_elements.destroy_object(ro_id);
-						ro_id.reset();
-						continue;
+						if (bottom_right.x - (top_left_start.x - render_translation.x) > in_final_translation.x + in_final_size.x)
+						{
+							if (ro_id.is_valid())
+								inout_render_scene_state.m_ui_elements.destroy_object(ro_id);
+							ro_id.reset();
+							continue;
+						}
+						else if (top_left_start.x < in_final_translation.x)
+						{
+							if (ro_id.is_valid())
+								inout_render_scene_state.m_ui_elements.destroy_object(ro_id);
+							ro_id.reset();
+							continue;
+						}
 					}
 
 					auto update_lambda =
@@ -858,65 +868,62 @@ namespace sic
 				return;
 			}
 
-			float cur_advance = 0.0f;
-			float cur_line_y = 0.0f;
+			float cur_line_advance = 0.0f;
 
 			float width_until_last_word = 0.0f;
 			i32 last_word_end = 0;
 
 			for (size_t i = 0; i < m_text.size(); i++)
 			{
-				auto c = m_text[i];
-				auto& ro_id = m_ro_ids[i];
+				const auto c = m_text[i];
 				const auto& glyph = font->m_glyphs[c];
 
-				if (c == ' ')
+				if (c == '\n')
 				{
-					last_word_end = i - 1;
-					width_until_last_word = cur_advance;
-
-					cur_advance += glyph.m_pixel_advance;
-
-					continue;
-				}
-				else if (c == '\n')
-				{
-					cur_line_y += font->m_max_glyph_height;
-
 					cur_line->m_end_index = i - 1;
-					cur_line->m_total_width = cur_advance;
+					cur_line->m_total_width = cur_line_advance;
+
+					if (i + 1 >= m_text.size())
+						break;
 
 					Text_line new_line;
 					new_line.m_start_index = i + 1;
-					new_line.m_y = cur_line_y;
+					new_line.m_end_index = i + 1;
+					new_line.m_y = cur_line->m_y + (font->m_max_glyph_height * m_line_height_percentage);
 					m_lines.push_back(new_line);
 					cur_line = &m_lines.back();
 
-					last_word_end = i - 1;
-					width_until_last_word = cur_advance;
-
-					cur_advance = 0.0f;
+					last_word_end = -1;
+					width_until_last_word = 0.0f;
+					cur_line_advance = cur_line->m_total_width;
 					continue;
+				}
+				else if (c == ' ')
+				{
+					last_word_end = i - 1;
+					width_until_last_word = cur_line_advance;
 				}
 
 				float kerning = 0.0f;
-				if (i > 0)
+				if (i > cur_line->m_start_index)
 					kerning = glyph.m_kerning_values[m_text[i - 1]];
 
-				cur_advance += glyph.m_pixel_advance + kerning;
+				cur_line_advance += glyph.m_pixel_advance + kerning;
 
 				cur_line->m_end_index = i;
-				cur_line->m_total_width = cur_advance;
+				cur_line->m_total_width = cur_line_advance;
 
-				if (m_autowrap && cur_line->m_total_width * scale_ratio > in_max_line_width)
+				if ((m_wrap_text_at.has_value() && cur_line->m_total_width * scale_ratio > m_wrap_text_at.value()) ||
+					(m_autowrap && cur_line->m_total_width * scale_ratio > in_max_line_width))
 				{
-					cur_line_y += font->m_max_glyph_height;
+					if (last_word_end + 2 >= m_text.size())
+						break;
 					
 					Text_line new_line;
 					new_line.m_start_index = last_word_end + 2;
-					new_line.m_end_index = cur_line->m_end_index;
-					new_line.m_y = cur_line_y;
-					new_line.m_total_width = cur_line->m_total_width - width_until_last_word;
+					new_line.m_end_index = glm::max((i32)cur_line->m_end_index, last_word_end + 2);
+					new_line.m_y = cur_line->m_y + (font->m_max_glyph_height * m_line_height_percentage);
+					new_line.m_total_width = cur_line->m_total_width - width_until_last_word - font->m_glyphs[' '].m_pixel_advance;
 
 					cur_line->m_end_index = glm::max(0, last_word_end);
 					cur_line->m_total_width = width_until_last_word;
@@ -926,9 +933,8 @@ namespace sic
 					cur_line = &m_lines.back();
 
 					last_word_end = i - 1;
-					width_until_last_word = cur_advance;
-
-					cur_advance = cur_line->m_total_width;
+					width_until_last_word = 0.0f;
+					cur_line_advance = cur_line->m_total_width;
 				}
 			}
 		}
