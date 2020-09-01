@@ -2,7 +2,8 @@
 
 #include "sic/gl_includes.h"
 #include "sic/component_view.h"
-#include "sic/logger.h"
+
+#include "sic/core/logger.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 

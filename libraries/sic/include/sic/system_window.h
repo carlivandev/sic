@@ -1,13 +1,14 @@
 #pragma once
-#include "sic/system.h"
-#include "sic/engine_context.h"
-#include "sic/object.h"
 #include "sic/input.h"
-#include "sic/delegate.h"
-#include "sic/update_list.h"
-#include "sic/delegate.h"
-
 #include "sic/gl_includes.h"
+
+#include "sic/core/system.h"
+#include "sic/core/engine_context.h"
+#include "sic/core/object.h"
+#include "sic/core/delegate.h"
+#include "sic/core/update_list.h"
+#include "sic/core/delegate.h"
+
 #include "glm/vec2.hpp"
 
 #include <optional>

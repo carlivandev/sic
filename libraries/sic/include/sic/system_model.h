@@ -1,9 +1,10 @@
 #pragma once
-#include "sic/system.h"
-#include "sic/engine_context.h"
 #include "sic/system_asset.h"
 #include "sic/component_transform.h"
 #include "sic/state_render_scene.h"
+
+#include "sic/core/system.h"
+#include "sic/core/engine_context.h"
 
 namespace sic
 {

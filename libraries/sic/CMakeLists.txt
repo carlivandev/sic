@@ -32,33 +32,6 @@ function(add_sources VAR)
 endfunction()
 
 add_headers(SIC_HEADERS
-	thread_context.h
-	thread_temporary_storage_instance.h
-	temporary_string.h
-	type_restrictions.h
-	bucket_allocator.h
-	bucket_allocator_view.h
-	colony.h
-	leavable_queue.h
-	double_buffer.h
-	component.h
-	defines.h
-	event.h
-	delegate.h
-	object.h
-	object_base.h
-	serializer.h
-	system.h
-	thread_naming.h
-	threadpool.h
-	type.h
-	type_index.h
-	logger.h
-	engine.h
-	level.h
-	engine_context.h
-	level_context.h
-	weak_ref.h
 	file_management.h
 	system_file.h
 	asset.h
@@ -94,25 +67,11 @@ add_headers(SIC_HEADERS
 	system_model.h
 	system_renderer.h
 	system_renderer_state_swapper.h
-	update_list.h
 	state_render_scene.h
 	component_transform.h
-	magic_enum.h
 	)
 
 add_sources(SIC_SOURCES
-	thread_context.cpp
-	thread_temporary_storage_instance.cpp
-	temporary_string.cpp
-	component.cpp
-	serializer.cpp
-	system.cpp
-	threadpool.cpp
-	logger.cpp
-	engine.cpp
-	level.cpp
-	engine_context.cpp
-	level_context.cpp
 	file_management.cpp
 	system_file.cpp
 	asset.cpp
@@ -146,9 +105,11 @@ add_sources(SIC_SOURCES
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-add_subdirectory(libraries/fmt)
+set (EXTRA_LIBS ${EXTRA_LIBS} sic_core)
+
+#add_subdirectory(libraries/fmt)
 set (EXTRA_LIBS ${EXTRA_LIBS} fmt)
-set_target_properties (fmt PROPERTIES FOLDER sic_ext)
+#set_target_properties (fmt PROPERTIES FOLDER sic_ext)
 
 add_subdirectory(libraries/glfw-3.3)
 set (EXTRA_LIBS ${EXTRA_LIBS} glfw)
@@ -170,11 +131,11 @@ set_target_properties (UpdateAssimpLibsDebugSymbolsAndDLLs PROPERTIES FOLDER sic
 set_target_properties (zlib PROPERTIES FOLDER sic_ext)
 set_target_properties (zlibstatic PROPERTIES FOLDER sic_ext)
 
-add_subdirectory(libraries/crossguid-master)
+#add_subdirectory(libraries/crossguid-master)
 set (EXTRA_LIBS ${EXTRA_LIBS} crossguid)
-set_target_properties (crossguid PROPERTIES FOLDER sic_ext)
+#set_target_properties (crossguid PROPERTIES FOLDER sic_ext)
 
-add_subdirectory(libraries/nlohmann-json)
+#add_subdirectory(libraries/nlohmann-json)
 set (EXTRA_LIBS ${EXTRA_LIBS} nlohmann_json)
 
 add_subdirectory(libraries/freetype-2.10.2)
@@ -203,8 +164,9 @@ include_directories(
 	libraries/stb
 	libraries/glew/include
 	libraries/glm-0.9.9.6
-	libraries/crossguid-master/include
-	libraries/nlohmann-json/include
+	../sic_core/include
+	../sic_core/libraries/crossguid-master/include
+	../sic_core/libraries/nlohmann-json/include
 	libraries/freetype-2.10.2/include
 	libraries/msdfgen-master/include
 	libraries/msdf-atlas-gen-master)

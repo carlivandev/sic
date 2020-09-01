@@ -28,15 +28,10 @@ void main()
 
     //instancing setup end
 
-    float pxRange = 32.0f;
     vec4 bgColor = vec4(0.0f, 1.0f, 0.0f, 0.0f);
     vec4 fgColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
 
     vec2 sample_coord = offset_and_size.xy + (offset_and_size.zw * texcoord);
-
-    vec2 texture_size = vec2(textureSize(msdf, 0));
-
-    vec2 msdfUnit = pxRange/vec2(texture_size);
     vec3 sample_result = texture(msdf, sample_coord).rgb;
 
     float med = median(sample_result.r, sample_result.g, sample_result.b);
@@ -44,4 +39,5 @@ void main()
     float opacity = 1.0 - smoothstep(width, width + edge, sigDist);
 
     out_color = mix(bgColor, fgColor, opacity);
+
 }

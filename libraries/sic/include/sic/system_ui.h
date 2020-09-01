@@ -1,7 +1,8 @@
 #pragma once
-#include "sic/system.h"
 #include "sic/state_render_scene.h"
 #include "sic/system_window.h"
+
+#include "sic/core/system.h"
 
 #include "glm/vec2.hpp"
 

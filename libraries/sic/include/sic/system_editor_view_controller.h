@@ -1,8 +1,9 @@
 #pragma once
-#include "sic/system.h"
-#include "sic/engine_context.h"
-#include "sic/object.h"
 #include "sic/system_window.h"
+
+#include "sic/core/system.h"
+#include "sic/core/engine_context.h"
+#include "sic/core/object.h"
 
 #include "glm/vec2.hpp"
 

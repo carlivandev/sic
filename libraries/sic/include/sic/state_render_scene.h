@@ -1,7 +1,4 @@
 #pragma once
-#include "sic/engine_context.h"
-#include "sic/update_list.h"
-
 #include "sic/gl_includes.h"
 #include "sic/asset.h"
 #include "sic/asset_types.h"
@@ -12,7 +9,10 @@
 #include "sic/opengl_buffer.h"
 #include "sic/opengl_draw_strategies.h"
 #include "sic/file_management.h"
-#include "sic/type_restrictions.h"
+
+#include "sic/core/engine_context.h"
+#include "sic/core/update_list.h"
+#include "sic/core/type_restrictions.h"
 
 #include "glm/mat4x4.hpp"
 #include "glm/vec2.hpp"

@@ -1,5 +1,5 @@
 #pragma once
-#include "sic/defines.h"
+#include "sic/core/defines.h"
 
 #include "glm/vec3.hpp"
 #include "glm/vec4.hpp"

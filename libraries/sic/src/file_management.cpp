@@ -1,6 +1,7 @@
 #include "sic/file_management.h"
-#include "sic/engine.h"
-#include "sic/engine_context.h"
+
+#include "sic/core/engine.h"
+#include "sic/core/engine_context.h"
 
 #include <fstream>
 #include <filesystem>

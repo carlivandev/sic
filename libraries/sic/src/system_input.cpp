@@ -5,7 +5,7 @@
 
 #include "sic/gl_includes.h"
 
-#include "sic/logger.h"
+#include "sic/core/logger.h"
 
 void sic::System_input::on_created(Engine_context in_context)
 {

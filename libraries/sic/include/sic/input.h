@@ -1,5 +1,5 @@
 #pragma once
-#include "sic/engine_context.h"
+#include "sic/core/engine_context.h"
 #include "gl_includes.h"
 
 #include <array>

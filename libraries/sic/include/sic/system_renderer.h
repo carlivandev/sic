@@ -1,15 +1,15 @@
 #pragma once
-#include "sic/system.h"
-
-#include "sic/engine.h"
 #include "sic/opengl_draw_interface_debug_lines.h"
 #include "sic/opengl_engine_uniform_blocks.h"
 #include "sic/asset_types.h"
-#include "sic/double_buffer.h"
 #include "sic/state_render_scene.h"
 #include "sic/opengl_texture.h"
 #include "sic/opengl_draw_interface_instanced.h"
-#include "sic/update_list.h"
+
+#include "sic/core/system.h"
+#include "sic/core/engine.h"
+#include "sic/core/double_buffer.h"
+#include "sic/core/update_list.h"
 
 #include "glm/mat4x4.hpp"
 #include "glm/vec3.hpp"

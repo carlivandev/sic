@@ -1,6 +1,6 @@
 #pragma once
-#include "sic/defines.h"
-#include "sic/level_context.h"
+#include "sic/core/defines.h"
+#include "sic/core/level_context.h"
 
 #include "glm/vec3.hpp"
 #include "glm/vec4.hpp"

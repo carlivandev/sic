@@ -6,7 +6,7 @@
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include "GLFW/glfw3native.h"
 
-#include "sic/logger.h"
+#include "sic/core/logger.h"
 
 #define SIC_DEBUG_OPENGL
 

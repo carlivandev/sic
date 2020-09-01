@@ -1,6 +1,6 @@
 #pragma once
-#include "system.h"
-#include "engine_context.h"
+#include "sic/core/system.h"
+#include "sic/core/engine_context.h"
 
 namespace sic
 {

@@ -1,7 +1,8 @@
 #pragma once
-#include "sic/defines.h"
-#include "sic/type_restrictions.h"
 #include "sic/gl_includes.h"
+
+#include "sic/core/defines.h"
+#include "sic/core/type_restrictions.h"
 
 namespace sic
 {

@@ -3,7 +3,6 @@
 
 #include "sic/system_window.h"
 #include "sic/component_view.h"
-#include "sic/logger.h"
 #include "sic/state_render_scene.h"
 #include "sic/file_management.h"
 #include "sic/system_asset.h"
@@ -15,6 +14,8 @@
 #include "sic/renderer_shape_draw_functions.h"
 #include "sic/opengl_draw_strategies.h"
 #include "sic/shader_parser.h"
+
+#include "sic/core/logger.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"

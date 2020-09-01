@@ -3,6 +3,9 @@ project(sic_test_game)
 add_compile_options("/std:c++latest")
 add_compile_options("/wd26498")
 
+add_subdirectory(libraries/sic_core)
+set (TEST_EXTRA_LIBS ${TEST_EXTRA_LIBS} sic_core)
+
 add_subdirectory(libraries/sic)
 set (TEST_EXTRA_LIBS ${TEST_EXTRA_LIBS} sic)
 

@@ -1,7 +1,8 @@
 #pragma once
-#include "sic/defines.h"
-#include "sic/type_restrictions.h"
 #include "sic/opengl_program.h"
+
+#include "sic/core/defines.h"
+#include "sic/core/type_restrictions.h"
 
 #include "glm/vec3.hpp"
 #include "glm/vec4.hpp"

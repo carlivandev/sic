@@ -1,8 +1,8 @@
 #pragma once
-#include "sic/defines.h"
-#include "sic/system.h"
-#include "sic/engine.h"
-#include "sic/temporary_string.h"
+#include "sic/core/defines.h"
+#include "sic/core/system.h"
+#include "sic/core/engine.h"
+#include "sic/core/temporary_string.h"
 
 #include <memory>
 #include <unordered_map>

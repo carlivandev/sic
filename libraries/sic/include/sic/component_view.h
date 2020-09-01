@@ -1,11 +1,11 @@
 #pragma once
-#include "sic/component.h"
-
 #include "sic/component_transform.h"
 #include "sic/gl_includes.h"
-#include "sic/object.h"
 #include "sic/state_render_scene.h"
 #include "sic/system_window.h"
+
+#include "sic/core/component.h"
+#include "sic/core/object.h"
 
 #include "glm/vec3.hpp"
 

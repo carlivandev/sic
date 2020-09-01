@@ -1,5 +1,4 @@
 #include "sic/opengl_draw_interface_instanced.h"
-
 #include "sic/opengl_draw_strategies.h"
 
 void sic::OpenGl_draw_interface_instanced::begin_frame(const OpenGl_vertex_buffer_array_base& in_vba, const OpenGl_buffer& in_index_buffer, Asset_material& in_material)

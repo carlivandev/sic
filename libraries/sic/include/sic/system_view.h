@@ -1,8 +1,8 @@
 #pragma once
-#include "sic/system.h"
-
 #include "sic/component_view.h"
 #include "sic/component_transform.h"
+
+#include "sic/core/system.h"
 
 namespace sic
 {

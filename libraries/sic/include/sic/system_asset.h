@@ -1,13 +1,14 @@
 #pragma once
-#include "sic/system.h"
-#include "sic/engine_context.h"
-#include "sic/level_context.h"
 #include "sic/system_file.h"
 #include "sic/file_management.h"
 #include "sic/asset.h"
-#include "sic/leavable_queue.h"
-#include "sic/logger.h"
-#include "sic/delegate.h"
+
+#include "sic/core/system.h"
+#include "sic/core/engine_context.h"
+#include "sic/core/level_context.h"
+#include "sic/core/leavable_queue.h"
+#include "sic/core/logger.h"
+#include "sic/core/delegate.h"
 
 #include "crossguid/guid.hpp"
 #include "fmt/format.h"

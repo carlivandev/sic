@@ -1,6 +1,6 @@
 #pragma once
-#include "sic/component.h"
-#include "sic/delegate.h"
+#include "sic/core/component.h"
+#include "sic/core/delegate.h"
 
 #include "glm/gtc/quaternion.hpp"
 #include "glm/vec3.hpp"

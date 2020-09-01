@@ -1,15 +1,16 @@
 #include "sic/system_window.h"
 
 #include "sic/asset_types.h"
-#include "sic/event.h"
 #include "sic/system_view.h"
 #include "sic/gl_includes.h"
 #include "sic/system_model.h"
 #include "sic/component_transform.h"
-#include "sic/logger.h"
-#include "sic/state_render_scene.h"
 #include "sic/shader_parser.h"
 #include "sic/system_ui.h"
+#include "sic/state_render_scene.h"
+
+#include "sic/core/event.h"
+#include "sic/core/logger.h"
 
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
