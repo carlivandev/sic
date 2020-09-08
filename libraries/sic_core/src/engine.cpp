@@ -3,6 +3,7 @@
 #include "sic/core/engine_context.h"
 
 #include <algorithm>
+#include <atomic>
 
 namespace sic
 {
@@ -123,53 +124,255 @@ namespace sic
 			pre_tick_system->execute_engine_tick(Engine_context(*this), m_time_delta);
 		}
 
-		if (!m_tick_systems.empty())
-		{
-			std::vector<Threadpool::Closure> tasks_to_run;
-			tasks_to_run.reserve(m_tick_systems.size() - 1);
-
-			for (ui32 system_idx = 1; system_idx < m_tick_systems.size(); system_idx++)
-			{
-				System* system_to_tick = m_tick_systems[system_idx];
-
-				tasks_to_run.emplace_back
-				(
-					[this, system_to_tick]()
-					{
-						for (auto& level : m_levels)
-							system_to_tick->execute_tick(Scene_context(*this, *level.get()), m_time_delta);
-
-						system_to_tick->execute_engine_tick(Engine_context(*this), m_time_delta);
-						system_to_tick->m_finished_tick = true;
-					}
-				);
-
-				system_to_tick->m_finished_tick = false;
-			}
-
-			if (!tasks_to_run.empty())
-				m_system_ticker_threadpool.batch(std::move(tasks_to_run));
-
-			for (auto& level : m_levels)
-				m_tick_systems[0]->execute_tick(Scene_context(*this, *level.get()), m_time_delta);
-
-			m_tick_systems[0]->execute_engine_tick(Engine_context(*this), m_time_delta);
-			m_tick_systems[0]->m_finished_tick = true;
-		}
+// 		if (!m_tick_systems.empty())
+// 		{
+// 			std::vector<Threadpool::Closure> tasks_to_run;
+// 			tasks_to_run.reserve(m_tick_systems.size() - 1);
+// 
+// 			for (ui32 system_idx = 1; system_idx < m_tick_systems.size(); system_idx++)
+// 			{
+// 				System* system_to_tick = m_tick_systems[system_idx];
+// 
+// 				tasks_to_run.emplace_back
+// 				(
+// 					[this, system_to_tick]()
+// 					{
+// 						for (auto& level : m_levels)
+// 							system_to_tick->execute_tick(Scene_context(*this, *level.get()), m_time_delta);
+// 
+// 						system_to_tick->execute_engine_tick(Engine_context(*this), m_time_delta);
+// 						system_to_tick->m_finished_tick = true;
+// 					}
+// 				);
+// 
+// 				system_to_tick->m_finished_tick = false;
+// 			}
+// 
+// 			if (!tasks_to_run.empty())
+// 				m_system_ticker_threadpool.batch(std::move(tasks_to_run));
+// 
+// 			for (auto& level : m_levels)
+// 				m_tick_systems[0]->execute_tick(Scene_context(*this, *level.get()), m_time_delta);
+// 
+// 			m_tick_systems[0]->execute_engine_tick(Engine_context(*this), m_time_delta);
+// 			m_tick_systems[0]->m_finished_tick = true;
+// 		}
 
 		//wait for all to finish
-		bool all_finished = false;
+// 		bool all_finished = false;
+// 
+// 		while (!all_finished)
+// 		{
+// 			all_finished = true;
+// 
+// 			for (System* system_to_tick : m_tick_systems)
+// 			{
+// 				if (!system_to_tick->m_finished_tick)
+// 					all_finished = false;
+// 			}
+// 		}
 
-		while (!all_finished)
+		for (auto& tick_system : m_tick_systems)
 		{
-			all_finished = true;
+			for (auto& level : m_levels)
+				tick_system->execute_tick(Scene_context(*this, *level.get()), m_time_delta);
 
-			for (System* system_to_tick : m_tick_systems)
+			tick_system->execute_engine_tick(Engine_context(*this), m_time_delta);
+		}
+
+		struct Job_node
+		{
+			void do_job()
 			{
-				if (!system_to_tick->m_finished_tick)
-					all_finished = false;
+				m_job();
+				m_job_finished = true;
+
+				for (i32 i = m_depends_on_me.size() - 1; i >= 0; i--)
+				{
+					Job_node* depend_on_me = m_depends_on_me[i];
+
+					std::scoped_lock lock(depend_on_me->m_mutex);
+					--depend_on_me->m_dependencies_left;
+
+					if (depend_on_me->m_dependencies_left <= 0)
+					{
+						m_depends_on_me.pop_back();
+
+						depend_on_me->m_is_ready_to_execute = true;
+
+						if (m_depends_on_me.size() == 0)
+							depend_on_me->do_job();
+						else
+							m_threadpool->emplace([depend_on_me]() { depend_on_me->do_job(); });
+					}
+				}
+			}
+
+			std::function<void()> m_job;
+			std::vector<Job_node*> m_depends_on_me;
+			std::mutex m_mutex;
+			i32 m_dependencies_left = 0;
+			bool m_is_ready_to_execute = false;
+			bool m_job_finished = false;
+
+			Threadpool* m_threadpool = nullptr;
+		};
+
+		std::vector<Threadpool::Closure> tasks_to_run;
+
+		std::vector<Job_node> job_nodes;
+		std::unordered_map<i32, i32> job_id_to_job_node_index_lut;
+
+		std::vector<Job_node*> root_nodes;
+		std::vector<Job_node*> leaf_nodes;
+
+		size_t total_job_count = 0;
+
+		for (auto& type_schedule : m_type_to_schedule)
+		{
+			total_job_count += type_schedule.second.m_read_jobs.size();
+			total_job_count += type_schedule.second.m_write_jobs.size();
+		}
+
+		job_nodes.resize(total_job_count);
+		job_id_to_job_node_index_lut.reserve(total_job_count);
+
+		for (auto& type_schedule : m_type_to_schedule)
+		{
+			for (auto&& read_job : type_schedule.second.m_read_jobs)
+			{
+				Job_node& node = job_nodes[read_job.m_id.m_id];
+				node.m_threadpool = &m_system_ticker_threadpool;
+				node.m_dependencies_left = -1;
+				node.m_is_ready_to_execute = true;
+				node.m_job = read_job.m_job;
+
+				auto& dependencies = m_job_id_to_dependencies_lut[read_job.m_id.m_id];
+
+				bool only_reads = true;
+
+				for (auto& dependency_info : dependencies.m_infos)
+				{
+					if (dependency_info.m_is_read == false)
+					{
+						only_reads = false;
+						break;
+					}
+				}
+
+				if (only_reads && !read_job.m_job_dependency.has_value())
+				{
+					node.m_dependencies_left = 0;
+					root_nodes.push_back(&node);
+				}
+			}
+
+			for (auto&& write_job : type_schedule.second.m_write_jobs)
+			{
+				Job_node& node = job_nodes[write_job.m_id.m_id];
+				node.m_threadpool = &m_system_ticker_threadpool;
+				node.m_dependencies_left = -1;
+				node.m_is_ready_to_execute = true;
+				node.m_job = write_job.m_job;
 			}
 		}
+
+		for (auto& type_schedule : m_type_to_schedule)
+		{
+			for (auto&& read_job : type_schedule.second.m_read_jobs)
+			{
+				Job_node& node = job_nodes[read_job.m_id.m_id];
+
+				if (node.m_dependencies_left == 0)
+					continue;
+
+				node.m_dependencies_left = 0;
+
+				//find the other type schedules where this job is referenced
+				//grab the previous job_id in each of those lists, and add this node to their depends_on_me list
+
+				auto& type_dependencies = m_job_id_to_dependencies_lut[read_job.m_id.m_id];
+				for (auto& type_dependency_info : type_dependencies.m_infos)
+				{
+					if (type_dependency_info.m_index > 0)
+					{
+						{
+							Job_node& previous_node_read = job_nodes[m_type_to_schedule[type_dependency_info.m_type].m_read_jobs[type_dependency_info.m_index].m_id.m_id];
+
+							bool already_added = false;
+
+							for (Job_node* prev_node_depends_on_me : previous_node_read.m_depends_on_me)
+							{
+								if (prev_node_depends_on_me == &node)
+								{
+									already_added = true;
+									break;
+								}
+							}
+
+							if (!already_added)
+							{
+								previous_node_read.m_depends_on_me.push_back(&node);
+								++node.m_dependencies_left;
+							}
+						}
+
+						{
+							Job_node& previous_node_write = job_nodes[m_type_to_schedule[type_dependency_info.m_type].m_write_jobs[type_dependency_info.m_index].m_id.m_id];
+
+							bool already_added = false;
+
+							for (Job_node* prev_node_depends_on_me : previous_node_write.m_depends_on_me)
+							{
+								if (prev_node_depends_on_me == &node)
+								{
+									already_added = true;
+									break;
+								}
+							}
+
+							if (!already_added)
+							{
+								previous_node_write.m_depends_on_me.push_back(&node);
+								++node.m_dependencies_left;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		for (Job_node* root_node : root_nodes)
+			tasks_to_run.push_back([root_node]() {root_node->do_job(); });
+
+		for (Job_node& node : job_nodes)
+		{
+			if (node.m_depends_on_me.empty())
+				leaf_nodes.push_back(&node);
+		}
+
+		if (!tasks_to_run.empty())
+			m_system_ticker_threadpool.batch(std::move(tasks_to_run));
+
+		bool all_leaf_nodes_finished = false;
+
+		while (!all_leaf_nodes_finished)
+		{
+			all_leaf_nodes_finished = true;
+
+			for (const Job_node* leaf_node : leaf_nodes)
+			{
+				if (!leaf_node->m_job_finished)
+				{
+					all_leaf_nodes_finished = false;
+					break;
+				}
+			}
+
+			std::this_thread::yield();
+		}
+
+		m_job_index_ticker = 0;
 
 		for (auto& post_tick_system : m_post_tick_systems)
 		{

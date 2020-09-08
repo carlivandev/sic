@@ -7,7 +7,7 @@ add_compile_options("/std:c++latest")
 function(add_headers VAR)
   set(headers ${${VAR}})
   foreach (header ${ARGN})
-    set(headers ${headers} include/sic_editor/${header})
+    set(headers ${headers} include/sic/editor/${header})
   endforeach()
   set(${VAR} ${headers} PARENT_SCOPE)
 endfunction()
@@ -71,7 +71,7 @@ include_directories(
 	../sic/libraries/glew/include
 	../sic/libraries/glm-0.9.9.6)
 	
-add_library(sic_editor STATIC ${SIC_EDITOR_SOURCES} ${SIC_EDITOR_HEADERS} include/sic_editor)
+add_library(sic_editor STATIC ${SIC_EDITOR_SOURCES} ${SIC_EDITOR_HEADERS} include/sic/editor)
 
 target_link_libraries(sic_editor ${EXTRA_LIBS})
 

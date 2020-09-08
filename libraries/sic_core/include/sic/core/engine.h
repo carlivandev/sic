@@ -15,6 +15,8 @@
 #include <new>
 #include <chrono>
 #include <unordered_map>
+#include <queue>
+#include <typeindex>
 
 namespace sic
 {
@@ -26,6 +28,27 @@ namespace sic
 		post_tick //runs after tick, always on main thread
 	};
 
+	struct Job_id
+	{
+		i32 m_id;
+		Tickstep m_tickstep;
+	};
+
+	struct Job_dependency
+	{
+		struct Info
+		{
+			Info(std::type_index in_type, size_t in_index, bool in_is_read) : m_type(in_type), m_index(in_index), m_is_read(in_is_read) {}
+			std::type_index m_type;
+			size_t m_index = 0;
+			bool m_is_read = false;
+
+			bool m_ready_to_execute = false;
+		};
+
+		std::vector<Info> m_infos;
+	};
+
 	struct Scene;
 
 	//enginewide state data
@@ -35,7 +58,21 @@ namespace sic
 
 	struct Engine : Noncopyable
 	{
+		struct Type_schedule
+		{
+			struct Item
+			{
+				std::function<void()> m_job;
+				Job_id m_id;
+				std::optional<Job_id> m_job_dependency;
+			};
+
+			std::vector<Item> m_read_jobs;
+			std::vector<Item> m_write_jobs;
+		};
+
 		friend struct Engine_context;
+		friend struct Scene_context;
 
 		void finalize();
 
@@ -114,6 +151,10 @@ namespace sic
 		std::vector<System*> m_pre_tick_systems;
 		std::vector<System*> m_tick_systems;
 		std::vector<System*> m_post_tick_systems;
+
+		std::unordered_map<std::type_index, Type_schedule> m_type_to_schedule;
+		std::unordered_map<i32, Job_dependency> m_job_id_to_dependencies_lut;
+		i32 m_job_index_ticker = 0;
 
 		std::vector<Thread_context*> m_thread_contexts;
 
