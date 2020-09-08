@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/materials/crysis/opaque_master_mat.asset",
-	"id": "414281fd-d6ab-46e6-b459-30d55ff79668",
+	"id": "a195e255-524c-48f3-9ca4-35ed9efeae69",
 	"name": "opaque_master_mat",
 	"type": "struct sic::Asset_material"
 }

@@ -21,8 +21,6 @@
 #include "glm/gtc/type_ptr.hpp"
 #include "glm/gtx/norm.hpp"
 
-#include "stb/stb_image.h"
-
 void sic::System_renderer::on_created(Engine_context in_context)
 {
 	in_context.register_state<State_render_scene>("State_render_scene");
@@ -150,16 +148,16 @@ void sic::System_renderer::on_engine_finalized(Engine_context in_context) const
 	//TODO: CONTINUE YES
 	//resources.m_white_texture.emplace(glm::ivec2(white_pixels.size() / (2 * 4), white_pixels.size() / (2 * 4)), GL_RGBA, GL_LINEAR, GL_LINEAR_MIPMAP_LINEAR, white_pixels.data());
 
-	State_assetsystem& assetsystem_state = in_context.get_state_checked<State_assetsystem>();
-	resources.m_error_material = assetsystem_state.create_asset<Asset_material>("mesh_error_material", "content/engine/materials");
-	assetsystem_state.modify_asset<Asset_material>
-	(
-		resources.m_error_material,
-		[](Asset_material* material)
-		{
-			material->import("content/engine/materials/mesh_error.vert", "content/engine/materials/mesh_error.frag");
-		}
-	);
+// 	State_assetsystem& assetsystem_state = in_context.get_state_checked<State_assetsystem>();
+// 	resources.m_error_material = assetsystem_state.create_asset<Asset_material>("mesh_error_material", "content/engine/materials");
+// 	assetsystem_state.modify_asset<Asset_material>
+// 	(
+// 		resources.m_error_material,
+// 		[](Asset_material* material)
+// 		{
+// 			material->import("content/engine/materials/mesh_error.vert", "content/engine/materials/mesh_error.frag");
+// 		}
+// 	);
 }
 
 void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_time_delta) const

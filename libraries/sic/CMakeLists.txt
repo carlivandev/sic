@@ -36,11 +36,11 @@ add_headers(SIC_HEADERS
 	system_file.h
 	asset.h
 	asset_model.h
-	shader_parser.h
 	asset_material.h
 	asset_texture.h
 	asset_font.h
 	asset_types.h
+	shader_parser.h
 	system_asset.h
 	system_window.h
 	system_input.h
@@ -76,10 +76,10 @@ add_sources(SIC_SOURCES
 	system_file.cpp
 	asset.cpp
 	asset_model.cpp
-	shader_parser.cpp
 	asset_material.cpp
 	asset_texture.cpp
 	asset_font.cpp
+	shader_parser.cpp
 	system_asset.cpp
 	system_window.cpp
 	system_input.cpp
@@ -123,42 +123,12 @@ add_subdirectory(libraries/glew)
 set (EXTRA_LIBS ${EXTRA_LIBS} libglew_static)
 set_target_properties (libglew_static PROPERTIES FOLDER sic_ext)
 
-add_subdirectory(libraries/assimp-master)
-set (EXTRA_LIBS ${EXTRA_LIBS} assimp)
-set_target_properties (assimp PROPERTIES FOLDER sic_ext)
-set_target_properties (IrrXML PROPERTIES FOLDER sic_ext)
-set_target_properties (UpdateAssimpLibsDebugSymbolsAndDLLs PROPERTIES FOLDER sic_ext)
-set_target_properties (zlib PROPERTIES FOLDER sic_ext)
-set_target_properties (zlibstatic PROPERTIES FOLDER sic_ext)
-
 #add_subdirectory(libraries/crossguid-master)
 set (EXTRA_LIBS ${EXTRA_LIBS} crossguid)
 #set_target_properties (crossguid PROPERTIES FOLDER sic_ext)
 
 #add_subdirectory(libraries/nlohmann-json)
 set (EXTRA_LIBS ${EXTRA_LIBS} nlohmann_json)
-
-add_subdirectory(libraries/freetype-2.10.2)
-set (EXTRA_LIBS ${EXTRA_LIBS} freetype)
-set_target_properties (freetype PROPERTIES FOLDER sic_ext)
-
-set (FREETYPE_LIBRARY ${PROJECT_BINARY_DIR}/libraries/freetype-2.10.2/${CMAKE_BUILD_TYPE}/freetyped.lib)
-set (FREETYPE_INCLUDE_DIRS libraries/freetype-2.10.2/include)
-
-add_subdirectory(libraries/msdfgen-master)
-set (EXTRA_LIBS ${EXTRA_LIBS} msdfgen)
-set (EXTRA_LIBS ${EXTRA_LIBS} msdfgen-ext)
-set_target_properties (msdfgen PROPERTIES FOLDER sic_ext)
-set_target_properties (msdfgen-ext PROPERTIES FOLDER sic_ext)
-
-target_include_directories(msdfgen PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/libraries/freetype-2.10.2/include>)
-
-add_subdirectory(libraries/msdf-atlas-gen-master)
-set (EXTRA_LIBS ${EXTRA_LIBS} msdfgen-atlas)
-set_target_properties (msdfgen-atlas PROPERTIES FOLDER sic_ext)
-
-target_include_directories(msdfgen-atlas PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/libraries/msdfgen-master>)
-target_include_directories(msdfgen-atlas PUBLIC  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/libraries/msdfgen-master/include>)
 
 include_directories(
 	libraries/stb
@@ -167,9 +137,7 @@ include_directories(
 	../sic_core/include
 	../sic_core/libraries/crossguid-master/include
 	../sic_core/libraries/nlohmann-json/include
-	libraries/freetype-2.10.2/include
-	libraries/msdfgen-master/include
-	libraries/msdf-atlas-gen-master)
+	)
 	
 add_library(sic STATIC ${SIC_SOURCES} ${SIC_HEADERS} include/sic)
 
@@ -187,7 +155,6 @@ target_include_directories(sic PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 
-  target_compile_options(sic PRIVATE /W4)
-  target_compile_options(assimp PRIVATE /W0)
+target_compile_options(sic PRIVATE /W4)
 
 set_target_properties(sic PROPERTIES UNITY_BUILD ON)

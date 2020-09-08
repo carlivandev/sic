@@ -9,6 +9,9 @@ set (TEST_EXTRA_LIBS ${TEST_EXTRA_LIBS} sic_core)
 add_subdirectory(libraries/sic)
 set (TEST_EXTRA_LIBS ${TEST_EXTRA_LIBS} sic)
 
+add_subdirectory(libraries/sic_editor)
+set (TEST_EXTRA_LIBS ${TEST_EXTRA_LIBS} sic_editor)
+
 include_directories(include)
 
 
