@@ -1,6 +1,7 @@
 #include "sic/core/engine.h"
 #include "sic/core/object.h"
 #include "sic/core/engine_context.h"
+#include "sic/core/engine_job_scheduling.h"
 
 #include <algorithm>
 #include <atomic>
@@ -180,130 +181,53 @@ namespace sic
 			tick_system->execute_engine_tick(Engine_context(*this), m_time_delta);
 		}
 
-		struct Job_node
-		{
-			void do_job()
-			{
-				m_job();
-				m_job_finished = true;
-
-				for (i32 i = m_depends_on_me.size() - 1; i >= 0; i--)
-				{
-					Job_node* depend_on_me = m_depends_on_me[i];
-
-					std::scoped_lock lock(depend_on_me->m_mutex);
-					--depend_on_me->m_dependencies_left;
-
-					if (depend_on_me->m_dependencies_left <= 0)
-					{
-						m_depends_on_me.pop_back();
-
-						depend_on_me->m_is_ready_to_execute = true;
-
-						if (m_depends_on_me.size() == 0)
-							depend_on_me->do_job();
-						else
-							m_threadpool->emplace([depend_on_me]() { depend_on_me->do_job(); });
-					}
-				}
-			}
-
-			std::function<void()> m_job;
-			std::vector<Job_node*> m_depends_on_me;
-			std::mutex m_mutex;
-			i32 m_dependencies_left = 0;
-			bool m_is_ready_to_execute = false;
-			bool m_job_finished = false;
-
-			Threadpool* m_threadpool = nullptr;
-		};
-
-		std::vector<Threadpool::Closure> tasks_to_run;
-
-		std::vector<Job_node> job_nodes;
-		std::unordered_map<i32, i32> job_id_to_job_node_index_lut;
-
-		std::vector<Job_node*> root_nodes;
+		Main_thread_worker main_thread_worker;
+		std::vector<Job_node> job_nodes(m_job_index_ticker);
 		std::vector<Job_node*> leaf_nodes;
 
-		size_t total_job_count = 0;
-
-		for (auto& type_schedule : m_type_to_schedule)
+		auto schedule_jobs =
+		[
+			&job_nodes,
+			&job_id_to_type_dependencies_lut = m_job_id_to_type_dependencies_lut,
+			&type_to_schedule = m_type_to_schedule,
+			&system_ticker_threadpool = m_system_ticker_threadpool,
+			&main_thread_worker
+		]
+		(const std::vector<Type_schedule::Item>& in_jobs)
 		{
-			total_job_count += type_schedule.second.m_read_jobs.size();
-			total_job_count += type_schedule.second.m_write_jobs.size();
-		}
-
-		job_nodes.resize(total_job_count);
-		job_id_to_job_node_index_lut.reserve(total_job_count);
-
-		for (auto& type_schedule : m_type_to_schedule)
-		{
-			for (auto&& read_job : type_schedule.second.m_read_jobs)
+			for (auto&& current_job : in_jobs)
 			{
-				Job_node& node = job_nodes[read_job.m_id.m_id];
-				node.m_threadpool = &m_system_ticker_threadpool;
-				node.m_dependencies_left = -1;
-				node.m_is_ready_to_execute = true;
-				node.m_job = read_job.m_job;
+				Job_node& current_node = job_nodes[current_job.m_id.m_id];
 
-				auto& dependencies = m_job_id_to_dependencies_lut[read_job.m_id.m_id];
-
-				bool only_reads = true;
-
-				for (auto& dependency_info : dependencies.m_infos)
-				{
-					if (dependency_info.m_is_read == false)
-					{
-						only_reads = false;
-						break;
-					}
-				}
-
-				if (only_reads && !read_job.m_job_dependency.has_value())
-				{
-					node.m_dependencies_left = 0;
-					root_nodes.push_back(&node);
-				}
-			}
-
-			for (auto&& write_job : type_schedule.second.m_write_jobs)
-			{
-				Job_node& node = job_nodes[write_job.m_id.m_id];
-				node.m_threadpool = &m_system_ticker_threadpool;
-				node.m_dependencies_left = -1;
-				node.m_is_ready_to_execute = true;
-				node.m_job = write_job.m_job;
-			}
-		}
-
-		for (auto& type_schedule : m_type_to_schedule)
-		{
-			for (auto&& read_job : type_schedule.second.m_read_jobs)
-			{
-				Job_node& node = job_nodes[read_job.m_id.m_id];
-
-				if (node.m_dependencies_left == 0)
+				//job already initialized
+				if (current_node.m_job)
 					continue;
 
-				node.m_dependencies_left = 0;
+				current_node.m_threadpool = &system_ticker_threadpool;
+				current_node.m_main_thread_worker = &main_thread_worker;
+				current_node.m_is_ready_to_execute = true;
+				current_node.m_run_on_main_thread = current_job.m_id.m_run_on_main_thread;
+				current_node.m_job = current_job.m_job;
+				current_node.m_dependencies_left = 0;
 
 				//find the other type schedules where this job is referenced
 				//grab the previous job_id in each of those lists, and add this node to their depends_on_me list
 
-				auto& type_dependencies = m_job_id_to_dependencies_lut[read_job.m_id.m_id];
+				auto& type_dependencies = job_id_to_type_dependencies_lut[current_job.m_id.m_id];
 				for (auto& type_dependency_info : type_dependencies.m_infos)
 				{
 					if (type_dependency_info.m_index > 0)
 					{
+						if(type_dependency_info.m_is_read)
 						{
-							Job_node& previous_node_read = job_nodes[m_type_to_schedule[type_dependency_info.m_type].m_read_jobs[type_dependency_info.m_index].m_id.m_id];
+							const i32 id = type_to_schedule[type_dependency_info.m_type].m_read_jobs[type_dependency_info.m_index - 1].m_id.m_id;
+							Job_node& previous_node_read = job_nodes[id];
 
 							bool already_added = false;
 
 							for (Job_node* prev_node_depends_on_me : previous_node_read.m_depends_on_me)
 							{
-								if (prev_node_depends_on_me == &node)
+								if (prev_node_depends_on_me == &current_node)
 								{
 									already_added = true;
 									break;
@@ -312,19 +236,20 @@ namespace sic
 
 							if (!already_added)
 							{
-								previous_node_read.m_depends_on_me.push_back(&node);
-								++node.m_dependencies_left;
+								previous_node_read.m_depends_on_me.push_back(&current_node);
+								++current_node.m_dependencies_left;
 							}
 						}
-
+						else
 						{
-							Job_node& previous_node_write = job_nodes[m_type_to_schedule[type_dependency_info.m_type].m_write_jobs[type_dependency_info.m_index].m_id.m_id];
+							const i32 id = type_to_schedule[type_dependency_info.m_type].m_write_jobs[type_dependency_info.m_index - 1].m_id.m_id;
+							Job_node& previous_node_write = job_nodes[id];
 
 							bool already_added = false;
 
 							for (Job_node* prev_node_depends_on_me : previous_node_write.m_depends_on_me)
 							{
-								if (prev_node_depends_on_me == &node)
+								if (prev_node_depends_on_me == &current_node)
 								{
 									already_added = true;
 									break;
@@ -333,17 +258,42 @@ namespace sic
 
 							if (!already_added)
 							{
-								previous_node_write.m_depends_on_me.push_back(&node);
-								++node.m_dependencies_left;
+								previous_node_write.m_depends_on_me.push_back(&current_node);
+								++current_node.m_dependencies_left;
 							}
 						}
 					}
 				}
 			}
+		};
+
+		for (auto& type_schedule : m_type_to_schedule)
+		{
+			schedule_jobs(type_schedule.second.m_read_jobs);
+			schedule_jobs(type_schedule.second.m_write_jobs);
 		}
 
-		for (Job_node* root_node : root_nodes)
-			tasks_to_run.push_back([root_node]() {root_node->do_job(); });
+		std::vector<Threadpool::Closure> tasks_to_run_on_workers;
+
+		for (Job_node& job_node : job_nodes)
+		{
+			if (job_node.m_dependencies_left == 0)
+			{
+				job_node.m_is_ready_to_execute = true;
+
+				if (job_node.m_run_on_main_thread)
+					main_thread_worker.push_back_job(&job_node);
+				else
+					tasks_to_run_on_workers.push_back([&job_node]() {job_node.do_job(); });
+			}
+			else
+			{
+				job_node.m_is_ready_to_execute = false;
+
+				if (job_node.m_depends_on_me.empty())
+					leaf_nodes.push_back(&job_node);
+			}
+		}
 
 		for (Job_node& node : job_nodes)
 		{
@@ -351,13 +301,15 @@ namespace sic
 				leaf_nodes.push_back(&node);
 		}
 
-		if (!tasks_to_run.empty())
-			m_system_ticker_threadpool.batch(std::move(tasks_to_run));
+		if (!tasks_to_run_on_workers.empty())
+			m_system_ticker_threadpool.batch(std::move(tasks_to_run_on_workers));
 
 		bool all_leaf_nodes_finished = false;
 
 		while (!all_leaf_nodes_finished)
 		{
+			main_thread_worker.try_do_job();
+
 			all_leaf_nodes_finished = true;
 
 			for (const Job_node* leaf_node : leaf_nodes)
@@ -369,10 +321,19 @@ namespace sic
 				}
 			}
 
+			if (all_leaf_nodes_finished)
+				break;
+
 			std::this_thread::yield();
 		}
 
 		m_job_index_ticker = 0;
+
+		for (auto& type_schedule : m_type_to_schedule)
+		{
+			type_schedule.second.m_read_jobs.clear();
+			type_schedule.second.m_write_jobs.clear();
+		}
 
 		for (auto& post_tick_system : m_post_tick_systems)
 		{

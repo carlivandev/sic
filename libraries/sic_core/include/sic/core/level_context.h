@@ -14,15 +14,18 @@ namespace sic
 	template <typename T>
 	struct Processor_flag_write : Processor_flag_write_base {};
 
+	struct Processor_base {};
 	template <typename ...T_processor_flags>
-	struct Processor
+	struct Processor : Processor_base
 	{
-		Processor(Scene_context& in_context) : m_context(in_context) {}
+		friend struct Scene_context;
+
+		Processor(Scene_context in_context) : m_context(in_context) {}
 
 		template<typename T_type>
 		__forceinline void for_each_w(std::function<void(T_type&)> in_func)
 		{
-			static_assert((std::is_same<T_processor_flags, Processor_flag_write<T_type>>::value, ...), "Processor does not have write flag for T_type");
+			static_assert((std::is_same<T_processor_flags, Processor_flag_write<T_type>>::value || ...), "Processor does not have write flag for T_type");
 			m_context.for_each_w<T_type>(in_func);
 		}
 
@@ -31,14 +34,58 @@ namespace sic
 		{
 			static_assert
 			(
-				(std::is_same<T_processor_flags, Processor_flag_read<T_type>>::value, ...) ||
-				(std::is_same<T_processor_flags, Processor_flag_write<T_type>>::value, ...)
+				(std::is_same<T_processor_flags, Processor_flag_read<T_type>>::value || ...) ||
+				(std::is_same<T_processor_flags, Processor_flag_write<T_type>>::value || ...)
 				, "Processor does not have read/write flag for T_type"
 			);
 			m_context.for_each_r<T_type>(in_func);
 		}
 
-		Scene_context& m_context;
+		template<typename T_type>
+		__forceinline T_type& get_state_checked_w()
+		{
+			static_assert((std::is_same<T_processor_flags, Processor_flag_write<T_type>>::value || ...), "Processor does not have write flag for T_type");
+			return m_context.get_engine_context().get_state_checked<T_type>();
+		}
+
+		template<typename T_type>
+		__forceinline const T_type& get_state_checked_r() const
+		{
+			static_assert
+			(
+				(std::is_same<T_processor_flags, Processor_flag_read<T_type>>::value || ...) ||
+				(std::is_same<T_processor_flags, Processor_flag_write<T_type>>::value || ...)
+				, "Processor does not have read/write flag for T_type"
+			);
+			return m_context.get_engine_context().get_state_checked<T_type>();
+		}
+
+		template <typename T_processor_type>
+		operator T_processor_type() const
+		{
+			static_assert
+			(
+				(std::is_same<T_processor_flags, T_processor_type>::value || ...)
+				, "Processor can only be converted if it has T_processor_type as part of its own <T...>"
+			);
+
+			return *((const T_processor_type*)((const void*)(this)));
+		}
+
+		float get_time_delta() const
+		{
+			return m_context.get_engine_context().get_time_delta();
+		}
+
+		const Scene_context& get_context() const { return m_context; }
+
+	private:
+		__forceinline static void schedule_for_types(Scene_context in_context, Job_dependency& inout_dependency_infos, std::function<void()> in_callback, Job_id in_id)
+		{
+			(in_context.schedule_for_type<T_processor_flags>(inout_dependency_infos, in_callback, in_id), ...);
+		}
+
+		Scene_context m_context;
 	};
 
 	struct Object_base;
@@ -64,51 +111,34 @@ namespace sic
 			m_level.destroy_object(in_object_to_destroy);
 		}
 
-		template <typename ...T_processor_flags>
-		Processor<T_processor_flags...> process()
+		template<typename T_type>
+		__forceinline void for_each_w(std::function<void(T_type&)> in_func)
 		{
-			return Processor<T_processor_flags...>(*this);
+			m_level.for_each_w<T_type>(in_func);
 		}
 
-		template <typename T>
-		void schedule_for_type(Job_dependency& inout_dependency_infos, std::function<void()> in_callback, Job_id in_id)
+		template<typename T_type>
+		__forceinline void for_each_r(std::function<void(const T_type&)> in_func) const
 		{
-			Engine::Type_schedule& schedule_for_type = m_engine.m_type_to_schedule[typeid(T)];
-			Engine::Type_schedule::Item new_schedule_item;
-			new_schedule_item.m_job = in_callback;
-			new_schedule_item.m_id = in_id;
-
-			if constexpr (std::is_base_of<Processor_flag_read_base, T>::value)
-			{
-				inout_dependency_infos.m_infos.push_back(Job_dependency::Info(typeid(T), schedule_for_type.m_read_jobs.size(), true));
-				schedule_for_type.m_read_jobs.push(new_schedule_item);
-			}
-			else if constexpr (std::is_base_of<Processor_flag_write_base, T>::value)
-			{
-				inout_dependency_infos.m_infos.push_back(Job_dependency::Info(typeid(T), schedule_for_type.m_write_jobs.size(), false));
-				schedule_for_type.m_write_jobs.push(new_schedule_item);
-			}
-			else
-			{
-				static_assert(false, "Not an accepted processor flag!");
-			}
+			m_level.for_each_w<T_type>(in_func);
 		}
 
 		template <typename ...T>
-		Job_id schedule(void (*in_job)(Processor<T...>), std::optional<Job_id> in_job_dependency = {}, std::optional<Tickstep> in_finish_before_tickstep = {}, std::optional<std::string> in_thread_name = {})
+		Job_id schedule(void (*in_job)(Processor<T...>), std::optional<Job_id> in_job_dependency = {}, std::optional<Tickstep> in_finish_before_tickstep = {}, bool in_run_on_main_thread = false)
 		{
 			Job_id job_id;
 			job_id.m_id = m_engine.m_job_index_ticker++;
+			job_id.m_run_on_main_thread = in_run_on_main_thread;
 
+			Scene_context context(m_engine, m_level);
 			auto job_callback =
-			[in_job, this]()
+			[in_job, context]()
 			{
-				in_job(Processor<T...>(*this));
-// 				auto& dependency_infos = m_engine.m_job_id_to_dependencies_lut[job_id.m_id];
-// 				dependency_infos.m_infos
+				Processor<T...> processor(context);
+				in_job(processor);
 			};
 
-			auto& dependency_infos = m_engine.m_job_id_to_dependencies_lut[job_id.m_id];
+			auto& dependency_infos = m_engine.m_job_id_to_type_dependencies_lut[job_id.m_id];
 			(schedule_for_type<T>(dependency_infos, job_callback, job_id), ...);
 
 			return job_id;
@@ -122,16 +152,37 @@ namespace sic
 		bool get_does_object_exist(Object_id in_id, bool in_only_in_this_level) const { return m_level.get_does_object_exist(in_id, in_only_in_this_level); }
 
 	private:
-		template<typename T_type>
-		__forceinline void for_each_w(std::function<void(T_type&)> in_func)
+		template <typename T>
+		void schedule_for_type(Job_dependency& inout_dependency_infos, std::function<void()> in_callback, Job_id in_id)
 		{
-			m_level.for_each_w<T_type>(in_func);
-		}
+			if constexpr (std::is_base_of<Processor_flag_read_base, T>::value)
+			{
+				Engine::Type_schedule::Item new_schedule_item;
+				new_schedule_item.m_job = in_callback;
+				new_schedule_item.m_id = in_id;
 
-		template<typename T_type>
-		__forceinline void for_each_r(std::function<void(const T_type&)> in_func) const
-		{
-			m_level.for_each_w<T_type>(in_func);
+				Engine::Type_schedule& schedule_for_type = m_engine.m_type_to_schedule[typeid(T)];
+				inout_dependency_infos.m_infos.push_back(Job_dependency::Info(typeid(T), schedule_for_type.m_read_jobs.size(), true));
+				schedule_for_type.m_read_jobs.push_back(new_schedule_item);
+			}
+			else if constexpr (std::is_base_of<Processor_flag_write_base, T>::value)
+			{
+				Engine::Type_schedule::Item new_schedule_item;
+				new_schedule_item.m_job = in_callback;
+				new_schedule_item.m_id = in_id;
+
+				Engine::Type_schedule& schedule_for_type = m_engine.m_type_to_schedule[typeid(T)];
+				inout_dependency_infos.m_infos.push_back(Job_dependency::Info(typeid(T), schedule_for_type.m_write_jobs.size(), false));
+				schedule_for_type.m_write_jobs.push_back(new_schedule_item);
+			}
+			else if constexpr (std::is_base_of<Processor_base, T>::value)
+			{
+				T::schedule_for_types(*this, inout_dependency_infos, in_callback, in_id);
+			}
+			else
+			{
+				static_assert(false, "Not an accepted processor flag!");
+			}
 		}
 
 		Engine& m_engine;

@@ -30,8 +30,9 @@ namespace sic
 
 	struct Job_id
 	{
-		i32 m_id;
+		i32 m_id = -1;
 		Tickstep m_tickstep;
+		bool m_run_on_main_thread = false;
 	};
 
 	struct Job_dependency
@@ -111,6 +112,9 @@ namespace sic
 		template <typename T_state>
 		T_state* get_state();
 
+		template <typename T_state>
+		const T_state* get_state() const;
+
 		template <typename T_type>
 		constexpr Typeinfo* get_typeinfo();
 
@@ -153,7 +157,7 @@ namespace sic
 		std::vector<System*> m_post_tick_systems;
 
 		std::unordered_map<std::type_index, Type_schedule> m_type_to_schedule;
-		std::unordered_map<i32, Job_dependency> m_job_id_to_dependencies_lut;
+		std::unordered_map<i32, Job_dependency> m_job_id_to_type_dependencies_lut;
 		i32 m_job_index_ticker = 0;
 
 		std::vector<Thread_context*> m_thread_contexts;
@@ -361,6 +365,20 @@ namespace sic
 		assert((type_idx < m_states.size() && m_states[type_idx].get() != nullptr) && "state not registered");
 
 		return reinterpret_cast<T_state*>(m_states[type_idx].get());
+	}
+
+	template<typename T_state>
+	inline const T_state* Engine::get_state() const
+	{
+		constexpr bool is_valid_type = std::is_base_of<State, T_state>::value;
+
+		static_assert(is_valid_type, "can only get types that derive State");
+
+		const i32 type_idx = Type_index<State>::get<T_state>();
+
+		assert((type_idx < m_states.size() && m_states[type_idx].get() != nullptr) && "state not registered");
+
+		return reinterpret_cast<const T_state*>(m_states[type_idx].get());
 	}
 
 	template<typename T_type>

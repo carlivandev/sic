@@ -43,6 +43,7 @@ add_headers(SIC_CORE_HEADERS
 	type.h
 	type_index.h
 	engine.h
+	engine_job_scheduling.h
 	level.h
 	engine_context.h
 	level_context.h
@@ -61,6 +62,7 @@ add_sources(SIC_CORE_SOURCES
 	system.cpp
 	threadpool.cpp
 	engine.cpp
+	engine_job_scheduling.cpp
 	level.cpp
 	engine_context.cpp
 	level_context.cpp

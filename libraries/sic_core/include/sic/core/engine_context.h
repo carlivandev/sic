@@ -71,6 +71,15 @@ namespace sic
 			return *state;
 		}
 
+		template <typename T_state>
+		__forceinline const T_state& get_state_checked() const
+		{
+			const T_state* state = m_engine->get_state<T_state>();
+			assert(state && "State was not registered before use!");
+
+			return *state;
+		}
+
 		template <typename T_event_type, typename T_functor>
 		void listen(T_functor in_func)
 		{
@@ -129,6 +138,11 @@ namespace sic
 				return false;
 
 			return it->second->get_does_object_exist(in_id, false);
+		}
+
+		float get_time_delta() const
+		{
+			return m_engine->m_time_delta;
 		}
 
 	private:
