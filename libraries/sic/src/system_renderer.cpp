@@ -164,15 +164,20 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 {
 	in_time_delta;
 
-	State_window& window_state = in_context.get_state_checked<State_window>();
-	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
-	State_assetsystem& assetsystem_state = in_context.get_state_checked<State_assetsystem>();
+	in_context.schedule(System_renderer::render, {}, {}, true);
+}
+
+void sic::System_renderer::render(Processor_renderer in_processor)
+{
+	const State_window& window_state = in_processor.get_state_checked_r<State_window>();
+	State_render_scene& scene_state = in_processor.get_state_checked_w<State_render_scene>();
+	State_assetsystem& assetsystem_state = in_processor.get_state_checked_w<State_assetsystem>();
 
 	std::scoped_lock asset_modification_lock(assetsystem_state.get_modification_mutex());
 
 	glfwMakeContextCurrent(window_state.m_resource_context);
 
-	do_asset_post_loads(in_context);
+	do_asset_post_loads(in_processor);
 
 	//clear all window backbuffers
 	for (auto&& window : scene_state.m_windows.m_objects)
@@ -191,15 +196,15 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		window.m_ui_render_target.value().clear();
 	}
 
-	std::unordered_map<Render_object_window*, std::vector<Render_object_view*>> window_to_views_lut;
+	std::unordered_map<const Render_object_window*, std::vector<const Render_object_view*>> window_to_views_lut;
 	
 	for (auto&& level_to_scene_it : scene_state.m_level_id_to_scene_lut)
 	{
-		Update_list<Render_object_view>& views = std::get<Update_list<Render_object_view>>(level_to_scene_it.second);
+		const Update_list<Render_object_view>& views = std::get<Update_list<Render_object_view>>(level_to_scene_it.second);
 
-		for (Render_object_view& view : views.m_objects)
+		for (const Render_object_view& view : views.m_objects)
 		{
-			Render_object_window* window = scene_state.m_windows.find_object(view.m_window_id);
+			const Render_object_window* window = scene_state.m_windows.find_object(view.m_window_id);
 			if (!window)
 				continue;
 
@@ -219,10 +224,10 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		if (current_window_x == 0 || current_window_y == 0)
 			continue;
 
-		for (Render_object_view* view : views)
-			render_view(in_context, window, *view);
+		for (const Render_object_view* view : views)
+			render_view(in_processor, window, *view);
 
-		render_ui(in_context, window);
+		render_ui(in_processor, window);
 	}
 	
 	render_views_to_window_backbuffers(window_to_views_lut);
@@ -234,13 +239,13 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 		Update_list<Render_object_debug_drawer>& debug_drawers = std::get<Update_list<Render_object_debug_drawer>>(scene_it.second);
 
 		for (Render_object_debug_drawer& debug_drawer : debug_drawers.m_objects)
-			debug_drawer.update_shape_lifetimes(in_time_delta);
+			debug_drawer.update_shape_lifetimes(in_processor.get_time_delta());
 	}
 
 	glfwMakeContextCurrent(nullptr);
 }
 
-void sic::System_renderer::render_view(Engine_context in_context, const Render_object_window& in_window, Render_object_view& inout_view) const
+void sic::System_renderer::render_view(Processor_renderer in_processor, const Render_object_window& in_window, const Render_object_view& inout_view)
 {
 	const OpenGl_render_target* view_render_target = nullptr;
 
@@ -252,9 +257,9 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 	if (!view_render_target)
 		return;
 
-	State_debug_drawing& debug_drawer_state = in_context.get_state_checked<State_debug_drawing>();
-	State_renderer_resources& renderer_resources_state = in_context.get_state_checked<State_renderer_resources>();
-	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
+	State_debug_drawing& debug_drawer_state = in_processor.get_state_checked_w<State_debug_drawing>();
+	State_renderer_resources& renderer_resources_state = in_processor.get_state_checked_w<State_renderer_resources>();
+	State_render_scene& scene_state = in_processor.get_state_checked_w<State_render_scene>();
 
 	auto scene_it = scene_state.m_level_id_to_scene_lut.find(inout_view.m_level_id);
 
@@ -334,10 +339,10 @@ void sic::System_renderer::render_view(Engine_context in_context, const Render_o
 	set_blend_mode(Material_blend_mode::Opaque);
 }
 
-void sic::System_renderer::render_ui(Engine_context in_context, const Render_object_window& in_window) const
+void sic::System_renderer::render_ui(Processor_renderer in_processor, const Render_object_window& in_window)
 {
-	State_renderer_resources& renderer_resources_state = in_context.get_state_checked<State_renderer_resources>();
-	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
+	State_renderer_resources& renderer_resources_state = in_processor.get_state_checked_w<State_renderer_resources>();
+	State_render_scene& scene_state = in_processor.get_state_checked_w<State_render_scene>();
 
 	auto& ui_elements = scene_state.m_ui_elements;
 
@@ -466,7 +471,7 @@ void sic::System_renderer::render_ui(Engine_context in_context, const Render_obj
 	OpenGl_draw_strategy_triangle_element::draw(static_cast<GLsizei>(renderer_resources_state.m_quad_indexbuffer.value().get_max_elements()), 0);
 }
 
-void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_data) const
+void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_data)
 {
 	const Update_list<Render_object_mesh>& meshes = *in_data.m_meshes;
 	Update_list<Render_object_debug_drawer>& debug_drawers = *in_data.m_debug_drawer;
@@ -594,7 +599,7 @@ void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_d
 	}
 }
 
-void sic::System_renderer::render_views_to_window_backbuffers(const std::unordered_map<sic::Render_object_window*, std::vector<sic::Render_object_view*>>& in_window_to_view_lut) const
+void sic::System_renderer::render_views_to_window_backbuffers(const std::unordered_map<const sic::Render_object_window*, std::vector<const sic::Render_object_view*>>& in_window_to_view_lut)
 {
 	set_depth_mode(Depth_mode::read_write);
 	set_blend_mode(Material_blend_mode::Opaque);
@@ -608,7 +613,7 @@ void sic::System_renderer::render_views_to_window_backbuffers(const std::unorder
 	}
 }
 
-void sic::System_renderer::apply_parameters(const Asset_material& in_material, const byte* in_instance_data, const OpenGl_program& in_program) const
+void sic::System_renderer::apply_parameters(const Asset_material& in_material, const byte* in_instance_data, const OpenGl_program& in_program)
 {
 	for (auto& param : in_material.m_parameters.get_textures())
 	{
@@ -633,10 +638,10 @@ void sic::System_renderer::apply_parameters(const Asset_material& in_material, c
 	}
 }
 
-void sic::System_renderer::do_asset_post_loads(Engine_context in_context) const
+void sic::System_renderer::do_asset_post_loads(Processor_renderer in_processor)
 {
-	State_assetsystem& assetsystem_state = in_context.get_state_checked<State_assetsystem>();
-	State_renderer_resources& renderer_resources_state = in_context.get_state_checked<State_renderer_resources>();
+	State_assetsystem& assetsystem_state = in_processor.get_state_checked_w<State_assetsystem>();
+	const State_renderer_resources& renderer_resources_state = in_processor.get_state_checked_r<State_renderer_resources>();
 
 	assetsystem_state.do_post_load<Asset_texture>
 	(
@@ -865,7 +870,7 @@ void sic::System_renderer::post_load_font(Asset_font& inout_font)
 	inout_font.m_bindless_handle = inout_font.m_texture.value().get_bindless_handle();
 }
 
-void sic::System_renderer::set_depth_mode(Depth_mode in_to_set) const
+void sic::System_renderer::set_depth_mode(Depth_mode in_to_set)
 {
 	switch (in_to_set)
 	{
@@ -895,7 +900,7 @@ void sic::System_renderer::set_depth_mode(Depth_mode in_to_set) const
 	}
 }
 
-void sic::System_renderer::set_blend_mode(Material_blend_mode in_to_set) const
+void sic::System_renderer::set_blend_mode(Material_blend_mode in_to_set)
 {
 	switch (in_to_set)
 	{

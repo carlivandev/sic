@@ -24,6 +24,7 @@ namespace sic
 	struct Render_object_view;
 	struct Render_object_debug_drawer;
 	struct Render_object_mesh;
+	struct State_window;
 
 	enum class Depth_mode
 	{
@@ -136,6 +137,19 @@ namespace sic
 		Double_buffer<std::vector<Synchronous_update_signature>> m_synchronous_renderer_updates;
 	};
 
+
+
+	using Processor_renderer =
+	Processor
+	<
+		Processor_flag_read<State_window>,
+
+		Processor_flag_write<State_render_scene>,
+		Processor_flag_write<State_assetsystem>,
+		Processor_flag_write<State_debug_drawing>,
+		Processor_flag_write<State_renderer_resources>
+	>;
+
 	struct System_renderer : System
 	{
 		struct Render_all_3d_objects_data
@@ -156,19 +170,21 @@ namespace sic
 		virtual void on_engine_tick(Engine_context in_context, float in_time_delta) const override;
 
 	private:
-		void render_view(Engine_context in_context, const Render_object_window& in_window, Render_object_view& inout_view) const;
-		void render_ui(Engine_context in_context, const Render_object_window& in_window) const;
+		static void render(Processor_renderer in_processor);
 
-		void render_all_3d_objects(Render_all_3d_objects_data in_data) const;
+		static void render_view(Processor_renderer in_processor, const Render_object_window& in_window, const Render_object_view& inout_view);
+		static void render_ui(Processor_renderer in_processor, const Render_object_window& in_window);
+
+		static void render_all_3d_objects(Render_all_3d_objects_data in_data);
 
 		template <typename T_drawcall_type>
-		auto sort_instanced(std::vector<T_drawcall_type>& inout_drawcalls) const;
+		static auto sort_instanced(std::vector<T_drawcall_type>& inout_drawcalls);
 
 		template <typename T_iterator_type>
-		void render_meshes(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix) const;
+		static void render_meshes(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix);
 
 		template <typename T_iterator_type>
-		void render_meshes_instanced(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix, State_renderer_resources& inout_renderer_resources_state) const;
+		static void render_meshes_instanced(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix, State_renderer_resources& inout_renderer_resources_state);
 
 		template <typename T_iterator_type>
 		struct Instancing_chunk
@@ -178,19 +194,19 @@ namespace sic
 		};
 
 		template <typename T_iterator_type>
-		std::vector<Instancing_chunk<T_iterator_type>> gather_instancing_chunks(T_iterator_type in_begin, T_iterator_type in_end) const;
+		static std::vector<Instancing_chunk<T_iterator_type>> gather_instancing_chunks(T_iterator_type in_begin, T_iterator_type in_end);
 
 		template <typename T_iterator_type>
-		void render_instancing_chunk(Instancing_chunk<T_iterator_type> in_chunk, const OpenGl_vertex_buffer_array_base& in_vba, const OpenGl_buffer& in_index_buffer, State_renderer_resources& inout_renderer_resources_state) const;
+		static void render_instancing_chunk(Instancing_chunk<T_iterator_type> in_chunk, const OpenGl_vertex_buffer_array_base& in_vba, const OpenGl_buffer& in_index_buffer, State_renderer_resources& inout_renderer_resources_state);
 
 		template<typename T_drawcall_type>
-		void render_mesh(const T_drawcall_type& in_dc, const glm::mat4& in_mvp) const;
+		static void render_mesh(const T_drawcall_type& in_dc, const glm::mat4& in_mvp);
 
-		void render_views_to_window_backbuffers(const std::unordered_map<sic::Render_object_window*, std::vector<sic::Render_object_view*>>& in_window_to_view_lut) const;
+		static void render_views_to_window_backbuffers(const std::unordered_map<const sic::Render_object_window*, std::vector<const sic::Render_object_view*>>& in_window_to_view_lut);
 
-		void apply_parameters(const Asset_material& in_material, const byte* in_instance_data, const OpenGl_program& in_program) const;
+		static void apply_parameters(const Asset_material& in_material, const byte* in_instance_data, const OpenGl_program& in_program);
 
-		void do_asset_post_loads(Engine_context in_context) const;
+		static void do_asset_post_loads(Processor_renderer in_processor);
 
 	public:
 		static void post_load_texture(Asset_texture& out_texture);
@@ -200,12 +216,12 @@ namespace sic
 		static void post_load_font(Asset_font& inout_font);
 
 	private:
-		void set_depth_mode(Depth_mode in_to_set) const;
-		void set_blend_mode(Material_blend_mode in_to_set) const;
+		static void set_depth_mode(Depth_mode in_to_set);
+		static void set_blend_mode(Material_blend_mode in_to_set);
 	};
 
 	template<typename T_drawcall_type>
-	inline auto System_renderer::sort_instanced(std::vector<T_drawcall_type>& inout_drawcalls) const
+	inline auto System_renderer::sort_instanced(std::vector<T_drawcall_type>& inout_drawcalls)
 	{
 		return T_drawcall_type::get_uses_stable_partition() ?
 		std::stable_partition
@@ -227,7 +243,7 @@ namespace sic
 		);
 	}
 	template<typename T_iterator_type>
-	inline void System_renderer::render_meshes(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix) const
+	inline void System_renderer::render_meshes(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix)
 	{
 		for (auto it = in_begin; it != in_end; ++it)
 		{
@@ -240,7 +256,7 @@ namespace sic
 	}
 
 	template<typename T_iterator_type>
-	inline void System_renderer::render_meshes_instanced(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix, State_renderer_resources& inout_renderer_resources_state) const
+	inline void System_renderer::render_meshes_instanced(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix, State_renderer_resources& inout_renderer_resources_state)
 	{
 		auto&& instancing_chunks = gather_instancing_chunks(in_begin, in_end);
 
@@ -274,7 +290,7 @@ namespace sic
 	}
 
 	template<typename T_iterator_type>
-	inline std::vector<System_renderer::Instancing_chunk<T_iterator_type>> System_renderer::gather_instancing_chunks(T_iterator_type in_begin, T_iterator_type in_end) const
+	inline std::vector<System_renderer::Instancing_chunk<T_iterator_type>> System_renderer::gather_instancing_chunks(T_iterator_type in_begin, T_iterator_type in_end)
 	{
 		std::vector<Instancing_chunk<T_iterator_type>> chunks;
 
@@ -310,7 +326,7 @@ namespace sic
 	}
 
 	template<typename T_iterator_type>
-	inline void System_renderer::render_instancing_chunk(Instancing_chunk<T_iterator_type> in_chunk, const OpenGl_vertex_buffer_array_base& in_vba, const OpenGl_buffer& in_index_buffer, State_renderer_resources& inout_renderer_resources_state) const
+	inline void System_renderer::render_instancing_chunk(Instancing_chunk<T_iterator_type> in_chunk, const OpenGl_vertex_buffer_array_base& in_vba, const OpenGl_buffer& in_index_buffer, State_renderer_resources& inout_renderer_resources_state)
 	{
 		if constexpr (std::iterator_traits<T_iterator_type>::value_type::get_uses_custom_blendmode())
 			set_blend_mode(in_chunk.m_begin->m_material->m_blend_mode);
@@ -333,7 +349,7 @@ namespace sic
 	}
 
 	template<typename T_drawcall_type>
-	inline void System_renderer::render_mesh(const T_drawcall_type& in_dc, const glm::mat4& in_mvp) const
+	inline void System_renderer::render_mesh(const T_drawcall_type& in_dc, const glm::mat4& in_mvp)
 	{
 		in_dc.m_mesh->m_vertex_buffer_array.value().bind();
 		in_dc.m_mesh->m_index_buffer.value().bind();

@@ -34,7 +34,7 @@ namespace sic
 
 		bool is_valid() const
 		{
-			return m_type_index != -1;
+			return m_type_index != -1 && !m_pending_destroy;
 		}
 
 		constexpr const i32 get_level_id() const
@@ -114,6 +114,7 @@ namespace sic
 		i32 m_id = -1;
 		i32 m_level_id = -1;
 		i32 m_outermost_level_id = -1;
+		bool m_pending_destroy = false;
 	};
 
 	struct Object_storage_base

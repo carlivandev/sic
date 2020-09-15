@@ -4,14 +4,18 @@
 
 #include <vector>
 #include <string>
+#include <functional>
 
 namespace sic
 {
 	extern Log g_log_temporary_storage;
 
+	struct Engine_context;
+
 	struct Thread_context
 	{
 		friend Thread_temporary_storage_instance;
+		friend struct Engine;
 
 		constexpr static size_t storage_byte_size = 32768 * 2;
 
@@ -70,6 +74,16 @@ namespace sic
 			m_name = in_name;
 		}
 
+		void update_deferred(std::function<void(Engine_context)> in_func)
+		{
+			m_deferred_updates.push_back(in_func);
+		}
+
+		const std::string& get_name() const
+		{
+			return m_name;
+		}
+
 	private:
 		void print_temporary_storage_status()
 		{
@@ -90,6 +104,9 @@ namespace sic
 		size_t storage_refrence_count = 0;
 
 		std::vector<char*> m_dynamically_allocated_blocks;
+
+		std::vector<std::function<void(Engine_context)>> m_deferred_updates;
+
 		std::string m_name;
 	};
 

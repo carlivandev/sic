@@ -18,16 +18,15 @@ namespace sic
 		friend struct Material_dynamic_parameters;
 
 	public:
-		void set_model(const Asset_ref<Asset_model>& in_model);
+		void set_model(Processor_render_scene_update in_processor, const Asset_ref<Asset_model>& in_model);
 
-		void set_material(Asset_ref<Asset_material> in_material, const std::string& in_material_slot);
+		void set_material(Processor_render_scene_update in_processor, Asset_ref<Asset_material> in_material, const std::string& in_material_slot);
 		Asset_ref<Asset_material> get_material_override(const std::string& in_material_slot) const;
 
 	protected:
-		void try_destroy_render_object();
-		void try_create_render_object();
+		void try_destroy_render_object(Processor_render_scene_update in_processor);
+		void try_create_render_object(Processor_render_scene_update in_processor);
 
-		State_render_scene* m_render_scene_state = nullptr;
 		Asset_ref<Asset_model> m_model;
 
 		std::unordered_map<std::string, Asset_ref<Asset_material>> m_material_overrides;

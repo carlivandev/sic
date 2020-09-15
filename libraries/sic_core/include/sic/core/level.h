@@ -21,6 +21,8 @@ namespace sic
 		constexpr T_object& create_object();
 
 		void destroy_object(Object_base& in_object_to_destroy);
+		//carl: not threadsafe!
+		void destory_object_immediate(Object_base& inout_object_to_destroy);
 
 		template <typename T_component_type>
 		typename T_component_type& create_component(Object_base& in_object_to_attach_to);

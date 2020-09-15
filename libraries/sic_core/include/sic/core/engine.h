@@ -75,6 +75,9 @@ namespace sic
 		friend struct Engine_context;
 		friend struct Scene_context;
 
+		template <typename ...T_processor_flags>
+		friend struct Processor;
+
 		void finalize();
 
 		void simulate();
@@ -131,6 +134,9 @@ namespace sic
 		void flush_level_streaming();
 
 	private:
+		void tick_systems(std::vector<System*>& inout_systems);
+		void flush_deferred_updates();
+
 		std::unique_ptr<State>& get_state_at_index(i32 in_index);
 		void destroy_level_internal(Scene& in_level);
 

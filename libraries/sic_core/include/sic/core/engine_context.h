@@ -6,6 +6,9 @@ namespace sic
 {
 	struct Engine_context
 	{
+		template <typename ...T_processor_flags>
+		friend struct Processor;
+
 		Engine_context() = default;
 		Engine_context(Engine& in_engine) : m_engine(&in_engine) {}
 
@@ -93,7 +96,7 @@ namespace sic
 		}
 
 		template<typename T_type>
-		__forceinline void for_each(std::function<void(T_type&)> in_func)
+		__forceinline void for_each_w(std::function<void(T_type&)> in_func)
 		{
 			if constexpr (std::is_same<T_type, Scene>::value)
 			{
@@ -108,9 +111,39 @@ namespace sic
 		}
 
 		template<typename T_type>
-		__forceinline void for_each(std::function<void(const T_type&)> in_func) const
+		__forceinline void for_each_r(std::function<void(const T_type&)> in_func) const
 		{
-			m_level.for_each_w_w<T_type>(in_func);
+			if constexpr (std::is_same<T_type, Scene>::value)
+			{
+				for (auto& level : m_engine->m_levels)
+					for_each_level(in_func, *level.get());
+			}
+			else
+			{
+				for (auto& level : m_engine->m_levels)
+					level->for_each_r<T_type>(in_func);
+			}
+		}
+
+		template <typename ...T>
+		__forceinline Job_id schedule(void (*in_job)(Processor<T...>), std::optional<Job_id> in_job_dependency = {}, std::optional<Tickstep> in_finish_before_tickstep = {}, bool in_run_on_main_thread = false)
+		{
+			Job_id job_id;
+			job_id.m_id = m_engine->m_job_index_ticker++;
+			job_id.m_run_on_main_thread = in_run_on_main_thread;
+
+			Engine_context context(*m_engine);
+			auto job_callback =
+				[in_job, context]()
+			{
+				Processor<T...> processor(context);
+				in_job(processor);
+			};
+
+			auto& dependency_infos = m_engine->m_job_id_to_type_dependencies_lut[job_id.m_id];
+			(Processor<T...>::schedule_for_type<T>(*m_engine, dependency_infos, job_callback, job_id), ...);
+
+			return job_id;
 		}
 
 		void create_level(Scene* in_parent_level)

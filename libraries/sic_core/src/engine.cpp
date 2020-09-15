@@ -117,63 +117,146 @@ namespace sic
 
 	void Engine::tick()
 	{
-		for (auto& pre_tick_system : m_pre_tick_systems)
-		{
-			for (auto& level : m_levels)
-				pre_tick_system->execute_tick(Scene_context(*this, *level.get()), m_time_delta);
+		tick_systems(m_pre_tick_systems);
 
-			pre_tick_system->execute_engine_tick(Engine_context(*this), m_time_delta);
+		flush_deferred_updates();
+
+		tick_systems(m_tick_systems);
+
+		flush_deferred_updates();
+
+		tick_systems(m_post_tick_systems);
+
+		flush_deferred_updates();
+
+		flush_level_streaming();
+
+		for (Thread_context* context : m_thread_contexts)
+			context->reset_local_storage();
+	}
+
+	void Engine::on_shutdown()
+	{
+		m_system_ticker_threadpool.shutdown();
+
+		while (!m_levels.empty())
+			destroy_level(*m_levels.back().get());
+
+		for (auto& system : m_systems)
+			system->on_shutdown(Engine_context(*this));
+	}
+
+	void Engine::create_level(Scene* in_parent_level)
+	{
+		std::scoped_lock levels_lock(m_levels_mutex);
+
+		assert(m_finished_setup && "Can't create a level before system has finished setup!");
+
+		Scene* outermost_level = nullptr;
+
+		if (in_parent_level)
+		{
+			if (in_parent_level->m_outermost_level)
+				outermost_level = in_parent_level->m_outermost_level;
+			else
+				outermost_level = in_parent_level;
 		}
 
-// 		if (!m_tick_systems.empty())
-// 		{
-// 			std::vector<Threadpool::Closure> tasks_to_run;
-// 			tasks_to_run.reserve(m_tick_systems.size() - 1);
-// 
-// 			for (ui32 system_idx = 1; system_idx < m_tick_systems.size(); system_idx++)
-// 			{
-// 				System* system_to_tick = m_tick_systems[system_idx];
-// 
-// 				tasks_to_run.emplace_back
-// 				(
-// 					[this, system_to_tick]()
-// 					{
-// 						for (auto& level : m_levels)
-// 							system_to_tick->execute_tick(Scene_context(*this, *level.get()), m_time_delta);
-// 
-// 						system_to_tick->execute_engine_tick(Engine_context(*this), m_time_delta);
-// 						system_to_tick->m_finished_tick = true;
-// 					}
-// 				);
-// 
-// 				system_to_tick->m_finished_tick = false;
-// 			}
-// 
-// 			if (!tasks_to_run.empty())
-// 				m_system_ticker_threadpool.batch(std::move(tasks_to_run));
-// 
-// 			for (auto& level : m_levels)
-// 				m_tick_systems[0]->execute_tick(Scene_context(*this, *level.get()), m_time_delta);
-// 
-// 			m_tick_systems[0]->execute_engine_tick(Engine_context(*this), m_time_delta);
-// 			m_tick_systems[0]->m_finished_tick = true;
-// 		}
+		m_levels_to_add.push_back(std::make_unique<Scene>(*this, outermost_level, in_parent_level));
 
-		//wait for all to finish
-// 		bool all_finished = false;
-// 
-// 		while (!all_finished)
-// 		{
-// 			all_finished = true;
-// 
-// 			for (System* system_to_tick : m_tick_systems)
-// 			{
-// 				if (!system_to_tick->m_finished_tick)
-// 					all_finished = false;
-// 			}
-// 		}
+		Scene& new_level = *m_levels_to_add.back().get();
+		new_level.m_level_id = m_level_id_ticker++;
 
-		for (auto& tick_system : m_tick_systems)
+		for (auto&& registration_callback : m_registration_callbacks)
+			registration_callback(new_level);
+	}
+
+	void Engine::destroy_level(Scene& inout_level)
+	{
+		std::scoped_lock levels_lock(m_levels_mutex);
+
+		for (size_t i = 0; i < m_levels.size(); i++)
+		{
+			if (m_levels[i].get() != &inout_level)
+				continue;
+
+			for (auto& system : m_systems)
+			{
+				if (!is_shutting_down())
+					system->on_end_simulation(Scene_context(*this, inout_level));
+			}
+
+			m_levels.erase(m_levels.begin() + i);
+			break;
+		}
+	}
+
+	void Engine::refresh_time_delta()
+	{
+		const auto now = std::chrono::high_resolution_clock::now();
+		const auto dif = now - m_previous_frame_time_point;
+		m_time_delta = std::chrono::duration<float, std::milli>(dif).count() * 0.001f;
+		m_previous_frame_time_point = now;
+	}
+
+	void Engine::flush_level_streaming()
+	{
+		if (!m_levels_to_remove.empty())
+		{
+			std::scoped_lock levels_lock(m_levels_mutex);
+
+			//first remove levels
+			for (Scene* level : m_levels_to_remove)
+				destroy_level_internal(*level);
+
+			m_levels_to_remove.clear();
+		}
+
+		if (!m_levels_to_add.empty())
+		{
+			std::vector<Scene*> added_levels;
+
+			{
+				std::scoped_lock levels_lock(m_levels_mutex);
+				//then add new levels
+				for (auto& level : m_levels_to_add)
+				{
+					Scene* added_level = nullptr;
+					//is this a sublevel?
+					if (level->m_outermost_level)
+					{
+						level->m_outermost_level->m_sublevels.push_back(std::move(level));
+						added_level = level->m_outermost_level->m_sublevels.back().get();
+					}
+					else
+					{
+						m_levels.push_back(std::move(level));
+						added_level = m_levels.back().get();
+						m_level_id_to_level_lut[added_level->m_level_id] = added_level;
+					}
+
+					added_levels.push_back(added_level);
+				}
+
+				m_levels_to_add.clear();
+			}
+
+			for (Scene* added_level : added_levels)
+			{
+				invoke<Event_created<Scene>>(*added_level);
+
+				for (auto& system : m_systems)
+				{
+					if (!is_shutting_down())
+						system->on_begin_simulation(Scene_context(*this, *added_level));
+				}
+			}
+		}
+	}
+
+	void Engine::tick_systems(std::vector<System*>& inout_systems)
+	{
+		for (auto& tick_system : inout_systems)
 		{
 			for (auto& level : m_levels)
 				tick_system->execute_tick(Scene_context(*this, *level.get()), m_time_delta);
@@ -308,6 +391,8 @@ namespace sic
 
 		while (!all_leaf_nodes_finished)
 		{
+			std::this_thread::yield();
+
 			main_thread_worker.try_do_job();
 
 			all_leaf_nodes_finished = true;
@@ -323,8 +408,6 @@ namespace sic
 
 			if (all_leaf_nodes_finished)
 				break;
-
-			std::this_thread::yield();
 		}
 
 		m_job_index_ticker = 0;
@@ -334,137 +417,19 @@ namespace sic
 			type_schedule.second.m_read_jobs.clear();
 			type_schedule.second.m_write_jobs.clear();
 		}
+	}
 
-		for (auto& post_tick_system : m_post_tick_systems)
-		{
-			for (auto& level : m_levels)
-				post_tick_system->execute_tick(Scene_context(*this, *level.get()), m_time_delta);
-
-			post_tick_system->execute_engine_tick(Engine_context(*this), m_time_delta);
-		}
-
-		flush_level_streaming();
-
+	void Engine::flush_deferred_updates()
+	{
 		for (Thread_context* context : m_thread_contexts)
-			context->reset_local_storage();
-	}
-
-	void Engine::on_shutdown()
-	{
-		m_system_ticker_threadpool.shutdown();
-
-		while (!m_levels.empty())
-			destroy_level(*m_levels.back().get());
-
-		for (auto& system : m_systems)
-			system->on_shutdown(Engine_context(*this));
-	}
-
-	void Engine::create_level(Scene* in_parent_level)
-	{
-		std::scoped_lock levels_lock(m_levels_mutex);
-
-		assert(m_finished_setup && "Can't create a level before system has finished setup!");
-
-		Scene* outermost_level = nullptr;
-
-		if (in_parent_level)
 		{
-			if (in_parent_level->m_outermost_level)
-				outermost_level = in_parent_level->m_outermost_level;
-			else
-				outermost_level = in_parent_level;
-		}
-
-		m_levels_to_add.push_back(std::make_unique<Scene>(*this, outermost_level, in_parent_level));
-
-		Scene& new_level = *m_levels_to_add.back().get();
-		new_level.m_level_id = m_level_id_ticker++;
-
-		for (auto&& registration_callback : m_registration_callbacks)
-			registration_callback(new_level);
-	}
-
-	void Engine::destroy_level(Scene& inout_level)
-	{
-		std::scoped_lock levels_lock(m_levels_mutex);
-
-		for (size_t i = 0; i < m_levels.size(); i++)
-		{
-			if (m_levels[i].get() != &inout_level)
-				continue;
-
-			for (auto& system : m_systems)
+			for (size_t update_idx = 0; update_idx < context->m_deferred_updates.size(); ++update_idx)
 			{
-				if (!is_shutting_down())
-					system->on_end_simulation(Scene_context(*this, inout_level));
+				const auto cur_update = context->m_deferred_updates[update_idx];
+				cur_update(Engine_context(*this));
 			}
 
-			m_levels.erase(m_levels.begin() + i);
-			break;
-		}
-	}
-
-	void Engine::refresh_time_delta()
-	{
-		const auto now = std::chrono::high_resolution_clock::now();
-		const auto dif = now - m_previous_frame_time_point;
-		m_time_delta = std::chrono::duration<float, std::milli>(dif).count() * 0.001f;
-		m_previous_frame_time_point = now;
-	}
-
-	void Engine::flush_level_streaming()
-	{
-		if (!m_levels_to_remove.empty())
-		{
-			std::scoped_lock levels_lock(m_levels_mutex);
-
-			//first remove levels
-			for (Scene* level : m_levels_to_remove)
-				destroy_level_internal(*level);
-
-			m_levels_to_remove.clear();
-		}
-
-		if (!m_levels_to_add.empty())
-		{
-			std::vector<Scene*> added_levels;
-
-			{
-				std::scoped_lock levels_lock(m_levels_mutex);
-				//then add new levels
-				for (auto& level : m_levels_to_add)
-				{
-					Scene* added_level = nullptr;
-					//is this a sublevel?
-					if (level->m_outermost_level)
-					{
-						level->m_outermost_level->m_sublevels.push_back(std::move(level));
-						added_level = level->m_outermost_level->m_sublevels.back().get();
-					}
-					else
-					{
-						m_levels.push_back(std::move(level));
-						added_level = m_levels.back().get();
-						m_level_id_to_level_lut[added_level->m_level_id] = added_level;
-					}
-
-					added_levels.push_back(added_level);
-				}
-
-				m_levels_to_add.clear();
-			}
-
-			for (Scene* added_level : added_levels)
-			{
-				invoke<Event_created<Scene>>(*added_level);
-
-				for (auto& system : m_systems)
-				{
-					if (!is_shutting_down())
-						system->on_begin_simulation(Scene_context(*this, *added_level));
-				}
-			}
+			context->m_deferred_updates.clear();
 		}
 	}
 

@@ -130,6 +130,7 @@ namespace sic
 			{
 				T_object& new_instance = m_instances.emplace_back<T_object>();
 				new_instance.m_type_index = Type_index<Object_base>::get<T_object>();
+				new_instance.m_pending_destroy = false;
 				new (&new_instance.m_children) std::vector<Object_base*>();
 
 				new_instance.make_instance(inout_level);

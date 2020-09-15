@@ -12,14 +12,22 @@ namespace sic
 			void draw_shape(Processor_debug_draw in_processor, const T_type& in_shape)
 			{
 				const State_debug_drawing& debug_drawing_state = in_processor.get_state_checked_r<State_debug_drawing>();
-				State_render_scene& render_scene_state = in_processor.get_state_checked_w<State_render_scene>();
-
-				render_scene_state.update_object
+				in_processor.update_state_deferred<State_render_scene>
 				(
-					debug_drawing_state.m_level_id_to_debug_drawer_ids.find(in_processor.get_context().get_outermost_level_id())->second,
-					[in_shape](Render_object_debug_drawer& inout_drawer)
+					[
+						obj_id = debug_drawing_state.m_level_id_to_debug_drawer_ids.find(Scene_context(*in_processor.m_engine, *in_processor.m_scene).get_outermost_level_id())->second,
+						in_shape
+					]
+					(State_render_scene& inout_render_scene_state)
 					{
-						std::get<std::vector<T_type>>(inout_drawer.m_shapes).push_back(in_shape);
+						 inout_render_scene_state.update_object
+						(
+							obj_id,
+							[in_shape](Render_object_debug_drawer& inout_drawer)
+							{
+								std::get<std::vector<T_type>>(inout_drawer.m_shapes).push_back(in_shape);
+							}
+						);
 					}
 				);
 			}

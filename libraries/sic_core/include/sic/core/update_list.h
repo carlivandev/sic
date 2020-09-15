@@ -65,6 +65,9 @@ namespace sic
 		T_object_type* find_object(Update_list_id<T_object_type> in_object_id);
 
 		//only safe from data reciever
+		const T_object_type* find_object(Update_list_id<T_object_type> in_object_id) const;
+
+		//only safe from data reciever
 		std::vector<T_object_type> m_objects;
 
 	private:
@@ -75,7 +78,7 @@ namespace sic
 
 		std::mutex m_update_lock;
 
-		Double_buffer<std::vector<Update>> m_object_data_updates;
+		std::vector<Update> m_object_data_updates;
 		size_t m_current_create_id = 0;
 	};
 
@@ -98,14 +101,7 @@ namespace sic
 
 		Update_list_id<T_object_type> new_update_list_id(static_cast<i32>(new_id));
 
-		m_object_data_updates.write
-		(
-			[in_update_callback, new_update_list_id](std::vector<Update>& in_out_updates)
-			{
-				in_out_updates.push_back({ in_update_callback, new_update_list_id, List_update_type::create });
-			}
-		);
-
+		m_object_data_updates.push_back({ in_update_callback, new_update_list_id, List_update_type::create });
 		return new_update_list_id;
 	}
 
@@ -118,13 +114,7 @@ namespace sic
 
 		m_objects_free_ids.push_back(in_id.m_id);
 
-		m_object_data_updates.write
-		(
-			[in_id](std::vector<Update>& in_out_updates)
-			{
-				in_out_updates.push_back({ nullptr, in_id, List_update_type::destroy });
-			}
-		);
+		m_object_data_updates.push_back({ nullptr, in_id, List_update_type::destroy });
 	}
 	template<typename T_object_type>
 	inline void Update_list<T_object_type>::update_object(Update_list_id<T_object_type> in_object_id, typename Update::Callback&& in_update_callback)
@@ -133,13 +123,7 @@ namespace sic
 
 		std::scoped_lock lock(m_update_lock);
 
-		m_object_data_updates.write
-		(
-			[in_object_id, &in_update_callback](std::vector<Update>& in_out_updates)
-			{
-				in_out_updates.push_back({ in_update_callback, in_object_id, List_update_type::Update });
-			}
-		);
+		m_object_data_updates.push_back({ in_update_callback, in_object_id, List_update_type::Update });
 	}
 
 	template<typename T_object_type>
@@ -147,58 +131,56 @@ namespace sic
 	{
 		std::scoped_lock lock(m_update_lock);
 
-		m_object_data_updates.read
-		(
-			[this](const std::vector<Update>& in_updates)
+		for (const Update& update_instance : m_object_data_updates)
+		{
+			if (update_instance.m_type == List_update_type::create)
 			{
-				for (const Update& update_instance : in_updates)
+				m_objects.emplace_back();
+
+				const i32 last_idx = static_cast<i32>(m_objects.size()) - 1;
+
+				m_id_to_index_lut[update_instance.m_object_id.m_id] = last_idx;
+				m_index_to_id_lut[last_idx] = update_instance.m_object_id.m_id;
+			}
+			else if (update_instance.m_type == List_update_type::destroy)
+			{
+				const i32 remove_idx = m_id_to_index_lut[update_instance.m_object_id.m_id];
+				const i32 last_idx = static_cast<i32>(m_objects.size()) - 1;
+
+				if (remove_idx < last_idx)
 				{
-					if (update_instance.m_type == List_update_type::create)
-					{
-						m_objects.emplace_back();
+					std::swap(m_objects[remove_idx], m_objects.back());
 
-						const i32 last_idx = static_cast<i32>(m_objects.size()) - 1;
+					const size_t last_id = m_index_to_id_lut[last_idx];
 
-						m_id_to_index_lut[update_instance.m_object_id.m_id] = last_idx;
-						m_index_to_id_lut[last_idx] = update_instance.m_object_id.m_id;
-					}
-					else if (update_instance.m_type == List_update_type::destroy)
-					{
-						const i32 remove_idx = m_id_to_index_lut[update_instance.m_object_id.m_id];
-						const i32 last_idx = static_cast<i32>(m_objects.size()) - 1;
-
-						if (remove_idx < last_idx)
-						{
-							std::swap(m_objects[remove_idx], m_objects.back());
-
-							const size_t last_id = m_index_to_id_lut[last_idx];
-
-							m_id_to_index_lut[last_id] = remove_idx;
-							m_index_to_id_lut[remove_idx] = last_id;
-						}
-
-						m_id_to_index_lut[update_instance.m_object_id.m_id] = -1;
-						m_objects.pop_back();
-					}
-					
-					if (update_instance.m_callback)
-						update_instance.m_callback(m_objects[m_id_to_index_lut.find(update_instance.m_object_id.m_id)->second]);
+					m_id_to_index_lut[last_id] = remove_idx;
+					m_index_to_id_lut[remove_idx] = last_id;
 				}
-			}
-		);
 
-		m_object_data_updates.swap
-		(
-			[](std::vector<Update>& in_out_read, std::vector<Update>&)
-			{
-				in_out_read.clear();
+				m_id_to_index_lut[update_instance.m_object_id.m_id] = -1;
+				m_objects.pop_back();
 			}
-		);
+					
+			if (update_instance.m_callback)
+				update_instance.m_callback(m_objects[m_id_to_index_lut.find(update_instance.m_object_id.m_id)->second]);
+		}
+
+		m_object_data_updates.clear();
 
 		m_current_create_id = m_objects.size();
 	}
 	template<typename T_object_type>
 	inline T_object_type* Update_list<T_object_type>::find_object(Update_list_id<T_object_type> in_object_id)
+	{
+		auto it = m_id_to_index_lut.find(in_object_id.m_id);
+
+		if (it == m_id_to_index_lut.end() || it->second == -1)
+			return nullptr;
+
+		return &m_objects[it->second];
+	}
+	template<typename T_object_type>
+	inline const T_object_type* Update_list<T_object_type>::find_object(Update_list_id<T_object_type> in_object_id) const
 	{
 		auto it = m_id_to_index_lut.find(in_object_id.m_id);
 

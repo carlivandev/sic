@@ -16,18 +16,18 @@ void sic::System_model::on_created(Engine_context in_context)
 			Component_transform* transform = in_out_component.get_owner().find<Component_transform>();
 			assert(transform && "model component requires a Transform attached!");
 
-			in_out_component.m_render_scene_state = in_out_context.get_state<State_render_scene>();
-
 			in_out_component.m_on_updated_handle.set_callback
 			(
-				[&in_out_component](const Component_transform& in_transform)
+				[&in_out_component, in_out_context](const Component_transform& in_transform) mutable
 				{
 					if (in_out_component.m_render_object_id_collection.empty())
 						return;
 
+					State_render_scene& render_scene_state = in_out_context.get_state_checked<State_render_scene>();
+
 					for (const auto& render_object_id : in_out_component.m_render_object_id_collection)
 					{
-						in_out_component.m_render_scene_state->update_object
+						render_scene_state.update_object
 						(
 							render_object_id,
 							[
@@ -42,20 +42,20 @@ void sic::System_model::on_created(Engine_context in_context)
 			);
 
 			transform->m_on_updated.try_bind(in_out_component.m_on_updated_handle);
-			in_out_component.try_create_render_object();
+			in_out_component.try_create_render_object(Processor_render_scene_update(in_out_context));
 		}
 	);
 
 	in_context.listen<event_destroyed<Component_model>>
 	(
-		[](Engine_context&, Component_model& in_out_component)
+		[](Engine_context& in_out_context, Component_model& in_out_component)
 		{
-			in_out_component.try_destroy_render_object();
+			in_out_component.try_destroy_render_object(Processor_render_scene_update(in_out_context));
 		}
 	);
 }
 
-void sic::Component_model::set_model(const Asset_ref<Asset_model>& in_model)
+void sic::Component_model::set_model(Processor_render_scene_update in_processor, const Asset_ref<Asset_model>& in_model)
 {
 	if (m_model == in_model)
 		return;
@@ -72,28 +72,34 @@ void sic::Component_model::set_model(const Asset_ref<Asset_model>& in_model)
 
 			const Asset_ref<Asset_material> mat_to_draw = material_override_it != m_material_overrides.end() ? material_override_it->second : m_model.get()->get_material((i32)idx);
 
-			m_render_scene_state->update_object
+			in_processor.update_state_deferred<State_render_scene>
 			(
-				m_render_object_id_collection[idx],
-				[model = m_model, mat_to_draw, idx](Render_object_mesh& in_object)
+				[model = m_model, mat_to_draw, idx, ro_id = m_render_object_id_collection[idx]](State_render_scene& inout_state)
 				{
-					in_object.m_mesh = &(model.get()->m_meshes[idx]);
-					in_object.m_material->remove_instance_data(in_object.m_instance_data_index);
+					inout_state.update_object
+					(
+						ro_id,
+						[model, mat_to_draw, idx](Render_object_mesh& in_object)
+						{
+							in_object.m_mesh = &(model.get()->m_meshes[idx]);
+							in_object.m_material->remove_instance_data(in_object.m_instance_data_index);
 
-					in_object.m_material = mat_to_draw.get_mutable();
-					in_object.m_instance_data_index = in_object.m_material->add_instance_data();
-				} 
+							in_object.m_material = mat_to_draw.get_mutable();
+							in_object.m_instance_data_index = in_object.m_material->add_instance_data();
+						} 
+					);
+				}
 			);
 		}
 	}
 	else
 	{
-		try_destroy_render_object();
-		m_model.bind_on_loaded([this](Asset*) { try_create_render_object(); });
+		try_destroy_render_object(in_processor);
+		m_model.bind_on_loaded([this, in_processor](Asset*) { try_create_render_object(in_processor); });
 	}
 }
 
-void sic::Component_model::set_material(Asset_ref<Asset_material> in_material, const std::string& in_material_slot)
+void sic::Component_model::set_material(Processor_render_scene_update in_processor, Asset_ref<Asset_material> in_material, const std::string& in_material_slot)
 {
 	Asset_ref<Asset_material>& override_mat = m_material_overrides[in_material_slot];
 
@@ -116,16 +122,22 @@ void sic::Component_model::set_material(Asset_ref<Asset_material> in_material, c
 		{
 			auto& render_object_id = m_render_object_id_collection[idx];
 
-			m_render_scene_state->update_object
+			in_processor.update_state_deferred<State_render_scene>
 			(
-				render_object_id,
-				[in_material_slot, override_mat](Render_object_mesh& in_object)
+				[in_material_slot, override_mat, render_object_id](State_render_scene& inout_state)
 				{
-					in_object.m_material->remove_instance_data(in_object.m_instance_data_index);
+					inout_state.update_object
+					(
+						render_object_id,
+						[in_material_slot, override_mat](Render_object_mesh& in_object)
+						{
+							in_object.m_material->remove_instance_data(in_object.m_instance_data_index);
 
-					in_object.m_material = override_mat.get_mutable();
-					in_object.m_instance_data_index = in_object.m_material->add_instance_data();
-				} 
+							in_object.m_material = override_mat.get_mutable();
+							in_object.m_instance_data_index = in_object.m_material->add_instance_data();
+						}
+					);
+				}
 			);
 		}
 	}
@@ -133,7 +145,7 @@ void sic::Component_model::set_material(Asset_ref<Asset_material> in_material, c
 	{
 		override_mat.bind_on_loaded
 		(
-			[this, in_material_slot, override_mat](Asset*)
+			[this, in_material_slot, override_mat, in_processor](Asset*)
 			{
 				if (m_render_object_id_collection.empty())
 					return;
@@ -144,15 +156,21 @@ void sic::Component_model::set_material(Asset_ref<Asset_material> in_material, c
 				{
 					auto& render_object_id = m_render_object_id_collection[idx];
 
-					m_render_scene_state->update_object
+					in_processor.update_state_deferred<State_render_scene>
 					(
-						render_object_id,
-						[in_material_slot, override_mat](Render_object_mesh& in_object)
+						[in_material_slot, override_mat, render_object_id](State_render_scene& inout_state)
 						{
-							in_object.m_material->remove_instance_data(in_object.m_instance_data_index);
+							inout_state.update_object
+							(
+								render_object_id,
+								[in_material_slot, override_mat](Render_object_mesh& in_object)
+								{
+									in_object.m_material->remove_instance_data(in_object.m_instance_data_index);
 
-							in_object.m_material = override_mat.get_mutable();
-							in_object.m_instance_data_index = in_object.m_material->add_instance_data();
+									in_object.m_material = override_mat.get_mutable();
+									in_object.m_instance_data_index = in_object.m_material->add_instance_data();
+								}
+							);
 						}
 					);
 				}
@@ -171,7 +189,7 @@ sic::Asset_ref<sic::Asset_material> sic::Component_model::get_material_override(
 	return it->second;
 }
 
-void sic::Component_model::try_destroy_render_object()
+void sic::Component_model::try_destroy_render_object(Processor_render_scene_update in_processor)
 {
 	for (size_t i = 0; i < m_render_object_id_collection.size(); i++)
 	{
@@ -181,15 +199,23 @@ void sic::Component_model::try_destroy_render_object()
 			auto material_override_it = m_material_overrides.find(m_model.get()->m_meshes[i].m_material_slot);
 			const Asset_ref<Asset_material> mat_to_draw = material_override_it != m_material_overrides.end() ? material_override_it->second : m_model.get()->get_material((i32)i);
 
-			m_render_scene_state->update_object<Render_object_mesh>
+			in_processor.update_state_deferred<State_render_scene>
 			(
-				render_object_id,
-				[model = m_model, mat_to_draw  /*capture it by copy to keep asset loaded until destroyed is called*/] (Render_object_mesh& in_out_object)
+				[render_object_id, model = m_model, mat_to_draw  /*capture it by copy to keep asset loaded until destroyed is called*/](State_render_scene& inout_state)
 				{
-					in_out_object.m_material->remove_instance_data(in_out_object.m_instance_data_index);
+					inout_state.update_object
+					(
+						render_object_id,
+						[model, mat_to_draw  /*capture it by copy to keep asset loaded until destroyed is called*/](Render_object_mesh& in_out_object)
+						{
+							in_out_object.m_material->remove_instance_data(in_out_object.m_instance_data_index);
+						}
+					);
+
+					inout_state.destroy_object(render_object_id);
 				}
 			);
-			m_render_scene_state->destroy_object(render_object_id);
+
 			render_object_id.reset();
 		}
 	}
@@ -197,7 +223,7 @@ void sic::Component_model::try_destroy_render_object()
 	m_render_object_id_collection.clear();
 }
 
-void sic::Component_model::try_create_render_object()
+void sic::Component_model::try_create_render_object(Processor_render_scene_update in_processor)
 {
 	if (!m_model.is_valid())
 		return;
@@ -224,25 +250,40 @@ void sic::Component_model::try_create_render_object()
 		auto material_override_it = m_material_overrides.find(mesh.m_material_slot);
 		const Asset_ref<Asset_material> mat_to_draw = material_override_it != m_material_overrides.end() ? material_override_it->second : m_model.get()->get_material(mesh_idx);
 
-		m_render_object_id_collection.emplace_back
+
+		in_processor.update_state_deferred<State_render_scene>
 		(
-			m_render_scene_state->create_object<Render_object_mesh>
-			(
-				get_owner().get_outermost_level_id(),
-				[
-					model = m_model,
-					mat_to_draw,
-					mesh_idx,
-					orientation = get_owner().find<Component_transform>()->get_matrix()
-				]
-				(Render_object_mesh& in_out_object)
-				{
-					in_out_object.m_mesh = &(model.get()->m_meshes[mesh_idx]);
-					in_out_object.m_material = mat_to_draw.get_mutable();
-					in_out_object.m_orientation = orientation;
-					in_out_object.m_instance_data_index = in_out_object.m_material->add_instance_data();
-				}
-			)
+			[
+				&render_object_collection = m_render_object_id_collection,
+				model = m_model,
+				mat_to_draw,
+				mesh_idx,
+				orientation = get_owner().find<Component_transform>()->get_matrix(),
+				level_id = get_owner().get_outermost_level_id()
+			]
+			(State_render_scene& inout_state)
+			{
+				render_object_collection.emplace_back
+				(
+					inout_state.create_object<Render_object_mesh>
+					(
+						level_id,
+						[
+							model,
+							mat_to_draw,
+							mesh_idx,
+							orientation
+						]
+						(Render_object_mesh& in_out_object)
+						{
+							in_out_object.m_mesh = &(model.get()->m_meshes[mesh_idx]);
+							in_out_object.m_material = mat_to_draw.get_mutable();
+							in_out_object.m_orientation = orientation;
+							in_out_object.m_instance_data_index = in_out_object.m_material->add_instance_data();
+						}
+					)
+				);
+			}
 		);
 	}
 }

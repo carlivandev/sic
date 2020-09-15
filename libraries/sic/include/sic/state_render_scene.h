@@ -11,6 +11,7 @@
 #include "sic/file_management.h"
 
 #include "sic/core/engine_context.h"
+#include "sic/core/level_context.h"
 #include "sic/core/update_list.h"
 #include "sic/core/type_restrictions.h"
 
@@ -64,7 +65,7 @@ namespace sic
 			return *this;
 		}
 
-		void draw_to_backbuffer()
+		void draw_to_backbuffer() const
 		{
 			sic::i32 current_window_x, current_window_y;
 			glfwGetWindowSize(m_context, &current_window_x, &current_window_y);
@@ -459,4 +460,6 @@ namespace sic
 		std::unordered_map<i32, Render_scene_level> m_level_id_to_scene_lut;
 		std::mutex m_update_mutex;
 	};
+
+	using Processor_render_scene_update = Processor<Processor_flag_deferred_write<State_render_scene>>;
 }
