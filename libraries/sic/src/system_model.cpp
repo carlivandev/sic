@@ -13,7 +13,7 @@ void sic::System_model::on_created(Engine_context in_context)
 	(
 		[](Engine_context& in_out_context, Component_model& in_out_component)
 		{
-			Component_transform* transform = in_out_component.get_owner().find<Component_transform>();
+			Component_transform* transform = in_out_context.find_w<Component_transform>(in_out_component.get_owner());
 			assert(transform && "model component requires a Transform attached!");
 
 			in_out_component.m_on_updated_handle.set_callback
@@ -42,7 +42,7 @@ void sic::System_model::on_created(Engine_context in_context)
 			);
 
 			transform->m_on_updated.try_bind(in_out_component.m_on_updated_handle);
-			in_out_component.try_create_render_object(Processor_render_scene_update(in_out_context));
+			in_out_component.try_create_render_object(Processor_model(in_out_context));
 		}
 	);
 
@@ -50,12 +50,12 @@ void sic::System_model::on_created(Engine_context in_context)
 	(
 		[](Engine_context& in_out_context, Component_model& in_out_component)
 		{
-			in_out_component.try_destroy_render_object(Processor_render_scene_update(in_out_context));
+			in_out_component.try_destroy_render_object(Processor_model(in_out_context));
 		}
 	);
 }
 
-void sic::Component_model::set_model(Processor_render_scene_update in_processor, const Asset_ref<Asset_model>& in_model)
+void sic::Component_model::set_model(Processor_model in_processor, const Asset_ref<Asset_model>& in_model)
 {
 	if (m_model == in_model)
 		return;
@@ -99,7 +99,7 @@ void sic::Component_model::set_model(Processor_render_scene_update in_processor,
 	}
 }
 
-void sic::Component_model::set_material(Processor_render_scene_update in_processor, Asset_ref<Asset_material> in_material, const std::string& in_material_slot)
+void sic::Component_model::set_material(Processor_model in_processor, Asset_ref<Asset_material> in_material, const std::string& in_material_slot)
 {
 	Asset_ref<Asset_material>& override_mat = m_material_overrides[in_material_slot];
 
@@ -189,7 +189,7 @@ sic::Asset_ref<sic::Asset_material> sic::Component_model::get_material_override(
 	return it->second;
 }
 
-void sic::Component_model::try_destroy_render_object(Processor_render_scene_update in_processor)
+void sic::Component_model::try_destroy_render_object(Processor_model in_processor)
 {
 	for (size_t i = 0; i < m_render_object_id_collection.size(); i++)
 	{
@@ -223,12 +223,17 @@ void sic::Component_model::try_destroy_render_object(Processor_render_scene_upda
 	m_render_object_id_collection.clear();
 }
 
-void sic::Component_model::try_create_render_object(Processor_render_scene_update in_processor)
+void sic::Component_model::try_create_render_object(Processor_model in_processor)
 {
 	if (!m_model.is_valid())
 		return;
 
 	if (m_model.get_load_state() != Asset_load_state::loaded)
+		return;
+
+	const Component_transform* transform = in_processor.find_r<Component_transform>(get_owner());
+
+	if (!transform)
 		return;
 
 	//for now just skip creating, but in the future we want to send an error material to the renderer if it has an override that is invalid
@@ -258,7 +263,7 @@ void sic::Component_model::try_create_render_object(Processor_render_scene_updat
 				model = m_model,
 				mat_to_draw,
 				mesh_idx,
-				orientation = get_owner().find<Component_transform>()->get_matrix(),
+				orientation = transform->get_matrix(),
 				level_id = get_owner().get_outermost_level_id()
 			]
 			(State_render_scene& inout_state)

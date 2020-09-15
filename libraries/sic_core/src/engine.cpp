@@ -46,7 +46,7 @@ namespace sic
 	{
 		const auto hardware_thread_count = std::thread::hardware_concurrency();
 
-		m_system_ticker_threadpool.spawn(static_cast<ui16>(hardware_thread_count - 1));
+		m_system_ticker_threadpool.spawn(static_cast<ui16>(hardware_thread_count - 2));
 
 		m_thread_contexts.resize(hardware_thread_count);
 
@@ -84,34 +84,6 @@ namespace sic
 				if (!thread_done)
 					all_done = false;
 			}
-		}
-
-		for (auto& async_system : m_async_systems)
-		{
-			m_system_ticker_threadpool.emplace
-			(
-				[this, async_system]()
-				{
-					while (!m_finished_setup)
-					{
-						std::this_thread::sleep_for(std::chrono::milliseconds(1));
-						continue;
-					}
-
-					while (!m_system_ticker_threadpool.is_shutting_down())
-					{
-						//cant change levels list while in the middle of a tick
-						std::scoped_lock levels_lock(m_levels_mutex);
-
-						//todo: add time delta support on async systems
-
-						for (auto& level : m_levels)
-								async_system->execute_tick(Scene_context(*this, *level.get()), 0.0f);
-
-						async_system->execute_engine_tick(Engine_context(*this), 0.0f);
-					}
-				}
-			);
 		}
 	}
 
@@ -307,10 +279,51 @@ namespace sic
 				{
 					if (type_dependency_info.m_index > 0)
 					{
-						//this is a read dependency. doesnt have any dependencies
-						if (type_dependency_info.m_is_read)
+						if (type_dependency_info.m_access_type == Job_dependency::Info::Access_type::read)
+						{
+							//this is a read dependency. doesnt have any dependencies
 							continue;
+						}
+						else if (type_dependency_info.m_access_type == Job_dependency::Info::Access_type::single_access)
+						{
+							//add all writes as dependencies, except if explicit dependency on read for current_node has been set
 
+							for (auto&& write_dependency : m_type_index_to_schedule.find(type_dependency_info.m_type_index)->second.m_write_jobs)
+							{
+								const i32 id = write_dependency.m_id.m_id;
+								Job_node& write_dependency_node = job_nodes[id];
+
+								bool already_added = false;
+
+								for (Job_node* prev_node_depends_on_me : write_dependency_node.m_depends_on_me)
+								{
+									if (prev_node_depends_on_me == &current_node)
+									{
+										already_added = true;
+										break;
+									}
+								}
+
+								//skip if explicit dependency on write has been set
+								for (Job_node* current_node_depends_on_me : current_node.m_depends_on_me)
+								{
+									if (current_node_depends_on_me == &write_dependency_node)
+									{
+										already_added = true;
+										break;
+									}
+								}
+
+								if (!already_added)
+								{
+									write_dependency_node.m_depends_on_me.push_back(&current_node);
+									++current_node.m_dependencies_left;
+								}
+							}
+
+							continue;
+						}
+						else if (type_dependency_info.m_access_type == Job_dependency::Info::Access_type::write)
 						{
 							//add previous write as dependency
 
@@ -395,6 +408,7 @@ namespace sic
 			schedule_jobs(type_schedule.second.m_read_jobs);
 			schedule_jobs(type_schedule.second.m_write_jobs);
 			schedule_jobs(type_schedule.second.m_deferred_write_jobs);
+			schedule_jobs(type_schedule.second.m_single_access_jobs);
 		}
 
 		std::vector<Threadpool::Closure> tasks_to_run_on_workers;

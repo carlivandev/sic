@@ -20,12 +20,12 @@ void sic::System_editor_view_controller::on_tick(Scene_context in_context, float
 	in_context.schedule(update_controllers);
 }
 
-void sic::System_editor_view_controller::update_controllers(Processor<Processor_flag_write<Component_editor_view_controller>, Processor_flag_read<State_input>, Processor_render_scene_update> in_processor)
+void sic::System_editor_view_controller::update_controllers(Processor<Processor_flag_write<Component_editor_view_controller>, Processor_flag_write_single<Component_transform>, Processor_flag_read<State_input>, Processor_render_scene_update> in_processor)
 {
 	const State_input& input_state = in_processor.get_state_checked_r<State_input>();
 	in_processor.for_each_w<Component_editor_view_controller>
 	(
-		[in_processor, time_delta = in_processor.get_time_delta(), &input_state](Component_editor_view_controller& evc)
+		[in_processor, time_delta = in_processor.get_time_delta(), &input_state](Component_editor_view_controller& evc) mutable
 		{
 			if (!evc.m_view_to_control)
 				return;
@@ -53,7 +53,7 @@ void sic::System_editor_view_controller::update_controllers(Processor<Processor_
 			const float horizontal_angle = evc.m_mouse_speed * wd->get_cursor_movement().x;
 			float vertical_angle = evc.m_mouse_speed * -wd->get_cursor_movement().y;
 
-			Component_transform* trans = evc.m_view_to_control->get_owner().find<Component_transform>();
+			Component_transform* trans = in_processor.find_w<Component_transform>(evc.m_view_to_control->get_owner());
 
 			const float max_vertical_angle = 80.0f;
 

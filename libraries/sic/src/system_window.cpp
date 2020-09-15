@@ -191,8 +191,7 @@ void sic::System_window::on_shutdown(Engine_context)
 void sic::System_window::on_engine_tick(Engine_context in_context, float in_time_delta) const
 {
 	in_time_delta;
-	in_context.schedule(update_windows, {}, {}, true);
-	//update_windows(Processor_window(in_context));
+	in_context.schedule(update_windows, Schedule_data().run_on_main_thread(true));
 }
 
 void sic::System_window::update_windows(Processor_window in_processor)

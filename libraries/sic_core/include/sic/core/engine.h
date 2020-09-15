@@ -22,7 +22,6 @@ namespace sic
 {
 	enum struct Tickstep
 	{
-		async, //never synchronizes
 		pre_tick, //runs before tick, always on main thread
 		tick, //everything here runs in parallel, first added runs on main thread
 		post_tick //runs after tick, always on main thread
@@ -40,10 +39,17 @@ namespace sic
 	{
 		struct Info
 		{
-			Info(i32 in_type_index, size_t in_index, bool in_is_read) : m_type_index(in_type_index), m_index(in_index), m_is_read(in_is_read) {}
+			enum struct Access_type
+			{
+				read,
+				write,
+				single_access
+			};
+
+			Info(i32 in_type_index, size_t in_index, Access_type in_access_type) : m_type_index(in_type_index), m_index(in_index), m_access_type(in_access_type) {}
 			i32 m_type_index = -1;
 			size_t m_index = 0;
-			bool m_is_read = false;
+			Access_type m_access_type = Access_type::write;
 
 			bool m_ready_to_execute = false;
 		};
@@ -72,6 +78,8 @@ namespace sic
 			std::vector<Item> m_read_jobs;
 			std::vector<Item> m_write_jobs;
 			std::vector<Item> m_deferred_write_jobs;
+			std::vector<Item> m_single_access_jobs;
+			
 			std::string m_typename;
 		};
 
@@ -159,8 +167,7 @@ namespace sic
 		std::vector<Typeinfo*> m_object_typeinfos;
 		std::vector<Typeinfo*> m_state_typeinfos;
 		std::unordered_map<std::string, std::unique_ptr<Typeinfo>> m_typename_to_typeinfo_lut;
-
-		std::vector<System*> m_async_systems;
+		
 		std::vector<System*> m_pre_tick_systems;
 		std::vector<System*> m_tick_systems;
 		std::vector<System*> m_post_tick_systems;
@@ -295,9 +302,6 @@ namespace sic
 	{
 		switch (in_tickstep)
 		{
-		case sic::Tickstep::async:
-			m_async_systems.push_back(&create_system<T_system_type>());
-			break;
 		case sic::Tickstep::pre_tick:
 			m_pre_tick_systems.push_back(&create_system<T_system_type>());
 			break;

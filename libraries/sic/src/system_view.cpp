@@ -11,7 +11,7 @@ void sic::System_view::on_created(Engine_context in_context)
 	(
 		[](Engine_context& in_out_context, Component_view& in_out_component)
 		{
-			Component_transform* transform = in_out_component.get_owner().find<Component_transform>();
+			Component_transform* transform = in_out_context.find_w<Component_transform>(in_out_component.get_owner());
 			assert(transform && "view component requires a Component_transform attached!");
 
 			in_out_component.m_render_scene_state = in_out_context.get_state<State_render_scene>();

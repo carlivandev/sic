@@ -52,22 +52,6 @@ namespace sic
 			return Object_id(m_id, m_level_id);
 		}
 
-		template <typename T_component>
-		constexpr T_component* find()
-		{
-			const i32 type_idx = Type_index<Component_base>::get<T_component>();
-
-			return reinterpret_cast<T_component*>(find_internal(type_idx));
-		}
-
-		template <typename T_component>
-		constexpr const T_component* find() const
-		{
-			const i32 type_idx = Type_index<Component_base>::get<T_component>();
-
-			return reinterpret_cast<const T_component*>(find_internal(type_idx));
-		}
-
 		void add_child(Object_base& inout_child)
 		{
 			for (Object_base* child : m_children)
@@ -104,6 +88,22 @@ namespace sic
 		}
 
 	protected:
+		template <typename T_component>
+		constexpr T_component* find()
+		{
+			const i32 type_idx = Type_index<Component_base>::get<T_component>();
+
+			return reinterpret_cast<T_component*>(find_internal(type_idx));
+		}
+
+		template <typename T_component>
+		constexpr const T_component* find() const
+		{
+			const i32 type_idx = Type_index<Component_base>::get<T_component>();
+
+			return reinterpret_cast<const T_component*>(find_internal(type_idx));
+		}
+
 		virtual byte* find_internal(i32 in_type_idx) = 0;
 		virtual const byte* find_internal(i32 in_type_idx) const = 0;
 		virtual void destroy_instance(Scene_context& inout_level) = 0;

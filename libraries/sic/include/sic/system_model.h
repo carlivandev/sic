@@ -12,20 +12,22 @@ namespace sic
 	struct Asset_material;
 	struct State_render_scene;
 
+	using Processor_model = Processor<Processor_flag_read_single<Component_transform>, Processor_render_scene_update>;
+
 	struct Component_model : public Component
 	{
 		friend struct System_model;
 		friend struct Material_dynamic_parameters;
 
 	public:
-		void set_model(Processor_render_scene_update in_processor, const Asset_ref<Asset_model>& in_model);
+		void set_model(Processor_model in_processor, const Asset_ref<Asset_model>& in_model);
 
-		void set_material(Processor_render_scene_update in_processor, Asset_ref<Asset_material> in_material, const std::string& in_material_slot);
+		void set_material(Processor_model in_processor, Asset_ref<Asset_material> in_material, const std::string& in_material_slot);
 		Asset_ref<Asset_material> get_material_override(const std::string& in_material_slot) const;
 
 	protected:
-		void try_destroy_render_object(Processor_render_scene_update in_processor);
-		void try_create_render_object(Processor_render_scene_update in_processor);
+		void try_destroy_render_object(Processor_model in_processor);
+		void try_create_render_object(Processor_model in_processor);
 
 		Asset_ref<Asset_model> m_model;
 

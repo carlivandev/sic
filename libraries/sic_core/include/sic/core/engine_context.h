@@ -4,6 +4,17 @@
 
 namespace sic
 {
+	struct Schedule_data
+	{
+		Schedule_data& job_dependency(Job_id in_job_id) { m_job_dependency = in_job_id; return *this; }
+		Schedule_data& finish_before_tickstep(Tickstep in_tickstep) { m_finish_before_tickstep = in_tickstep; return *this; }
+		Schedule_data& run_on_main_thread(bool in_run_on_main_thread) { m_run_on_main_thread = in_run_on_main_thread; return *this; }
+
+		std::optional<Job_id> m_job_dependency;
+		std::optional<Tickstep> m_finish_before_tickstep;
+		bool m_run_on_main_thread = false;
+	};
+
 	struct Engine_context
 	{
 		template <typename ...T_processor_flags>
@@ -125,15 +136,27 @@ namespace sic
 			}
 		}
 
+		template<typename T_type>
+		__forceinline T_type* find_w(Object_base& inout_object)
+		{
+			return inout_object.find<Component_transform>();
+		}
+
+		template<typename T_type>
+		__forceinline const T_type* find_r(const Object_base& in_object) const
+		{
+			return in_object.find<Component_transform>();
+		}
+
 		template <typename ...T>
-		__forceinline Job_id schedule(void (*in_job)(Processor<T...>), std::optional<Job_id> in_job_dependency = {}, std::optional<Tickstep> in_finish_before_tickstep = {}, bool in_run_on_main_thread = false)
+		__forceinline Job_id schedule(void (*in_job)(Processor<T...>), Schedule_data in_data = Schedule_data())
 		{
 			Job_id job_id;
 			job_id.m_id = m_engine->m_job_index_ticker++;
-			job_id.m_run_on_main_thread = in_run_on_main_thread;
+			job_id.m_run_on_main_thread = in_data.m_run_on_main_thread;
 
-			if (in_job_dependency.has_value())
-				job_id.m_job_dependency = in_job_dependency->m_id;
+			if (in_data.m_job_dependency.has_value())
+				job_id.m_job_dependency = in_data.m_job_dependency->m_id;
 
 			Engine_context context(*m_engine);
 			auto job_callback =
