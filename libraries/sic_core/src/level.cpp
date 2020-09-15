@@ -8,7 +8,7 @@ namespace sic
 		in_object_to_destroy.m_pending_destroy = true;
 		this_thread().update_deferred
 		(
-			[this, &in_object_to_destroy](Engine_context in_context)
+			[this, &in_object_to_destroy](Engine_context)
 			{
 				destory_object_immediate(in_object_to_destroy);
 			}

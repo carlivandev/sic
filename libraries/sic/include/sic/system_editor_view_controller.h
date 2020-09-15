@@ -1,5 +1,6 @@
 #pragma once
 #include "sic/system_window.h"
+#include "sic/state_render_scene.h"
 
 #include "sic/core/system.h"
 #include "sic/core/engine_context.h"
@@ -10,6 +11,7 @@
 namespace sic
 {
 	struct Component_view;
+	struct State_input;
 
 	struct Component_editor_view_controller : public Component
 	{
@@ -33,5 +35,6 @@ namespace sic
 	{
 		virtual void on_created(Engine_context in_context) override;
 		virtual void on_tick(Scene_context in_context, float in_time_delta) const override;
+		static void update_controllers(Processor<Processor_flag_write<Component_editor_view_controller>, Processor_flag_read<State_input>, Processor_render_scene_update> in_processor);
 	};
 }

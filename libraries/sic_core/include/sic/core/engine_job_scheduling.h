@@ -32,7 +32,6 @@ namespace sic
 		bool m_job_finished = false;
 		bool m_run_on_main_thread = false;
 		Main_thread_worker* m_main_thread_worker = nullptr;
-
 		Threadpool* m_threadpool = nullptr;
 	};
 }

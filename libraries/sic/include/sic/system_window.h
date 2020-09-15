@@ -19,6 +19,11 @@ struct GLFWwindow;
 namespace sic
 {
 	struct Render_object_window;
+	struct State_window;
+	struct State_render_scene;
+	struct State_ui;
+
+	using Processor_window = Processor<Processor_flag_write<State_window>, Processor_flag_write<State_render_scene>, Processor_flag_deferred_write<State_ui>>;
 
 	enum struct Window_input_mode
 	{
@@ -34,13 +39,13 @@ namespace sic
 		friend struct State_window;
 		friend struct System_window_functions;
 
-		void set_dimensions(const glm::ivec2& in_dimensions);
+		void set_dimensions(Processor_window in_processor, const glm::ivec2& in_dimensions);
 		const glm::ivec2& get_dimensions() const { return m_dimensions; }
 
-		void set_cursor_position(const glm::vec2& in_cursor_position);
+		void set_cursor_position(Processor<Processor_flag_deferred_write<State_render_scene>> in_processor, const glm::vec2& in_cursor_position);
 		void set_cursor_position_internal(const glm::vec2& in_cursor_position) { m_cursor_position = in_cursor_position; }
 
-		void set_input_mode(Window_input_mode in_input_mode);
+		void set_input_mode(Processor<Processor_flag_deferred_write<State_render_scene>> in_processor, Window_input_mode in_input_mode);
 
 		const glm::vec2& get_cursor_movement() const { return m_cursor_movement; }
 		const std::string& get_name() const { return m_name; }
@@ -55,7 +60,6 @@ namespace sic
 
 	private:
 		Window_input_mode m_input_mode = Window_input_mode::normal;
-		Engine_context m_engine_context;
 
 		std::string m_name;
 		glm::ivec2 m_dimensions = { 1600, 800 };
@@ -68,8 +72,8 @@ namespace sic
 	{
 		friend struct System_window;
 
-		Window_proxy& create_window(Engine_context in_context, const std::string& in_name, const glm::ivec2& in_dimensions);
-		void destroy_window(Engine_context in_context, const std::string& in_name);
+		Window_proxy& create_window(Processor_window in_processor, const std::string& in_name, const glm::ivec2& in_dimensions);
+		void destroy_window(Processor_window in_processor, const std::string& in_name);
 
 		Window_proxy* find_window(const char* in_name) const;
 		Window_proxy* get_focused_window() const;
@@ -91,5 +95,7 @@ namespace sic
 
 		//poll window events
 		virtual void on_engine_tick(Engine_context in_context, float in_time_delta) const override;
+
+		static void update_windows(Processor_window in_processor);
 	};
 }

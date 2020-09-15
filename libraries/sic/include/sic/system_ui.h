@@ -10,6 +10,9 @@
 
 namespace sic
 {
+	struct State_ui;
+	using Processor_ui = Processor<Processor_flag_write<State_ui>, Processor_flag_deferred_write<State_render_scene>>;
+
 	struct Ui_anchors
 	{
 		Ui_anchors() = default;
@@ -160,8 +163,8 @@ namespace sic
 		float m_render_rotation;
 
 	protected:
-		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, State_render_scene& inout_render_scene_state)
-		{ in_final_translation; in_final_size; in_final_rotation; in_window_size; in_window_id; inout_render_scene_state; }
+		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor)
+		{ in_final_translation; in_final_size; in_final_rotation; in_window_size; in_window_id; inout_processor; }
 
 		virtual void destroy(State_ui& inout_ui_state);
 
@@ -212,6 +215,8 @@ namespace sic
 	{
 		void on_created(Engine_context in_context) override;
 		void on_engine_tick(Engine_context in_context, float in_time_delta) const override;
+
+		static void update_ui(Processor_ui in_processor);
 	};
 
 	struct Ui_parent_widget_base : Ui_widget
@@ -268,10 +273,10 @@ namespace sic
 		std::pair<Slot_type, Ui_widget&>& get_child(size_t in_slot_index) { return m_children[in_slot_index]; }
 
 	protected:
-		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, State_render_scene& inout_render_scene_state) override
+		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override
 		{
 			for (auto && child : m_children)
-				child.second.update_render_scene(child.second.m_render_translation, child.second.m_global_render_size, child.second.m_render_rotation, in_window_size, in_window_id, inout_render_scene_state);
+				child.second.update_render_scene(child.second.m_render_translation, child.second.m_global_render_size, child.second.m_render_rotation, in_window_size, in_window_id, inout_processor);
 		}
 
 		virtual void destroy(State_ui& inout_ui_state) override final
@@ -624,7 +629,7 @@ namespace sic
 		glm::vec2 m_image_size = { 64.0f, 64.0f };
 
 	protected:
-		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, State_render_scene& inout_render_scene_state) override
+		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override
 		{
 			auto update_lambda =
 			[in_final_translation, in_final_size, in_final_rotation, mat = m_material, id = in_window_id, in_window_size](Render_object_ui& inout_object)
@@ -661,10 +666,17 @@ namespace sic
 				mat.get_mutable()->set_parameter_on_instance("lefttop_rightbottom_packed", lefttop_rightbottom_packed, inout_object.m_instance_data_index);
 			};
 
-			if (m_ro_id.is_valid())
-				inout_render_scene_state.m_ui_elements.update_object(m_ro_id, update_lambda);
-			else
-				m_ro_id = inout_render_scene_state.m_ui_elements.create_object(update_lambda);
+			inout_processor.update_state_deferred<State_render_scene>
+			(
+				[this, update_lambda](State_render_scene& inout_state)
+				{
+					if (m_ro_id.is_valid())
+						inout_state.m_ui_elements.update_object(m_ro_id, update_lambda);
+					else
+						m_ro_id = inout_state.m_ui_elements.create_object(update_lambda);
+
+				}
+			);
 		}
 
 		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override final { if (m_material.is_valid()) out_assets.push_back(m_material.get_header()); }
@@ -737,13 +749,18 @@ namespace sic
 		bool m_autowrap = false;
 
 	protected:
-		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, State_render_scene& inout_render_scene_state) override
+		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override
 		{
 			const Asset_font* font = m_font.get();
 			const float scale_ratio = m_px / font->m_em_size;
 
+			std::vector<Update_list_id<Render_object_ui>> ro_ids_to_destroy;
+
 			for (size_t i = m_text.size(); i < m_ro_ids.size(); i++)
-				inout_render_scene_state.m_ui_elements.destroy_object(m_ro_ids[i]);
+			{
+				ro_ids_to_destroy.push_back(m_ro_ids[i]);
+				m_ro_ids[i].reset();
+			}
 
 			m_ro_ids.resize(m_text.size());
 
@@ -756,7 +773,7 @@ namespace sic
 					if (!m_ro_id.is_valid())
 						continue;
 
-					inout_render_scene_state.m_ui_elements.destroy_object(m_ro_id);
+					ro_ids_to_destroy.push_back(m_ro_id);
 					m_ro_id.reset();
 				}
 
@@ -804,14 +821,14 @@ namespace sic
 						if (bottom_right.x - (top_left_start.x - render_translation.x) > in_final_translation.x + in_final_size.x)
 						{
 							if (ro_id.is_valid())
-								inout_render_scene_state.m_ui_elements.destroy_object(ro_id);
+								ro_ids_to_destroy.push_back(ro_id);
 							ro_id.reset();
 							continue;
 						}
 						else if (top_left_start.x < in_final_translation.x)
 						{
 							if (ro_id.is_valid())
-								inout_render_scene_state.m_ui_elements.destroy_object(ro_id);
+								ro_ids_to_destroy.push_back(ro_id);
 							ro_id.reset();
 							continue;
 						}
@@ -838,12 +855,27 @@ namespace sic
 						mat.get_mutable()->set_parameter_on_instance("offset_and_size", glm::vec4(atlas_offset, atlas_glyph_size), inout_object.m_instance_data_index);
 					};
 
-					if (ro_id.is_valid())
-						inout_render_scene_state.m_ui_elements.update_object(ro_id, update_lambda);
-					else
-						ro_id = inout_render_scene_state.m_ui_elements.create_object(update_lambda);
+					inout_processor.update_state_deferred<State_render_scene>
+					(
+						[&ro_id, update_lambda](State_render_scene& inout_state)
+						{
+							if (ro_id.is_valid())
+								inout_state.m_ui_elements.update_object(ro_id, update_lambda);
+							else
+								ro_id = inout_state.m_ui_elements.create_object(update_lambda);
+						}
+					);
 				}
 			}
+
+			inout_processor.update_state_deferred<State_render_scene>
+			(
+				[ro_ids_to_destroy](State_render_scene& inout_state)
+				{
+					for (auto&& ro_id : ro_ids_to_destroy)
+						inout_state.m_ui_elements.destroy_object(ro_id);
+				}
+			);
 		}
 
 		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override final { if (m_material.is_valid()) out_assets.push_back(m_material.get_header()); }

@@ -78,10 +78,12 @@ void sic::System_asset::on_engine_finalized(Engine_context in_context) const
 void sic::System_asset::on_engine_tick(Engine_context in_context, float in_time_delta) const
 {
 	in_time_delta;
+	in_context.schedule(update_assetsystem);
+}
 
-	State_assetsystem& state = in_context.get_state_checked<State_assetsystem>();
-
-	std::scoped_lock lock(state.m_mutex);
+void sic::System_asset::update_assetsystem(Processor<Processor_flag_write<State_assetsystem>> in_processor)
+{
+	State_assetsystem& state = in_processor.get_state_checked_w<State_assetsystem>();
 
 	for (Asset_header* header : state.m_headers_to_mark_as_loaded)
 	{

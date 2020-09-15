@@ -27,27 +27,31 @@ void sic::Job_node::do_job()
 	m_job();
 	m_job_finished = true;
 
-	for (i32 i = m_depends_on_me.size() - 1; i >= 0; i--)
+	for (i32 i = static_cast<i32>(m_depends_on_me.size()) - 1; i >= 0; i--)
 	{
 		Job_node* depend_on_me = m_depends_on_me[i];
+		m_depends_on_me.pop_back();
 
 		std::scoped_lock lock(depend_on_me->m_mutex);
 		--depend_on_me->m_dependencies_left;
 
 		if (depend_on_me->m_dependencies_left <= 0)
 		{
-			m_depends_on_me.pop_back();
-
 			depend_on_me->m_is_ready_to_execute = true;
 
-			if (depend_on_me->m_run_on_main_thread)
+			if (m_depends_on_me.size() == 0)
 			{
-				m_main_thread_worker->push_back_job(depend_on_me);
+				if (depend_on_me->m_run_on_main_thread && m_run_on_main_thread)
+					depend_on_me->do_job();
+				else if (depend_on_me->m_run_on_main_thread)
+					m_main_thread_worker->push_back_job(depend_on_me);
+				else
+					m_threadpool->emplace([depend_on_me]() { depend_on_me->do_job(); });
 			}
 			else
 			{
-				if (m_depends_on_me.size() == 0)
-					depend_on_me->do_job();
+				if (depend_on_me->m_run_on_main_thread)
+					m_main_thread_worker->push_back_job(depend_on_me);
 				else
 					m_threadpool->emplace([depend_on_me]() { depend_on_me->do_job(); });
 			}

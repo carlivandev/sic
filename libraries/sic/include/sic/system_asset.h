@@ -46,8 +46,6 @@ namespace sic
 
 		void load_asset(Asset_header& in_header)
 		{
-			std::scoped_lock lock(m_mutex);
-
 			if (in_header.m_load_state != Asset_load_state::not_loaded)
 				return;
 
@@ -91,7 +89,6 @@ namespace sic
 		template <typename T_asset_type>
 		inline void do_post_load(std::function<void(T_asset_type&)>&& in_callback)
 		{
-			std::scoped_lock lock(m_mutex);
 			std::scoped_lock post_load_lock(m_post_load_mutex);
 
 			std::unique_ptr<std::vector<Asset_header*>>& post_load_assets = m_typename_to_post_load_assets[typeid(T_asset_type).name()];
@@ -133,8 +130,6 @@ namespace sic
 		template <typename T_asset_type>
 		inline void for_each(std::function<void(T_asset_type&)>&& in_callback)
 		{
-			std::scoped_lock lock(m_mutex);
-
 			for (auto& header : m_asset_headers)
 			{
 				if (header->m_load_state != Asset_load_state::loaded)
@@ -254,7 +249,6 @@ namespace sic
 
 		std::vector<Asset_header*> m_headers_to_mark_as_loaded;
 
-		std::mutex m_mutex;
 		std::mutex m_post_load_mutex;
 		std::mutex m_pre_unload_mutex;
 		std::mutex m_modification_mutex;
@@ -267,5 +261,7 @@ namespace sic
 		virtual void on_created(Engine_context in_context) override;
 		void on_engine_finalized(Engine_context in_context) const override;
 		virtual void on_engine_tick(Engine_context in_context, float in_time_delta) const override;
+
+		static void update_assetsystem(Processor<Processor_flag_write<State_assetsystem>> in_processor);
 	};
 }

@@ -31,29 +31,31 @@ void sic::System_file::on_created(Engine_context in_context)
 	in_context.get_state<State_filesystem>()->m_worker_pool.spawn(4);
 }
 
-void sic::System_file::on_tick(Scene_context in_context, float in_time_delta) const
+void sic::System_file::on_engine_tick(Engine_context in_context, float in_time_delta) const
 {
 	in_time_delta;
 
-	State_filesystem* file_state = in_context.get_engine_context().get_state<State_filesystem>();
+	State_filesystem& file_state = in_context.get_state_checked<State_filesystem>();
 
-	if (!file_state)
-		return;
-
-	if (file_state->m_load_requests.size() == 0 &&
-		file_state->m_save_requests.size() == 0)
+	/*
+	TODO: this should be handled better
+	whenever a load/save request is pushed, it should notify this system somehow
+	so async systems needs to get "woken up" and then we can have a new function System::is_async_work_finished, that puts it back to sleep depending on a condition
+	*/
+	if (file_state.m_load_requests.size() == 0 &&
+		file_state.m_save_requests.size() == 0)
 	{
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		return;
 	}
 
-	std::scoped_lock load_lock(file_state->m_load_mutex);
-	std::scoped_lock save_lock(file_state->m_save_mutex);
+	std::scoped_lock load_lock(file_state.m_load_mutex);
+	std::scoped_lock save_lock(file_state.m_save_mutex);
 
 	std::vector<Threadpool::Closure> closures;
-	closures.reserve(file_state->m_load_requests.size() + file_state->m_save_requests.size());
+	closures.reserve(file_state.m_load_requests.size() + file_state.m_save_requests.size());
 
-	for (const File_load_request& load_req : file_state->m_load_requests)
+	for (const File_load_request& load_req : file_state.m_load_requests)
 	{
 		if (!load_req.m_callback)
 			continue;
@@ -67,7 +69,7 @@ void sic::System_file::on_tick(Scene_context in_context, float in_time_delta) co
 		);
 	}
 
-	for (const File_save_request& save_req : file_state->m_save_requests)
+	for (const File_save_request& save_req : file_state.m_save_requests)
 	{
 		closures.push_back
 		(
@@ -79,10 +81,10 @@ void sic::System_file::on_tick(Scene_context in_context, float in_time_delta) co
 		);
 	}
 
-	file_state->m_worker_pool.batch(std::move(closures));
+	file_state.m_worker_pool.batch(std::move(closures));
 
-	file_state->m_save_requests.clear();
-	file_state->m_load_requests.clear();
+	file_state.m_save_requests.clear();
+	file_state.m_load_requests.clear();
 }
 
 void sic::System_file::on_end_simulation(Scene_context in_context) const

@@ -16,11 +16,16 @@ void sic::System_editor_view_controller::on_created(Engine_context in_context)
 
 void sic::System_editor_view_controller::on_tick(Scene_context in_context, float in_time_delta) const
 {
-	State_input& input_state = in_context.get_engine_context().get_state_checked<State_input>();
+	in_time_delta;
+	in_context.schedule(update_controllers);
+}
 
-	in_context.for_each_w<Component_editor_view_controller>
+void sic::System_editor_view_controller::update_controllers(Processor<Processor_flag_write<Component_editor_view_controller>, Processor_flag_read<State_input>, Processor_render_scene_update> in_processor)
+{
+	const State_input& input_state = in_processor.get_state_checked_r<State_input>();
+	in_processor.for_each_w<Component_editor_view_controller>
 	(
-		[engine_context = in_context.get_engine_context(), &input_state, in_time_delta](Component_editor_view_controller& evc)
+		[in_processor, time_delta = in_processor.get_time_delta(), &input_state](Component_editor_view_controller& evc)
 		{
 			if (!evc.m_view_to_control)
 				return;
@@ -34,9 +39,9 @@ void sic::System_editor_view_controller::on_tick(Scene_context in_context, float
 				return;
 
 			if (input_state.is_mousebutton_pressed(Mousebutton::right))
-				wd->set_input_mode(Window_input_mode::disabled);
+				wd->set_input_mode(in_processor, Window_input_mode::disabled);
 			else if (input_state.is_mousebutton_released(Mousebutton::right))
-				wd->set_input_mode(Window_input_mode::normal);
+				wd->set_input_mode(in_processor, Window_input_mode::normal);
 
 			if (!input_state.is_mousebutton_down(Mousebutton::right))
 				return;
@@ -66,7 +71,7 @@ void sic::System_editor_view_controller::on_tick(Scene_context in_context, float
 			const glm::vec3 right = trans->get_right();
 			const glm::vec3 up = Transform::up;
 
-			const float move_speed = in_time_delta * evc.m_speed * evc.m_speed_multiplier;
+			const float move_speed = time_delta * evc.m_speed * evc.m_speed_multiplier;
 
 			glm::vec3 translation = { 0.0f, 0.0f, 0.0f };
 

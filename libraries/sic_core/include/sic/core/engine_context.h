@@ -132,6 +132,9 @@ namespace sic
 			job_id.m_id = m_engine->m_job_index_ticker++;
 			job_id.m_run_on_main_thread = in_run_on_main_thread;
 
+			if (in_job_dependency.has_value())
+				job_id.m_job_dependency = in_job_dependency->m_id;
+
 			Engine_context context(*m_engine);
 			auto job_callback =
 				[in_job, context]()

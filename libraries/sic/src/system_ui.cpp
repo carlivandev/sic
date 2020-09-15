@@ -53,9 +53,12 @@ void sic::System_ui::on_created(Engine_context in_context)
 void sic::System_ui::on_engine_tick(Engine_context in_context, float in_time_delta) const
 {
 	in_time_delta;
+	in_context.schedule(update_ui);
+}
 
-	State_ui& ui_state = in_context.get_state_checked<State_ui>();
-	State_render_scene& render_scene_state = in_context.get_state_checked<State_render_scene>();
+void sic::System_ui::update_ui(Processor_ui in_processor)
+{
+	State_ui& ui_state = in_processor.get_state_checked_w<State_ui>();
 
 	std::scoped_lock lock(ui_state.m_update_lock);
 
@@ -125,7 +128,7 @@ void sic::System_ui::on_engine_tick(Engine_context in_context, float in_time_del
 			dirty_widget->m_render_rotation + dirty_widget->m_local_rotation,
 			window_size,
 			it->second.m_id,
-			render_scene_state
+			in_processor
 		);
 	}
 

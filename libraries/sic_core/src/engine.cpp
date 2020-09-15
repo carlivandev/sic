@@ -270,10 +270,8 @@ namespace sic
 
 		auto schedule_jobs =
 		[
+			this,
 			&job_nodes,
-			&job_id_to_type_dependencies_lut = m_job_id_to_type_dependencies_lut,
-			&type_to_schedule = m_type_to_schedule,
-			&system_ticker_threadpool = m_system_ticker_threadpool,
 			&main_thread_worker
 		]
 		(const std::vector<Type_schedule::Item>& in_jobs)
@@ -286,46 +284,41 @@ namespace sic
 				if (current_node.m_job)
 					continue;
 
-				current_node.m_threadpool = &system_ticker_threadpool;
+				current_node.m_threadpool = &m_system_ticker_threadpool;
 				current_node.m_main_thread_worker = &main_thread_worker;
 				current_node.m_is_ready_to_execute = true;
 				current_node.m_run_on_main_thread = current_job.m_id.m_run_on_main_thread;
 				current_node.m_job = current_job.m_job;
 				current_node.m_dependencies_left = 0;
 
+				if (current_job.m_id.m_job_dependency.has_value())
+				{
+					++current_node.m_dependencies_left;
+
+					Job_node& depends_on_node = job_nodes[current_job.m_id.m_job_dependency.value()];
+					depends_on_node.m_depends_on_me.push_back(&current_node);
+				}
+
 				//find the other type schedules where this job is referenced
 				//grab the previous job_id in each of those lists, and add this node to their depends_on_me list
 
-				auto& type_dependencies = job_id_to_type_dependencies_lut[current_job.m_id.m_id];
+				auto& type_dependencies = m_job_id_to_type_dependencies_lut[current_job.m_id.m_id];
 				for (auto& type_dependency_info : type_dependencies.m_infos)
 				{
 					if (type_dependency_info.m_index > 0)
 					{
-						if(type_dependency_info.m_is_read)
+						//this is a read dependency. doesnt have any dependencies
+						if (type_dependency_info.m_is_read)
+							continue;
+
 						{
-							const i32 id = type_to_schedule[type_dependency_info.m_type].m_read_jobs[type_dependency_info.m_index - 1].m_id.m_id;
-							Job_node& previous_node_read = job_nodes[id];
+							//add previous write as dependency
 
-							bool already_added = false;
+							auto& write_jobs = m_type_index_to_schedule.find(type_dependency_info.m_type_index)->second.m_write_jobs;
+							if (write_jobs.size() <= type_dependency_info.m_index)
+								continue;
 
-							for (Job_node* prev_node_depends_on_me : previous_node_read.m_depends_on_me)
-							{
-								if (prev_node_depends_on_me == &current_node)
-								{
-									already_added = true;
-									break;
-								}
-							}
-
-							if (!already_added)
-							{
-								previous_node_read.m_depends_on_me.push_back(&current_node);
-								++current_node.m_dependencies_left;
-							}
-						}
-						else
-						{
-							const i32 id = type_to_schedule[type_dependency_info.m_type].m_write_jobs[type_dependency_info.m_index - 1].m_id.m_id;
+							const i32 id = write_jobs[type_dependency_info.m_index - 1].m_id.m_id;
 							Job_node& previous_node_write = job_nodes[id];
 
 							bool already_added = false;
@@ -339,10 +332,57 @@ namespace sic
 								}
 							}
 
+							//skip if explicit dependency on write has been set
+							for (Job_node* current_node_depends_on_me : current_node.m_depends_on_me)
+							{
+								if (current_node_depends_on_me == &previous_node_write)
+								{
+									already_added = true;
+									break;
+								}
+							}
+
 							if (!already_added)
 							{
 								previous_node_write.m_depends_on_me.push_back(&current_node);
 								++current_node.m_dependencies_left;
+							}
+						}
+
+						{
+							//add add all reads as dependencies, except if explicit dependency on read for current_node has been set
+
+							for (auto&& read_dependency : m_type_index_to_schedule.find(type_dependency_info.m_type_index)->second.m_read_jobs)
+							{
+								const i32 id = read_dependency.m_id.m_id;
+								Job_node& read_dependency_node = job_nodes[id];
+
+								bool already_added = false;
+
+								for (Job_node* prev_node_depends_on_me : read_dependency_node.m_depends_on_me)
+								{
+									if (prev_node_depends_on_me == &current_node)
+									{
+										already_added = true;
+										break;
+									}
+								}
+
+								//skip if explicit dependency on read has been set
+								for (Job_node* current_node_depends_on_me : current_node.m_depends_on_me)
+								{
+									if (current_node_depends_on_me == &read_dependency_node)
+									{
+										already_added = true;
+										break;
+									}
+								}
+
+								if (!already_added)
+								{
+									read_dependency_node.m_depends_on_me.push_back(&current_node);
+									++current_node.m_dependencies_left;
+								}
 							}
 						}
 					}
@@ -350,10 +390,11 @@ namespace sic
 			}
 		};
 
-		for (auto& type_schedule : m_type_to_schedule)
+		for (auto& type_schedule : m_type_index_to_schedule)
 		{
 			schedule_jobs(type_schedule.second.m_read_jobs);
 			schedule_jobs(type_schedule.second.m_write_jobs);
+			schedule_jobs(type_schedule.second.m_deferred_write_jobs);
 		}
 
 		std::vector<Threadpool::Closure> tasks_to_run_on_workers;
@@ -372,9 +413,6 @@ namespace sic
 			else
 			{
 				job_node.m_is_ready_to_execute = false;
-
-				if (job_node.m_depends_on_me.empty())
-					leaf_nodes.push_back(&job_node);
 			}
 		}
 
@@ -412,11 +450,8 @@ namespace sic
 
 		m_job_index_ticker = 0;
 
-		for (auto& type_schedule : m_type_to_schedule)
-		{
-			type_schedule.second.m_read_jobs.clear();
-			type_schedule.second.m_write_jobs.clear();
-		}
+		m_type_index_to_schedule.clear();
+		m_job_id_to_type_dependencies_lut.clear();
 	}
 
 	void Engine::flush_deferred_updates()

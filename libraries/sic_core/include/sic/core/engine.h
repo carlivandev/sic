@@ -32,6 +32,7 @@ namespace sic
 	{
 		i32 m_id = -1;
 		Tickstep m_tickstep;
+		std::optional<i32> m_job_dependency;
 		bool m_run_on_main_thread = false;
 	};
 
@@ -39,8 +40,8 @@ namespace sic
 	{
 		struct Info
 		{
-			Info(std::type_index in_type, size_t in_index, bool in_is_read) : m_type(in_type), m_index(in_index), m_is_read(in_is_read) {}
-			std::type_index m_type;
+			Info(i32 in_type_index, size_t in_index, bool in_is_read) : m_type_index(in_type_index), m_index(in_index), m_is_read(in_is_read) {}
+			i32 m_type_index = -1;
 			size_t m_index = 0;
 			bool m_is_read = false;
 
@@ -70,6 +71,8 @@ namespace sic
 
 			std::vector<Item> m_read_jobs;
 			std::vector<Item> m_write_jobs;
+			std::vector<Item> m_deferred_write_jobs;
+			std::string m_typename;
 		};
 
 		friend struct Engine_context;
@@ -162,7 +165,7 @@ namespace sic
 		std::vector<System*> m_tick_systems;
 		std::vector<System*> m_post_tick_systems;
 
-		std::unordered_map<std::type_index, Type_schedule> m_type_to_schedule;
+		std::unordered_map<i32, Type_schedule> m_type_index_to_schedule;
 		std::unordered_map<i32, Job_dependency> m_job_id_to_type_dependencies_lut;
 		i32 m_job_index_ticker = 0;
 

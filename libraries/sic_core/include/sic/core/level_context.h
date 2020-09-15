@@ -8,15 +8,17 @@
 
 namespace sic
 {
-	struct Processor_flag_read_base {};
+	struct Processor_flag_base {};
+
+	struct Processor_flag_read_base : Processor_flag_base {};
 	template <typename T>
 	struct Processor_flag_read : Processor_flag_read_base {};
 
-	struct Processor_flag_write_base {};
+	struct Processor_flag_write_base : Processor_flag_base {};
 	template <typename T>
 	struct Processor_flag_write : Processor_flag_write_base {};
 
-	struct Processor_flag_deferred_write_base {};
+	struct Processor_flag_deferred_write_base : Processor_flag_base {};
 	template <typename T>
 	struct Processor_flag_deferred_write : Processor_flag_deferred_write_base {};
 
@@ -79,6 +81,27 @@ namespace sic
 		}
 
 		template<typename T_type>
+		__forceinline T_type* get_state_w()
+		{
+			static_assert((std::is_same<T_processor_flags, Processor_flag_write<T_type>>::value || ...), "Processor does not have write flag for T_type");
+
+			return Engine_context(*m_engine).get_state<T_type>();
+		}
+
+		template<typename T_type>
+		__forceinline const T_type* get_state_r() const
+		{
+			static_assert
+				(
+					(std::is_same<T_processor_flags, Processor_flag_read<T_type>>::value || ...) ||
+					(std::is_same<T_processor_flags, Processor_flag_write<T_type>>::value || ...)
+					, "Processor does not have read/write flag for T_type"
+					);
+
+			return Engine_context(*m_engine).get_state<T_type>();
+		}
+
+		template<typename T_type>
 		__forceinline void update_state_deferred(std::function<void(T_type&)> in_func) const
 		{
 			static_assert
@@ -123,14 +146,17 @@ namespace sic
 		template <typename T>
 		static void schedule_for_type(Engine& inout_engine, Job_dependency& inout_dependency_infos, std::function<void()> in_callback, Job_id in_id)
 		{
+			const i32 type_idx = Type_index<Processor_flag_base>::get<T>();
+
 			if constexpr (std::is_base_of<Processor_flag_read_base, T>::value)
 			{
 				Engine::Type_schedule::Item new_schedule_item;
 				new_schedule_item.m_job = in_callback;
 				new_schedule_item.m_id = in_id;
 
-				Engine::Type_schedule& schedule_for_type = inout_engine.m_type_to_schedule[typeid(T)];
-				inout_dependency_infos.m_infos.push_back(Job_dependency::Info(typeid(T), schedule_for_type.m_read_jobs.size(), true));
+				Engine::Type_schedule& schedule_for_type = inout_engine.m_type_index_to_schedule[type_idx];
+				schedule_for_type.m_typename = typeid(T).name();
+				inout_dependency_infos.m_infos.push_back(Job_dependency::Info(type_idx, schedule_for_type.m_read_jobs.size(), true));
 				schedule_for_type.m_read_jobs.push_back(new_schedule_item);
 			}
 			else if constexpr (std::is_base_of<Processor_flag_write_base, T>::value)
@@ -139,15 +165,27 @@ namespace sic
 				new_schedule_item.m_job = in_callback;
 				new_schedule_item.m_id = in_id;
 
-				Engine::Type_schedule& schedule_for_type = inout_engine.m_type_to_schedule[typeid(T)];
-				inout_dependency_infos.m_infos.push_back(Job_dependency::Info(typeid(T), schedule_for_type.m_write_jobs.size(), false));
+				Engine::Type_schedule& schedule_for_type = inout_engine.m_type_index_to_schedule[type_idx];
+				schedule_for_type.m_typename = typeid(T).name();
+				inout_dependency_infos.m_infos.push_back(Job_dependency::Info(type_idx, schedule_for_type.m_write_jobs.size(), false));
 				schedule_for_type.m_write_jobs.push_back(new_schedule_item);
+			}
+			else if constexpr (std::is_base_of<Processor_flag_deferred_write_base, T>::value)
+			{
+				Engine::Type_schedule::Item new_schedule_item;
+				new_schedule_item.m_job = in_callback;
+				new_schedule_item.m_id = in_id;
+
+				Engine::Type_schedule& schedule_for_type = inout_engine.m_type_index_to_schedule[type_idx];
+				schedule_for_type.m_typename = typeid(T).name();
+				inout_dependency_infos.m_infos.push_back(Job_dependency::Info(type_idx, schedule_for_type.m_deferred_write_jobs.size(), true)); //consider it a read, since we dont want it to have write dependencies
+				schedule_for_type.m_deferred_write_jobs.push_back(new_schedule_item);
 			}
 			else if constexpr (std::is_base_of<Processor_base, T>::value)
 			{
 				T::schedule_for_types(inout_engine, inout_dependency_infos, in_callback, in_id);
 			}
-			else if constexpr (!std::is_base_of<Processor_flag_deferred_write_base, T>::value)
+			else
 			{
 				static_assert(false, "Not an accepted processor flag!");
 			}
@@ -200,6 +238,9 @@ namespace sic
 			Job_id job_id;
 			job_id.m_id = m_engine.m_job_index_ticker++;
 			job_id.m_run_on_main_thread = in_run_on_main_thread;
+
+			if (in_job_dependency.has_value())
+				job_id.m_job_dependency = in_job_dependency->m_id;
 
 			Scene_context context(m_engine, m_level);
 			auto job_callback =

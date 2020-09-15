@@ -15,10 +15,14 @@ void sic::System_input::on_created(Engine_context in_context)
 void sic::System_input::on_engine_tick(Engine_context in_context, float in_time_delta) const
 {
 	in_time_delta;
+	in_context.schedule(update_input);
+}
 
-	State_input& input_state = in_context.get_state_checked<State_input>();
-	State_window& window_state = in_context.get_state_checked<State_window>();
-	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
+void sic::System_input::update_input(Processor<Processor_flag_write<State_input>, Processor_flag_write<State_window>, Processor_flag_read<State_render_scene>> in_processor)
+{
+	State_input& input_state = in_processor.get_state_checked_w<State_input>();
+	State_window& window_state = in_processor.get_state_checked_w<State_window>();
+	const State_render_scene& scene_state = in_processor.get_state_checked_r<State_render_scene>();
 
 	input_state.m_scroll_offset_x = 0.0f;
 	input_state.m_scroll_offset_y = 0.0f;
@@ -28,7 +32,7 @@ void sic::System_input::on_engine_tick(Engine_context in_context, float in_time_
 	if (!focused_window)
 		return;
 
-	Render_object_window* window_ro = scene_state.m_windows.find_object(focused_window->m_window_id);
+	const Render_object_window* window_ro = scene_state.m_windows.find_object(focused_window->m_window_id);
 
 	if (!window_ro)
 		return;
