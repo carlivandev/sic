@@ -112,7 +112,8 @@ namespace sic
 		{
 			static_assert
 			(
-				verify_flags<Processor_flag_write_single<T_type>>()
+				verify_flags<Processor_flag_write_single<T_type>>() ||
+				verify_flags<Processor_flag_write<T_type>>()
 				, "Processor does not have read/write single flag for T_type"
 			);
 
@@ -125,11 +126,41 @@ namespace sic
 			static_assert
 			(
 				verify_flags<Processor_flag_read_single<T_type>>() ||
-				verify_flags<Processor_flag_write_single<T_type>>()
+				verify_flags<Processor_flag_write_single<T_type>>() ||
+				verify_flags<Processor_flag_read<T_type>>() ||
+				verify_flags<Processor_flag_write<T_type>>()
 				, "Processor does not have read/write single flag for T_type"
 			);
 
 			return Engine_context(*m_engine).find_r<T_type>(in_object);
+		}
+
+		template<typename T_type, typename T_object_type>
+		__forceinline T_type& get_w(T_object_type& inout_object)
+		{
+			static_assert
+			(
+				verify_flags<Processor_flag_write_single<T_type>>() ||
+				verify_flags<Processor_flag_write<T_type>>()
+				, "Processor does not have read/write single flag for T_type"
+			);
+
+			return Engine_context(*m_engine).get_w<T_type>(inout_object);
+		}
+
+		template<typename T_type, typename T_object_type>
+		__forceinline const T_type& get_r(const T_object_type& in_object) const
+		{
+			static_assert
+			(
+				verify_flags<Processor_flag_read_single<T_type>>() ||
+				verify_flags<Processor_flag_write_single<T_type>>() ||
+				verify_flags<Processor_flag_read<T_type>>() ||
+				verify_flags<Processor_flag_write<T_type>>()
+				, "Processor does not have read/write single flag for T_type"
+			);
+
+			return Engine_context(*m_engine).get_r<T_type>(in_object);
 		}
 
 		template<typename T_type>
@@ -303,13 +334,25 @@ namespace sic
 		template<typename T_type>
 		__forceinline T_type* find_w(Object_base& inout_object)
 		{
-			return inout_object.find<Component_transform>();
+			return inout_object.find<T_type>();
 		}
 
 		template<typename T_type>
 		__forceinline const T_type* find_r(const Object_base& in_object) const
 		{
-			return in_object.find<Component_transform>();
+			return in_object.find<T_type>();
+		}
+
+		template<typename T_type, typename T_object_type>
+		__forceinline T_type& get_w(T_object_type& inout_object)
+		{
+			return inout_object.get<T_type>();
+		}
+
+		template<typename T_type, typename T_object_type>
+		__forceinline const T_type& get_r(const T_object_type& in_object) const
+		{
+			return in_object.get<T_type>();
 		}
 
 		template <typename ...T>

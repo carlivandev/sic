@@ -16,6 +16,7 @@ namespace sic
 	{
 		friend struct Object_storage;
 		friend struct Engine_context;
+		friend struct Scene_context;
 
 		template <typename T_to_check_with>
 		bool set_if_matching(i32 in_type_idx, byte*& out_result)
@@ -61,20 +62,6 @@ namespace sic
 			return result;
 		}
 
-		template<typename T_to_get>
-		__forceinline constexpr T_to_get& get()
-		{
-			auto it = std::get<T_to_get*>(m_components);
-			return *it;
-		}
-
-		template<typename T_to_get>
-		__forceinline constexpr const T_to_get& get() const
-		{
-			const auto it = std::get<T_to_get*>(m_components);
-			return *it;
-		}
-
 		template<typename T_to_create>
 		constexpr void create_component(Scene_context& inout_level)
 		{
@@ -96,6 +83,20 @@ namespace sic
 		}
 
 	private:
+		template<typename T_to_get>
+		__forceinline constexpr T_to_get& get()
+		{
+			auto it = std::get<T_to_get*>(m_components);
+			return *it;
+		}
+
+		template<typename T_to_get>
+		__forceinline constexpr const T_to_get& get() const
+		{
+			const auto it = std::get<T_to_get*>(m_components);
+			return *it;
+		}
+
 		constexpr void make_instance(Scene_context& inout_level)
 		{
 			m_level_id = inout_level.get_level_id();

@@ -139,13 +139,25 @@ namespace sic
 		template<typename T_type>
 		__forceinline T_type* find_w(Object_base& inout_object)
 		{
-			return inout_object.find<Component_transform>();
+			return inout_object.find<T_type>();
 		}
 
 		template<typename T_type>
 		__forceinline const T_type* find_r(const Object_base& in_object) const
 		{
-			return in_object.find<Component_transform>();
+			return in_object.find<T_type>();
+		}
+
+		template<typename T_type, typename T_object_type>
+		__forceinline T_type& get_w(T_object_type& inout_object)
+		{
+			return inout_object.get<T_type>();
+		}
+
+		template<typename T_type, typename T_object_type>
+		__forceinline const T_type& get_r(const T_object_type& in_object) const
+		{
+			return in_object.get<T_type>();
 		}
 
 		template <typename ...T>
