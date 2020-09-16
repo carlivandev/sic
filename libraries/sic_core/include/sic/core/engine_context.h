@@ -65,7 +65,7 @@ namespace sic
 		}
 
 		template <typename T_type>
-		__forceinline constexpr Typeinfo* get_typeinfo()
+		__forceinline constexpr const Typeinfo* get_typeinfo() const
 		{
 			return m_engine->get_typeinfo<T_type>();
 		}
@@ -102,6 +102,19 @@ namespace sic
 
 		template <typename T_event_type, typename T_event_data>
 		void invoke(T_event_data& event_data_to_send)
+		{
+			this_thread().update_deferred
+			(
+				[engine = m_engine, event_data_to_send]()
+				{
+					engine->invoke<T_event_type, T_event_data>(event_data_to_send);
+				}
+			);
+		}
+
+		//NOT THREAD SAFE!
+		template <typename T_event_type, typename T_event_data>
+		void invoke_immediate(T_event_data& event_data_to_send)
 		{
 			m_engine->invoke<T_event_type, T_event_data>(event_data_to_send);
 		}
