@@ -264,7 +264,7 @@ void sic::Component_model::try_create_render_object(Processor_model in_processor
 				mat_to_draw,
 				mesh_idx,
 				orientation = transform->get_matrix(),
-				level_id = get_owner().get_outermost_level_id()
+				scene_id = get_owner().get_outermost_scene_id()
 			]
 			(State_render_scene& inout_state)
 			{
@@ -272,7 +272,7 @@ void sic::Component_model::try_create_render_object(Processor_model in_processor
 				(
 					inout_state.create_object<Render_object_mesh>
 					(
-						level_id,
+						scene_id,
 						[
 							model,
 							mat_to_draw,

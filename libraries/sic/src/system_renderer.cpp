@@ -32,16 +32,16 @@ void sic::System_renderer::on_created(Engine_context in_context)
 	(
 		[](Engine_context& in_out_context, Scene& in_out_level)
 		{
-			if (in_out_level.get_is_root_level())
+			if (in_out_level.get_is_root_scene())
 			{
 				State_render_scene& render_scene_state = in_out_context.get_state_checked<State_render_scene>();
 				State_debug_drawing& debug_drawing_state = in_out_context.get_state_checked<State_debug_drawing>();
 
 				//only create new render scenes for each root level
-				render_scene_state.add_level(in_out_level.m_level_id);
+				render_scene_state.add_level(in_out_level.m_scene_id);
 				//only create debug drawer on root levels
-				Render_object_id<Render_object_debug_drawer> obj_id = render_scene_state.create_object<Render_object_debug_drawer>(in_out_level.m_level_id, nullptr);
-				debug_drawing_state.m_level_id_to_debug_drawer_ids[in_out_level.m_level_id] = obj_id;
+				Render_object_id<Render_object_debug_drawer> obj_id = render_scene_state.create_object<Render_object_debug_drawer>(in_out_level.m_scene_id, nullptr);
+				debug_drawing_state.m_level_id_to_debug_drawer_ids[in_out_level.m_scene_id] = obj_id;
 			}
 		}
 	);
@@ -50,19 +50,19 @@ void sic::System_renderer::on_created(Engine_context in_context)
 	(
 		[](Engine_context& in_out_context, Scene& in_out_level)
 		{
-			if (in_out_level.get_is_root_level())
+			if (in_out_level.get_is_root_scene())
 			{
 				State_render_scene& render_scene_state = in_out_context.get_state_checked<State_render_scene>();
 				State_debug_drawing& debug_drawing_state = in_out_context.get_state_checked<State_debug_drawing>();
 
-				auto drawer_id_it = debug_drawing_state.m_level_id_to_debug_drawer_ids.find(in_out_level.m_level_id);
+				auto drawer_id_it = debug_drawing_state.m_level_id_to_debug_drawer_ids.find(in_out_level.m_scene_id);
 				//only create debug drawer on root levels
 				render_scene_state.destroy_object(drawer_id_it->second);
 
 				debug_drawing_state.m_level_id_to_debug_drawer_ids.erase(drawer_id_it);
 
 				//only create new render scenes for each root level
-				render_scene_state.remove_level(in_out_level.m_level_id);
+				render_scene_state.remove_level(in_out_level.m_scene_id);
 			}
 		}
 	);
@@ -354,7 +354,6 @@ void sic::System_renderer::render_ui(Processor_renderer in_processor, const Rend
 		if (scene_state.m_windows.find_object(element.m_window_id) != &in_window)
 			continue;
 
-		Asset_material* child_mat = element.m_material;
 		Asset_material* mat = element.m_material->m_outermost_parent.is_valid() ? element.m_material->m_outermost_parent.get_mutable() : element.m_material;
 		assert(mat);
 
@@ -491,7 +490,6 @@ void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_d
 
 	for (const Render_object_mesh& mesh : meshes.m_objects)
 	{
-		Asset_material* child_mat = mesh.m_material;
 		Asset_material* mat = mesh.m_material->m_outermost_parent.is_valid() ? mesh.m_material->m_outermost_parent.get_mutable() : mesh.m_material;
 		assert(mat);
 

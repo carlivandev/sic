@@ -107,9 +107,9 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 set (EXTRA_LIBS ${EXTRA_LIBS} sic_core)
 
-#add_subdirectory(libraries/fmt)
 set (EXTRA_LIBS ${EXTRA_LIBS} fmt)
-#set_target_properties (fmt PROPERTIES FOLDER sic_ext)
+set (EXTRA_LIBS ${EXTRA_LIBS} crossguid)
+set (EXTRA_LIBS ${EXTRA_LIBS} nlohmann_json)
 
 add_subdirectory(libraries/glfw-3.3)
 set (EXTRA_LIBS ${EXTRA_LIBS} glfw)
@@ -122,13 +122,6 @@ set_target_properties (glm_static PROPERTIES FOLDER sic_ext)
 add_subdirectory(libraries/glew)
 set (EXTRA_LIBS ${EXTRA_LIBS} libglew_static)
 set_target_properties (libglew_static PROPERTIES FOLDER sic_ext)
-
-#add_subdirectory(libraries/crossguid-master)
-set (EXTRA_LIBS ${EXTRA_LIBS} crossguid)
-#set_target_properties (crossguid PROPERTIES FOLDER sic_ext)
-
-#add_subdirectory(libraries/nlohmann-json)
-set (EXTRA_LIBS ${EXTRA_LIBS} nlohmann_json)
 
 include_directories(
 	libraries/stb

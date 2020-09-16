@@ -1,6 +1,6 @@
 #pragma once
-#include "engine.h"
-#include "level.h"
+#include "sic/core/engine.h"
+#include "sic/core/scene.h"
 
 namespace sic
 {
@@ -111,13 +111,13 @@ namespace sic
 		{
 			if constexpr (std::is_same<T_type, Scene>::value)
 			{
-				for (auto& level : m_engine->m_levels)
-					for_each_level(in_func, *level.get());
+				for (auto& scene : m_engine->m_scenes)
+					for_each_scene(in_func, *scene.get());
 			}
 			else
 			{
-				for (auto& level : m_engine->m_levels)
-					level->for_each_w<T_type>(in_func);
+				for (auto& scene : m_engine->m_scenes)
+					scene->for_each_w<T_type>(in_func);
 			}
 		}
 
@@ -126,13 +126,13 @@ namespace sic
 		{
 			if constexpr (std::is_same<T_type, Scene>::value)
 			{
-				for (auto& level : m_engine->m_levels)
-					for_each_level(in_func, *level.get());
+				for (auto& scene : m_engine->m_scenes)
+					for_each_scene(in_func, *scene.get());
 			}
 			else
 			{
-				for (auto& level : m_engine->m_levels)
-					level->for_each_r<T_type>(in_func);
+				for (auto& scene : m_engine->m_scenes)
+					scene->for_each_r<T_type>(in_func);
 			}
 		}
 
@@ -184,14 +184,14 @@ namespace sic
 			return job_id;
 		}
 
-		void create_level(Scene* in_parent_level)
+		void create_scene(Scene* in_parent_scene)
 		{
-			m_engine->create_level(in_parent_level);
+			m_engine->create_scene(in_parent_scene);
 		}
 
-		void destroy_level(Scene& inout_level)
+		void destroy_scene(Scene& inout_scene)
 		{
-			m_engine->destroy_level(inout_level);
+			m_engine->destroy_scene(inout_scene);
 		}
 
 		void shutdown()
@@ -201,11 +201,11 @@ namespace sic
 
 		bool get_does_object_exist(Object_id in_id) const
 		{
-			std::scoped_lock lock(m_engine->m_levels_mutex);
+			std::scoped_lock lock(m_engine->m_scenes_mutex);
 
-			auto it = m_engine->m_level_id_to_level_lut.find(in_id.get_level_id());
+			auto it = m_engine->m_scene_id_to_scene_lut.find(in_id.get_scene_id());
 
-			if (it == m_engine->m_level_id_to_level_lut.end())
+			if (it == m_engine->m_scene_id_to_scene_lut.end())
 				return false;
 
 			return it->second->get_does_object_exist(in_id, false);
@@ -217,12 +217,12 @@ namespace sic
 		}
 
 	private:
-		void for_each_level(std::function<void(Scene&)> in_func, Scene& inout_level)
+		void for_each_scene(std::function<void(Scene&)> in_func, Scene& inout_scene)
 		{
-			in_func(inout_level);
+			in_func(inout_scene);
 
-			for (auto& sublevel : inout_level.m_sublevels)
-				for_each_level(in_func, *sublevel.get());
+			for (auto& subscene : inout_scene.m_subscenes)
+				for_each_scene(in_func, *subscene.get());
 		}
 
 		Engine* m_engine = nullptr;

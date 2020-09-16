@@ -11,7 +11,7 @@
 #include "sic/file_management.h"
 
 #include "sic/core/engine_context.h"
-#include "sic/core/level_context.h"
+#include "sic/core/scene_context.h"
 #include "sic/core/update_list.h"
 #include "sic/core/type_restrictions.h"
 

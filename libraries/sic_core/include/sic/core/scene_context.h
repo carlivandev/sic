@@ -1,5 +1,5 @@
 #pragma once
-#include "sic/core/level.h"
+#include "sic/core/scene.h"
 #include "sic/core/bucket_allocator_view.h"
 #include "sic/core/object.h"
 #include "sic/core/engine_context.h"
@@ -35,7 +35,7 @@ namespace sic
 		friend struct Scene_context;
 		friend Engine_context;
 
-		explicit Processor(Scene_context in_context) : m_engine(&in_context.m_engine), m_scene(&in_context.m_level) {}
+		explicit Processor(Scene_context in_context) : m_engine(&in_context.m_engine), m_scene(&in_context.m_scene) {}
 		explicit Processor(Engine_context in_context) : m_engine(in_context.m_engine), m_scene(nullptr) {}
 
 		template<typename T_type>
@@ -306,29 +306,29 @@ namespace sic
 		template <typename ...T_processor_flags>
 		friend struct Processor;
 
-		Scene_context(Engine& inout_engine, Scene& inout_level) : m_engine(inout_engine), m_level(inout_level){}
+		Scene_context(Engine& inout_engine, Scene& inout_scene) : m_engine(inout_engine), m_scene(inout_scene){}
 
 		template <typename T_object>
 		__forceinline constexpr T_object& create_object()
 		{
-			return m_level.create_object<T_object>();
+			return m_scene.create_object<T_object>();
 		}
 
 		void destroy_object(Object_base& in_object_to_destroy)
 		{
-			m_level.destroy_object(in_object_to_destroy);
+			m_scene.destroy_object(in_object_to_destroy);
 		}
 
 		template<typename T_type>
 		__forceinline void for_each_w(std::function<void(T_type&)> in_func)
 		{
-			m_level.for_each_w<T_type>(in_func);
+			m_scene.for_each_w<T_type>(in_func);
 		}
 
 		template<typename T_type>
 		__forceinline void for_each_r(std::function<void(const T_type&)> in_func) const
 		{
-			m_level.for_each_w<T_type>(in_func);
+			m_scene.for_each_w<T_type>(in_func);
 		}
 
 		template<typename T_type>
@@ -365,7 +365,7 @@ namespace sic
 			if (in_data.m_job_dependency.has_value())
 				job_id.m_job_dependency = in_data.m_job_dependency->m_id;
 
-			Scene_context context(m_engine, m_level);
+			Scene_context context(m_engine, m_scene);
 			auto job_callback =
 			[in_job, context]()
 			{
@@ -382,13 +382,13 @@ namespace sic
 		Engine_context get_engine_context() { return m_engine; }
 		const Engine_context get_engine_context() const { return m_engine; }
 		
-		i32 get_outermost_level_id() const { return m_level.m_outermost_level != nullptr ? m_level.m_outermost_level->m_level_id : get_level_id(); }
-		i32 get_level_id() const { return m_level.m_level_id; }
-		bool get_does_object_exist(Object_id in_id, bool in_only_in_this_level) const { return m_level.get_does_object_exist(in_id, in_only_in_this_level); }
+		i32 get_outermost_scene_id() const { return m_scene.m_outermost_scene != nullptr ? m_scene.m_outermost_scene->m_scene_id : get_scene_id(); }
+		i32 get_scene_id() const { return m_scene.m_scene_id; }
+		bool get_does_object_exist(Object_id in_id, bool in_only_in_this_scene) const { return m_scene.get_does_object_exist(in_id, in_only_in_this_scene); }
 
 	private:
 		Engine& m_engine;
-		Scene& m_level;
+		Scene& m_scene;
 	};
 }
 

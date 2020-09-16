@@ -44,9 +44,9 @@ add_headers(SIC_CORE_HEADERS
 	type_index.h
 	engine.h
 	engine_job_scheduling.h
-	level.h
+	scene.h
 	engine_context.h
-	level_context.h
+	scene_context.h
 	weak_ref.h
 	update_list.h
 	magic_enum.h
@@ -63,9 +63,9 @@ add_sources(SIC_CORE_SOURCES
 	threadpool.cpp
 	engine.cpp
 	engine_job_scheduling.cpp
-	level.cpp
+	scene.cpp
 	engine_context.cpp
-	level_context.cpp
+	scene_context.cpp
 	logger.cpp
 	)
 

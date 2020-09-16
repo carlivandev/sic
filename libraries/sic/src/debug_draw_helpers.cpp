@@ -15,7 +15,7 @@ namespace sic
 				in_processor.update_state_deferred<State_render_scene>
 				(
 					[
-						obj_id = debug_drawing_state.m_level_id_to_debug_drawer_ids.find(Scene_context(*in_processor.m_engine, *in_processor.m_scene).get_outermost_level_id())->second,
+						obj_id = debug_drawing_state.m_level_id_to_debug_drawer_ids.find(Scene_context(*in_processor.m_engine, *in_processor.m_scene).get_outermost_scene_id())->second,
 						in_shape
 					]
 					(State_render_scene& inout_render_scene_state)

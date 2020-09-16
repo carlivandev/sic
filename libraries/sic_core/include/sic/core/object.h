@@ -4,7 +4,7 @@
 #include "component.h"
 #include "object.h"
 #include "event.h"
-#include "level_context.h"
+#include "scene_context.h"
 
 namespace sic
 {
@@ -63,22 +63,22 @@ namespace sic
 		}
 
 		template<typename T_to_create>
-		constexpr void create_component(Scene_context& inout_level)
+		constexpr void create_component(Scene_context& inout_scene)
 		{
-			std::get<T_to_create*>(m_components) = &inout_level.m_level.create_component<T_to_create>(*this);
+			std::get<T_to_create*>(m_components) = &inout_scene.m_scene.create_component<T_to_create>(*this);
 		}
 
 		template<typename T_to_invoke_on>
-		constexpr void invoke_post_creation_event(Scene_context& inout_level)
+		constexpr void invoke_post_creation_event(Scene_context& inout_scene)
 		{
-			inout_level.m_engine.invoke<event_post_created<T_to_invoke_on>>(*std::get<T_to_invoke_on*>(m_components));
+			inout_scene.m_engine.invoke<event_post_created<T_to_invoke_on>>(*std::get<T_to_invoke_on*>(m_components));
 		}
 
 		template<typename T_to_destroy>
-		constexpr void destroy_component(Scene_context& inout_level)
+		constexpr void destroy_component(Scene_context& inout_scene)
 		{
 			auto& destroy_it = std::get<T_to_destroy*>(m_components);
-			inout_level.m_level.destroy_component<T_to_destroy>(*destroy_it);
+			inout_scene.m_scene.destroy_component<T_to_destroy>(*destroy_it);
 			destroy_it = nullptr;
 		}
 
@@ -97,21 +97,21 @@ namespace sic
 			return *it;
 		}
 
-		constexpr void make_instance(Scene_context& inout_level)
+		constexpr void make_instance(Scene_context& inout_scene)
 		{
-			m_level_id = inout_level.get_level_id();
-			m_outermost_level_id = inout_level.get_outermost_level_id();
+			m_scene_id = inout_scene.get_scene_id();
+			m_outermost_scene_id = inout_scene.get_outermost_scene_id();
 
-			(create_component<T_component>(inout_level), ...);
-			(invoke_post_creation_event<T_component>(inout_level), ...);
+			(create_component<T_component>(inout_scene), ...);
+			(invoke_post_creation_event<T_component>(inout_scene), ...);
 		}
 
-		void destroy_instance(Scene_context& inout_level) override
+		void destroy_instance(Scene_context& inout_scene) override
 		{
 			static_assert(std::is_base_of_v<Object_base, T_subtype>, "did you forget T_subtype?");
-			inout_level.m_engine.invoke<event_destroyed<T_subtype>>(*reinterpret_cast<T_subtype*>(this));
+			inout_scene.m_engine.invoke<event_destroyed<T_subtype>>(*reinterpret_cast<T_subtype*>(this));
 
-			(destroy_component<T_component>(inout_level), ...);
+			(destroy_component<T_component>(inout_scene), ...);
 		}
 
 		std::tuple<T_component*...> m_components;
@@ -125,7 +125,7 @@ namespace sic
 		}
 
 		template <typename T_object>
-		constexpr T_object& make_instance(Scene_context& inout_level)
+		constexpr T_object& make_instance(Scene_context& inout_scene)
 		{
 			if (m_free_object_locations.empty())
 			{
@@ -134,7 +134,7 @@ namespace sic
 				new_instance.m_pending_destroy = false;
 				new (&new_instance.m_children) std::vector<Object_base*>();
 
-				new_instance.make_instance(inout_level);
+				new_instance.make_instance(inout_scene);
 
 				return new_instance;
 			}
@@ -146,14 +146,14 @@ namespace sic
 			new_instance.m_type_index = Type_index<Object_base>::get<T_object>();
 			new (&new_instance.m_children) std::vector<Object_base*>();
 
-			new_instance.make_instance(inout_level);
+			new_instance.make_instance(inout_scene);
 
 			return new_instance;
 		}
 
-		void destroy_instance(Scene_context& inout_level, Object_base& in_object_to_destroy)
+		void destroy_instance(Scene_context& inout_scene, Object_base& in_object_to_destroy)
 		{
-			in_object_to_destroy.destroy_instance(inout_level);
+			in_object_to_destroy.destroy_instance(inout_scene);
 
 			in_object_to_destroy.m_parent = nullptr;
 			in_object_to_destroy.m_children.~vector();

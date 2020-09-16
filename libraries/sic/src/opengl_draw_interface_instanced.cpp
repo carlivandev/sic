@@ -39,7 +39,7 @@ void sic::OpenGl_draw_interface_instanced::flush()
 {
 	assert(m_vba && m_index_buffer && "Did you forget to call begin_frame?");
 
-	m_material->m_instance_data_buffer.value().set_data_raw(m_instance_buffer.data(), 0, m_instance_buffer.size());
+	m_material->m_instance_data_buffer.value().set_data_raw(m_instance_buffer.data(), 0, (ui32)m_instance_buffer.size());
 
 	m_vba->bind();
 	m_index_buffer->bind();

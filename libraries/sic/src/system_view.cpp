@@ -36,9 +36,9 @@ void sic::System_view::on_created(Engine_context in_context)
 
 			in_out_component.m_render_object_id = in_out_component.m_render_scene_state->create_object<Render_object_view>
 			(
-				in_out_component.get_owner().get_outermost_level_id(),
+				in_out_component.get_owner().get_outermost_scene_id(),
 				[
-					level_id = in_out_component.get_owner().get_outermost_level_id(),
+					level_id = in_out_component.get_owner().get_outermost_scene_id(),
 					matrix = transform->get_matrix(),
 					viewport_offset = in_out_component.m_viewport_offset,
 					viewport_size = in_out_component.m_viewport_size,

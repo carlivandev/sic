@@ -35,18 +35,18 @@ namespace sic
 		virtual void on_shutdown(Engine_context in_context) const;
 
 		/*
-			happens after level has finished setting up
+			happens after scene has finished setting up
 		*/
 		virtual void on_begin_simulation(Scene_context in_context) const;
 
 		/*
-			happens after level has called on_begin_simulation
-			called every frame for each root level
+			happens after scene has called on_begin_simulation
+			called every frame for each root scene
 		*/
 		virtual void on_tick(Scene_context in_context, float in_time_delta) const;
 
 		/*
-			happens when level is destroyed
+			happens when scene is destroyed
 		*/
 		virtual void on_end_simulation(Scene_context in_context) const;
 

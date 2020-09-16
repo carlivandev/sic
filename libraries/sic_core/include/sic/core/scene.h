@@ -12,7 +12,7 @@ namespace sic
 {
 	struct Scene : Noncopyable
 	{
-		Scene(Engine& in_engine, Scene* in_outermost_level, Scene* in_parent_level) : m_engine(in_engine), m_outermost_level(in_outermost_level) , m_parent_level(in_parent_level)
+		Scene(Engine& in_engine, Scene* in_outermost_scene, Scene* in_parent_scene) : m_engine(in_engine), m_outermost_scene(in_outermost_scene) , m_parent_scene(in_parent_scene)
 		{
 			m_object_exists_flags.reserve(512);
 		}
@@ -36,9 +36,9 @@ namespace sic
 		template <typename T_type>
 		void for_each_r(std::function<void(const T_type&)> in_func) const;
 
-		bool get_is_root_level() const { return m_outermost_level == nullptr; }
+		bool get_is_root_scene() const { return m_outermost_scene == nullptr; }
 
-		bool get_does_object_exist(Object_id in_id, bool in_only_in_this_level) const;
+		bool get_does_object_exist(Object_id in_id, bool in_only_in_this_scene) const;
 
 		std::unique_ptr<Component_storage_base>& get_component_storage_at_index(i32 in_index);
 		std::unique_ptr<Object_storage_base>& get_object_storage_at_index(i32 in_index);
@@ -46,13 +46,13 @@ namespace sic
 		std::vector<std::unique_ptr<Component_storage_base>> m_component_storages;
 		std::vector<std::unique_ptr<Object_storage_base>> m_objects;
 
-		std::vector<std::unique_ptr<Scene>> m_sublevels;
+		std::vector<std::unique_ptr<Scene>> m_subscenes;
 		Engine& m_engine;
 
 		std::vector<bool> m_object_exists_flags;
-		Scene* m_outermost_level = nullptr;
-		Scene* m_parent_level = nullptr;
-		i32 m_level_id = -1;
+		Scene* m_outermost_scene = nullptr;
+		Scene* m_parent_scene = nullptr;
+		i32 m_scene_id = -1;
 		i32 m_current_object_id_ticker = 0;
 		mutable std::mutex m_object_creation_mutex;
 	};
@@ -137,8 +137,8 @@ namespace sic
 			static_assert(false, "T_type not valid for for_each<t>. only objects and components supported.");
 		}
 
-		for (auto& sublevel : m_sublevels)
-			sublevel->for_each_w<T_type>(in_func);
+		for (auto& subscene : m_subscenes)
+			subscene->for_each_w<T_type>(in_func);
 	}
 
 	template<typename T_type>
@@ -168,7 +168,7 @@ namespace sic
 			static_assert(false, "T_type not valid for for_each<t>. only objects and components supported.");
 		}
 
-		for (auto& sublevel : m_sublevels)
-			sublevel->for_each_w<T_type>(in_func);
+		for (auto& subscene : m_subscenes)
+			subscene->for_each_w<T_type>(in_func);
 	}
 }

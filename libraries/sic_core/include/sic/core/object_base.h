@@ -12,16 +12,16 @@ namespace sic
 	struct Object_id
 	{
 		Object_id() = default;
-		Object_id(i32 in_object_id, i32 in_level_id) : m_id(in_object_id), m_level_id(in_level_id) {}
+		Object_id(i32 in_object_id, i32 in_scene_id) : m_id(in_object_id), m_scene_id(in_scene_id) {}
 
 		i32 get_id() const { return m_id; }
-		i32 get_level_id() const { return m_level_id; }
+		i32 get_scene_id() const { return m_scene_id; }
 
-		bool get_is_set() const { return m_id != -1 && m_level_id != -1; }
+		bool get_is_set() const { return m_id != -1 && m_scene_id != -1; }
 
 	private:
 		i32 m_id = -1;
-		i32 m_level_id = -1;
+		i32 m_scene_id = -1;
 	};
 
 	struct Object_base : Noncopyable
@@ -37,19 +37,19 @@ namespace sic
 			return m_type_index != -1 && !m_pending_destroy;
 		}
 
-		constexpr const i32 get_level_id() const
+		constexpr const i32 get_scene_id() const
 		{
-			return m_level_id;
+			return m_scene_id;
 		}
 		
-		constexpr const i32 get_outermost_level_id() const
+		constexpr const i32 get_outermost_scene_id() const
 		{
-			return m_outermost_level_id;
+			return m_outermost_scene_id;
 		}
 
 		Object_id get_id() const
 		{
-			return Object_id(m_id, m_level_id);
+			return Object_id(m_id, m_scene_id);
 		}
 
 		void add_child(Object_base& inout_child)
@@ -106,14 +106,14 @@ namespace sic
 
 		virtual byte* find_internal(i32 in_type_idx) = 0;
 		virtual const byte* find_internal(i32 in_type_idx) const = 0;
-		virtual void destroy_instance(Scene_context& inout_level) = 0;
+		virtual void destroy_instance(Scene_context& inout_scene) = 0;
 
 		std::vector<Object_base*> m_children;
 		Object_base* m_parent = nullptr;
 		i32 m_type_index = -1;
 		i32 m_id = -1;
-		i32 m_level_id = -1;
-		i32 m_outermost_level_id = -1;
+		i32 m_scene_id = -1;
+		i32 m_outermost_scene_id = -1;
 		bool m_pending_destroy = false;
 	};
 

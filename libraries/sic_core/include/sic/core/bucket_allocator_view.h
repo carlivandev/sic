@@ -5,7 +5,7 @@
 namespace sic
 {
 	template <typename T_type>
-	struct Bucket_allocator_iterator : public std::iterator<std::input_iterator_tag, T_type>
+	struct Bucket_allocator_iterator /*: public std::iterator<std::input_iterator_tag, T_type>*/
 	{
 		Bucket_allocator_iterator() = default;
 		Bucket_allocator_iterator(Bucket_byte_allocator* in_storage, i32 in_index) : m_storage(in_storage), m_index(in_index)

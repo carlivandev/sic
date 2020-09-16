@@ -24,7 +24,8 @@ void sic::Ui_widget::get_dependencies_not_loaded(std::vector<Asset_header*>& out
 {
 	gather_dependencies(out_assets);
 
-	std::remove_if(out_assets.begin(), out_assets.end(), [](Asset_header* in_header) { return in_header->m_load_state != Asset_load_state::loaded; });
+	auto it = std::remove_if(out_assets.begin(), out_assets.end(), [](Asset_header* in_header) { return in_header->m_load_state != Asset_load_state::loaded; });
+	it;
 }
 
 bool sic::Ui_widget::get_ready_to_be_shown() const

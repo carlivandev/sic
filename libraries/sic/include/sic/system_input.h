@@ -3,7 +3,7 @@
 
 #include "sic/core/system.h"
 #include "sic/core/engine_context.h"
-#include "sic/core/level_context.h"
+#include "sic/core/scene_context.h"
 
 namespace sic
 {

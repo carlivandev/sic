@@ -132,8 +132,8 @@ namespace sic
 		template <typename T_type>
 		constexpr Typeinfo* get_typeinfo();
 
-		void create_level(Scene* in_parent_level);
-		void destroy_level(Scene& inout_level);
+		void create_scene(Scene* in_parent_scene);
+		void destroy_scene(Scene& inout_scene);
 
 		template <typename T_event_type, typename T_functor>
 		void listen(T_functor in_func);
@@ -142,23 +142,23 @@ namespace sic
 		void invoke(T_event_data& event_data_to_send);
 
 		void refresh_time_delta();
-		void flush_level_streaming();
+		void flush_scene_streaming();
 
 	private:
 		void tick_systems(std::vector<System*>& inout_systems);
 		void flush_deferred_updates();
 
 		std::unique_ptr<State>& get_state_at_index(i32 in_index);
-		void destroy_level_internal(Scene& in_level);
+		void destroy_scene_internal(Scene& in_scene);
 
 		std::vector<std::unique_ptr<System>> m_systems;
 		std::vector<std::unique_ptr<State>> m_states;
 		
-		std::vector<std::unique_ptr<Scene>> m_levels;
-		std::vector<std::unique_ptr<Scene>> m_levels_to_add;
-		std::vector<Scene*> m_levels_to_remove;
-		std::unordered_map<i32, Scene*> m_level_id_to_level_lut;
-		i32 m_level_id_ticker = 0;
+		std::vector<std::unique_ptr<Scene>> m_scenes;
+		std::vector<std::unique_ptr<Scene>> m_scenes_to_add;
+		std::vector<Scene*> m_scenes_to_remove;
+		std::unordered_map<i32, Scene*> m_scene_id_to_scene_lut;
+		i32 m_scene_id_ticker = 0;
 
 		std::vector<std::unique_ptr<Event_base>> m_engine_events;
 
@@ -188,9 +188,9 @@ namespace sic
 		bool m_has_prepared_threadpool = false;
 		bool m_finished_setup = false;
 
-		std::mutex m_levels_mutex;
+		std::mutex m_scenes_mutex;
 
-		//callbacks to run whenever a new level is created
+		//callbacks to run whenever a new scene is created
 		std::vector<std::function<void(Scene&)>> m_registration_callbacks;
 	};
 
@@ -199,16 +199,16 @@ namespace sic
 	{
 		m_registration_callbacks.push_back
 		(
-			[in_initial_capacity](Scene& inout_level)
+			[in_initial_capacity](Scene& inout_scene)
 			{
 				const ui32 type_idx = Type_index<Component_base>::get<T_component_type>();
 
-				while (type_idx >= inout_level.m_component_storages.size())
-					inout_level.m_component_storages.push_back(nullptr);
+				while (type_idx >= inout_scene.m_component_storages.size())
+					inout_scene.m_component_storages.push_back(nullptr);
 
 				Component_storage<T_component_type>* new_storage = new Component_storage<T_component_type>();
 				new_storage->initialize(in_initial_capacity);
-				inout_level.m_component_storages[type_idx] = std::unique_ptr<Component_storage_base>(new_storage);
+				inout_scene.m_component_storages[type_idx] = std::unique_ptr<Component_storage_base>(new_storage);
 			}
 		);
 
@@ -222,14 +222,14 @@ namespace sic
 
 		m_registration_callbacks.push_back
 		(
-			[in_initial_capacity, in_bucket_capacity](Scene & inout_level)
+			[in_initial_capacity, in_bucket_capacity](Scene& inout_scene)
 			{
 				const ui32 type_idx = Type_index<Object_base>::get<T_object>();
 
-				while (type_idx >= inout_level.m_objects.size())
-					inout_level.m_objects.push_back(nullptr);
+				while (type_idx >= inout_scene.m_objects.size())
+					inout_scene.m_objects.push_back(nullptr);
 
-				auto & new_object_storage = inout_level.get_object_storage_at_index(type_idx);
+				auto & new_object_storage = inout_scene.get_object_storage_at_index(type_idx);
 
 				assert(new_object_storage.get() == nullptr && "object is already registered");
 

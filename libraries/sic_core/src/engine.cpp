@@ -101,7 +101,7 @@ namespace sic
 
 		flush_deferred_updates();
 
-		flush_level_streaming();
+		flush_scene_streaming();
 
 		for (Thread_context* context : m_thread_contexts)
 			context->reset_local_storage();
@@ -111,54 +111,54 @@ namespace sic
 	{
 		m_system_ticker_threadpool.shutdown();
 
-		while (!m_levels.empty())
-			destroy_level(*m_levels.back().get());
+		while (!m_scenes.empty())
+			destroy_scene(*m_scenes.back().get());
 
 		for (auto& system : m_systems)
 			system->on_shutdown(Engine_context(*this));
 	}
 
-	void Engine::create_level(Scene* in_parent_level)
+	void Engine::create_scene(Scene* in_parent_scene)
 	{
-		std::scoped_lock levels_lock(m_levels_mutex);
+		std::scoped_lock scenes_lock(m_scenes_mutex);
 
-		assert(m_finished_setup && "Can't create a level before system has finished setup!");
+		assert(m_finished_setup && "Can't create a scene before system has finished setup!");
 
-		Scene* outermost_level = nullptr;
+		Scene* outermost_scene = nullptr;
 
-		if (in_parent_level)
+		if (in_parent_scene)
 		{
-			if (in_parent_level->m_outermost_level)
-				outermost_level = in_parent_level->m_outermost_level;
+			if (in_parent_scene->m_outermost_scene)
+				outermost_scene = in_parent_scene->m_outermost_scene;
 			else
-				outermost_level = in_parent_level;
+				outermost_scene = in_parent_scene;
 		}
 
-		m_levels_to_add.push_back(std::make_unique<Scene>(*this, outermost_level, in_parent_level));
+		m_scenes_to_add.push_back(std::make_unique<Scene>(*this, outermost_scene, in_parent_scene));
 
-		Scene& new_level = *m_levels_to_add.back().get();
-		new_level.m_level_id = m_level_id_ticker++;
+		Scene& new_scene = *m_scenes_to_add.back().get();
+		new_scene.m_scene_id = m_scene_id_ticker++;
 
 		for (auto&& registration_callback : m_registration_callbacks)
-			registration_callback(new_level);
+			registration_callback(new_scene);
 	}
 
-	void Engine::destroy_level(Scene& inout_level)
+	void Engine::destroy_scene(Scene& inout_scene)
 	{
-		std::scoped_lock levels_lock(m_levels_mutex);
+		std::scoped_lock scenes_lock(m_scenes_mutex);
 
-		for (size_t i = 0; i < m_levels.size(); i++)
+		for (size_t i = 0; i < m_scenes.size(); i++)
 		{
-			if (m_levels[i].get() != &inout_level)
+			if (m_scenes[i].get() != &inout_scene)
 				continue;
 
 			for (auto& system : m_systems)
 			{
 				if (!is_shutting_down())
-					system->on_end_simulation(Scene_context(*this, inout_level));
+					system->on_end_simulation(Scene_context(*this, inout_scene));
 			}
 
-			m_levels.erase(m_levels.begin() + i);
+			m_scenes.erase(m_scenes.begin() + i);
 			break;
 		}
 	}
@@ -171,56 +171,56 @@ namespace sic
 		m_previous_frame_time_point = now;
 	}
 
-	void Engine::flush_level_streaming()
+	void Engine::flush_scene_streaming()
 	{
-		if (!m_levels_to_remove.empty())
+		if (!m_scenes_to_remove.empty())
 		{
-			std::scoped_lock levels_lock(m_levels_mutex);
+			std::scoped_lock scenes_lock(m_scenes_mutex);
 
-			//first remove levels
-			for (Scene* level : m_levels_to_remove)
-				destroy_level_internal(*level);
+			//first remove scenes
+			for (Scene* scene : m_scenes_to_remove)
+				destroy_scene_internal(*scene);
 
-			m_levels_to_remove.clear();
+			m_scenes_to_remove.clear();
 		}
 
-		if (!m_levels_to_add.empty())
+		if (!m_scenes_to_add.empty())
 		{
-			std::vector<Scene*> added_levels;
+			std::vector<Scene*> added_scenes;
 
 			{
-				std::scoped_lock levels_lock(m_levels_mutex);
-				//then add new levels
-				for (auto& level : m_levels_to_add)
+				std::scoped_lock scenes_lock(m_scenes_mutex);
+				//then add new scenes
+				for (auto& scene : m_scenes_to_add)
 				{
-					Scene* added_level = nullptr;
-					//is this a sublevel?
-					if (level->m_outermost_level)
+					Scene* added_scene = nullptr;
+					//is this a subscene?
+					if (scene->m_outermost_scene)
 					{
-						level->m_outermost_level->m_sublevels.push_back(std::move(level));
-						added_level = level->m_outermost_level->m_sublevels.back().get();
+						scene->m_outermost_scene->m_subscenes.push_back(std::move(scene));
+						added_scene = scene->m_outermost_scene->m_subscenes.back().get();
 					}
 					else
 					{
-						m_levels.push_back(std::move(level));
-						added_level = m_levels.back().get();
-						m_level_id_to_level_lut[added_level->m_level_id] = added_level;
+						m_scenes.push_back(std::move(scene));
+						added_scene = m_scenes.back().get();
+						m_scene_id_to_scene_lut[added_scene->m_scene_id] = added_scene;
 					}
 
-					added_levels.push_back(added_level);
+					added_scenes.push_back(added_scene);
 				}
 
-				m_levels_to_add.clear();
+				m_scenes_to_add.clear();
 			}
 
-			for (Scene* added_level : added_levels)
+			for (Scene* added_scene : added_scenes)
 			{
-				invoke<Event_created<Scene>>(*added_level);
+				invoke<Event_created<Scene>>(*added_scene);
 
 				for (auto& system : m_systems)
 				{
 					if (!is_shutting_down())
-						system->on_begin_simulation(Scene_context(*this, *added_level));
+						system->on_begin_simulation(Scene_context(*this, *added_scene));
 				}
 			}
 		}
@@ -230,8 +230,8 @@ namespace sic
 	{
 		for (auto& tick_system : inout_systems)
 		{
-			for (auto& level : m_levels)
-				tick_system->execute_tick(Scene_context(*this, *level.get()), m_time_delta);
+			for (auto& scene : m_scenes)
+				tick_system->execute_tick(Scene_context(*this, *scene.get()), m_time_delta);
 
 			tick_system->execute_engine_tick(Engine_context(*this), m_time_delta);
 		}
@@ -490,34 +490,34 @@ namespace sic
 		return m_states[in_index];
 	}
 
-	void Engine::destroy_level_internal(Scene& in_level)
+	void Engine::destroy_scene_internal(Scene& in_scene)
 	{
-		//first, recursively destroy all sublevels
-		const i32 last_sublevel_index = static_cast<i32>(in_level.m_sublevels.size()) - 1;
+		//first, recursively destroy all subscenes
+		const i32 last_subscene_index = static_cast<i32>(in_scene.m_subscenes.size()) - 1;
 
-		for (i32 i = last_sublevel_index; i >= 0; i--)
-			destroy_level_internal(*in_level.m_sublevels[i].get());
+		for (i32 i = last_subscene_index; i >= 0; i--)
+			destroy_scene_internal(*in_scene.m_subscenes[i].get());
 
-		//then destroy in_level
+		//then destroy in_scene
 
 		for (auto& system : m_systems)
 		{
 			if (!is_shutting_down())
-				system->on_end_simulation(Scene_context(*this, in_level));
+				system->on_end_simulation(Scene_context(*this, in_scene));
 		}
 
-		invoke<event_destroyed<Scene>>(in_level);
+		invoke<event_destroyed<Scene>>(in_scene);
 
-		m_level_id_to_level_lut.erase(in_level.m_level_id);
+		m_scene_id_to_scene_lut.erase(in_scene.m_scene_id);
 
-		std::vector<std::unique_ptr<Scene>>* levels_to_remove_from;
-		if (in_level.m_parent_level)
-			levels_to_remove_from = &in_level.m_parent_level->m_sublevels;
+		std::vector<std::unique_ptr<Scene>>* scenes_to_remove_from;
+		if (in_scene.m_parent_scene)
+			scenes_to_remove_from = &in_scene.m_parent_scene->m_subscenes;
 		else
-			levels_to_remove_from = &m_levels;
+			scenes_to_remove_from = &m_scenes;
 
-		auto it = std::find_if(levels_to_remove_from->begin(), levels_to_remove_from->end(), [&in_level](auto& other_level) {return &in_level == other_level.get(); });
-		if (it != levels_to_remove_from->end())
-			levels_to_remove_from->erase(it);
+		auto it = std::find_if(scenes_to_remove_from->begin(), scenes_to_remove_from->end(), [&in_scene](auto& other_scene) {return &in_scene == other_scene.get(); });
+		if (it != scenes_to_remove_from->end())
+			scenes_to_remove_from->erase(it);
 	}
 }

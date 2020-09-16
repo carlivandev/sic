@@ -1,6 +1,6 @@
 #pragma once
 #include "sic/core/defines.h"
-#include "sic/core/level_context.h"
+#include "sic/core/scene_context.h"
 
 #include "sic/system_renderer.h"
 

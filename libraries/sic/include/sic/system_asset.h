@@ -5,7 +5,7 @@
 
 #include "sic/core/system.h"
 #include "sic/core/engine_context.h"
-#include "sic/core/level_context.h"
+#include "sic/core/scene_context.h"
 #include "sic/core/leavable_queue.h"
 #include "sic/core/logger.h"
 #include "sic/core/delegate.h"

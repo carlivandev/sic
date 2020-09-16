@@ -275,6 +275,7 @@ namespace sic
 	protected:
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override
 		{
+			in_final_translation; in_final_size; in_final_rotation;
 			for (auto && child : m_children)
 				child.second.update_render_scene(child.second.m_render_translation, child.second.m_global_render_size, child.second.m_render_rotation, in_window_size, in_window_id, inout_processor);
 		}
@@ -933,7 +934,7 @@ namespace sic
 				}
 				else if (c == ' ')
 				{
-					last_word_end = i - 1;
+					last_word_end = (i32)i - 1;
 					width_until_last_word = cur_line_advance;
 				}
 
@@ -965,7 +966,7 @@ namespace sic
 
 					cur_line = &m_lines.back();
 
-					last_word_end = i - 1;
+					last_word_end = (i32)i - 1;
 					width_until_last_word = 0.0f;
 					cur_line_advance = cur_line->m_total_width;
 				}

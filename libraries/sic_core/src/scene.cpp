@@ -1,4 +1,4 @@
-#include "sic/core/level.h"
+#include "sic/core/scene.h"
 #include "sic/core/object.h"
 
 namespace sic
@@ -37,30 +37,30 @@ namespace sic
 		m_object_exists_flags[inout_object_to_destroy.m_id] = false;
 	}
 
-	bool Scene::get_does_object_exist(Object_id in_id, bool in_only_in_this_level) const
+	bool Scene::get_does_object_exist(Object_id in_id, bool in_only_in_this_scene) const
 	{
 		if (!in_id.get_is_set())
 			return false;
 
 		const i32 id = in_id.get_id();
 
-		if (in_only_in_this_level)
+		if (in_only_in_this_scene)
 		{
 			std::scoped_lock lock(m_object_creation_mutex);
 			return m_object_exists_flags.size() > id && m_object_exists_flags[id];
 		}
 		
-		if (m_outermost_level)
-			return m_outermost_level->get_does_object_exist(in_id, false);
+		if (m_outermost_scene)
+			return m_outermost_scene->get_does_object_exist(in_id, false);
 
 		std::scoped_lock lock(m_object_creation_mutex);
 
 		if (m_object_exists_flags.size() > id && m_object_exists_flags[id])
 			return true;
 
-		for (auto&& sublevel : m_sublevels)
+		for (auto&& subscene : m_subscenes)
 		{
-			if (sublevel->get_does_object_exist(in_id, false))
+			if (subscene->get_does_object_exist(in_id, false))
 				return true;
 		}
 
