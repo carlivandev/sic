@@ -493,6 +493,9 @@ void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_d
 		Asset_material* mat = mesh.m_material->m_outermost_parent.is_valid() ? mesh.m_material->m_outermost_parent.get_mutable() : mesh.m_material;
 		assert(mat);
 
+		if (!mat->m_program.has_value())
+			continue;
+
 		const GLint mat_attrib_count = mat->m_program.value().get_attribute_count();
 		const size_t mesh_attrib_count = mesh.m_mesh->m_vertex_buffer_array.value().get_attribute_count();
 		if (mat_attrib_count > mesh_attrib_count)
@@ -538,15 +541,15 @@ void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_d
 	const glm::vec3 first_light_pos = glm::vec3(100.0f, 100.0f, -300.0f);
 
 	static float cur_val = 0.0f;
-	cur_val += 0.0016f;
+	cur_val += 0.00016f;
 	const glm::vec3 second_light_pos = glm::vec3(100.0f, (glm::cos(cur_val * 20.0f) * 300.0f), 0.0f);
 
 	std::vector<OpenGl_uniform_block_light_instance> relevant_lights;
 	OpenGl_uniform_block_light_instance light;
-	light.m_position_and_unused = glm::vec4(first_light_pos, 0.0f);
-	light.m_color_and_intensity = { 1.0f, 0.0f, 0.0f, 5000.0f };
-
-	relevant_lights.push_back(light);
+	//light.m_position_and_unused = glm::vec4(first_light_pos, 0.0f);
+	//light.m_color_and_intensity = { 1.0f, 0.0f, 0.0f, 5000.0f };
+	//
+	//relevant_lights.push_back(light);
 
 	light.m_position_and_unused = glm::vec4(second_light_pos, 0.0f);
 	light.m_color_and_intensity = { 0.0f, 1.0f, 0.0f, 5000.0f };

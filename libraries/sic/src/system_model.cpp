@@ -255,6 +255,8 @@ void sic::Component_model::try_create_render_object(Processor_model in_processor
 		auto material_override_it = m_material_overrides.find(mesh.m_material_slot);
 		const Asset_ref<Asset_material> mat_to_draw = material_override_it != m_material_overrides.end() ? material_override_it->second : m_model.get()->get_material(mesh_idx);
 
+		if (!mat_to_draw.is_valid())
+			continue;
 
 		in_processor.update_state_deferred<State_render_scene>
 		(
