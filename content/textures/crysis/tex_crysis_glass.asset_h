@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/textures/crysis/tex_crysis_glass.asset",
-	"id": "3e82ea59-a2fe-4f53-9500-0f5c0e152e85",
+	"id": "e5354f53-f32f-437f-a1cb-e44e706220fb",
 	"name": "tex_crysis_glass",
 	"type": "struct sic::Asset_texture"
 }

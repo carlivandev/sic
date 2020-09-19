@@ -285,6 +285,11 @@ namespace sic
 				}
 			}
 
+			if (chunk.m_begin->m_material->m_two_sided)
+				glDisable(GL_CULL_FACE);
+			else
+				glEnable(GL_CULL_FACE);
+
 			render_instancing_chunk(chunk, chunk.m_begin->m_mesh->m_vertex_buffer_array.value(), chunk.m_begin->m_mesh->m_index_buffer.value(), inout_renderer_resources_state);
 		}
 	}

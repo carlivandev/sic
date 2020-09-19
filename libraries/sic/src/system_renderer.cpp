@@ -546,13 +546,18 @@ void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_d
 
 	std::vector<OpenGl_uniform_block_light_instance> relevant_lights;
 	OpenGl_uniform_block_light_instance light;
-	//light.m_position_and_unused = glm::vec4(first_light_pos, 0.0f);
-	//light.m_color_and_intensity = { 1.0f, 0.0f, 0.0f, 5000.0f };
-	//
-	//relevant_lights.push_back(light);
+	light.m_position_and_unused = glm::vec4(first_light_pos, 0.0f);
+	light.m_color_and_intensity = { 0.6f, 0.0f, 0.4f, 1.0f };
+
+	relevant_lights.push_back(light);
 
 	light.m_position_and_unused = glm::vec4(second_light_pos, 0.0f);
-	light.m_color_and_intensity = { 0.0f, 1.0f, 0.0f, 5000.0f };
+	light.m_color_and_intensity = { 0.1f, 0.6f, 0.2f, 1.0f };
+
+	relevant_lights.push_back(light);
+
+	light.m_position_and_unused = glm::vec4(4000.0f, 4000.0f, 0.0f, 0.0f);
+	light.m_color_and_intensity = { 0.5f, 0.5f, 0.3f, 1.0f };
 
 	relevant_lights.push_back(light);
 
@@ -759,6 +764,9 @@ void sic::System_renderer::post_load_texture(Asset_texture& out_texture)
 	default:
 		break;
 	}
+
+	if (!out_texture.m_texture_data)
+		return;
 
 	OpenGl_texture::Creation_params_2D params;
 	params.set_dimensions(glm::ivec2(out_texture.m_width, out_texture.m_height));
