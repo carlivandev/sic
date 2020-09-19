@@ -9,7 +9,7 @@ sic::Threadpool::~Threadpool()
 	shutdown();
 }
 
-void sic::Threadpool::spawn(ui16 in_worker_count)
+void sic::Threadpool::spawn(ui16 in_worker_count, std::function<void(i32)> in_per_thread_initialize_callback)
 {
 	assert(is_caller_owner());
 
@@ -20,35 +20,38 @@ void sic::Threadpool::spawn(ui16 in_worker_count)
 	{
 		m_threads.emplace_back
 		(
-			[this, i]() -> void
-		{
+			[this, i, in_per_thread_initialize_callback]() -> void
+			{
 				Closure task;
 
-			std::unique_lock lock(m_mutex);
+				std::unique_lock lock(m_mutex);
 
-			while (!m_stop)
-			{
-				if (!m_tasks.empty())
+				while (!m_stop)
 				{
-					task = std::move(m_tasks.back());
-					m_tasks.pop_back();
-
-					// execute the task
-					lock.unlock();
-					task();
-					lock.lock();
-				}
-				else
-				{
-					while (m_tasks.empty() && !m_stop)
+					if (!m_tasks.empty())
 					{
-						m_threads_initialized[i] = true;
-						m_worker_signal.wait(lock);
-					}
-				}
+						task = std::move(m_tasks.back());
+						m_tasks.pop_back();
 
+						// execute the task
+						lock.unlock();
+						task();
+						lock.lock();
+					}
+					else
+					{
+						while (m_tasks.empty() && !m_stop)
+						{
+							if (in_per_thread_initialize_callback)
+								in_per_thread_initialize_callback(i);
+
+							m_threads_initialized[i] = true;
+							m_worker_signal.wait(lock);
+						}
+					}
+
+				}
 			}
-		}
 		);
 
 		const std::string name = ("worker_thread: " + std::to_string(i));

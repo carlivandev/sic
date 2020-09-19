@@ -16,7 +16,7 @@ namespace sic
 		Threadpool() = default;
 		~Threadpool();
 
-		void spawn(ui16 in_worker_count);
+		void spawn(ui16 in_worker_count, std::function<void(i32)> in_per_thread_initialize_callback);
 		void shutdown();
 
 		void emplace(Closure&& in_closure);

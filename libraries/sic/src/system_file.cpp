@@ -28,7 +28,7 @@ void sic::State_filesystem::request_save(std::vector<File_save_request>&& in_req
 void sic::System_file::on_created(Engine_context in_context)
 {
 	in_context.register_state<State_filesystem>("state_filesystem");
-	in_context.get_state<State_filesystem>()->m_worker_pool.spawn(2);
+	in_context.get_state<State_filesystem>()->m_worker_pool.spawn(2, nullptr);
 }
 
 void sic::System_file::on_engine_tick(Engine_context in_context, float in_time_delta) const
