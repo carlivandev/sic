@@ -1,0 +1,6 @@
+{
+	"asset_path": "content/materials/ui/ui_minimize_icon_mat.asset",
+	"id": "66f92acf-6d7d-46f9-8943-1b343a9bae10",
+	"name": "ui_minimize_icon_mat",
+	"type": "struct sic::Asset_material"
+}

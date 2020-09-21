@@ -7,14 +7,14 @@
 
 namespace sic
 {
-	template <typename ...t_args>
+	template <typename ...T_args>
 	struct Delegate : Noncopyable
 	{
-		using Signature = std::function<void(t_args...)>;
+		using Signature = std::function<void(T_args...)>;
 
 		struct Handle
 		{
-			friend Delegate<t_args...>;
+			friend Delegate<T_args...>;
 
 			Handle() = default;
 			
@@ -89,7 +89,7 @@ namespace sic
 			}
 
 		private:
-			Delegate<t_args...>* m_delegate = nullptr;
+			Delegate<T_args...>* m_delegate = nullptr;
 			Signature m_function;
 		};
 
@@ -154,7 +154,7 @@ namespace sic
 			in_out_handle.m_delegate = nullptr;
 		}
 
-		void invoke(std::tuple<t_args...> in_params)
+		void invoke(std::tuple<T_args...> in_params)
 		{
 			std::vector<Handle*> handles_copy;
 

@@ -149,7 +149,7 @@ namespace sic
 		num_6 = GLFW_MOUSE_BUTTON_6,
 		num_7 = GLFW_MOUSE_BUTTON_7,
 		num_8 = GLFW_MOUSE_BUTTON_8,
-		count = GLFW_MOUSE_BUTTON_8,
+		num_count = GLFW_MOUSE_BUTTON_8,
 
 		left = num_1,
 		right = num_2,
@@ -166,8 +166,12 @@ namespace sic
 		bool is_mousebutton_pressed(Mousebutton in_button) const;
 		bool is_mousebutton_released(Mousebutton in_button) const;
 
-		std::array<bool, static_cast<i32>(Mousebutton::count)> mouse_last_frame_down;
-		std::array<bool, static_cast<i32>(Mousebutton::count)> mouse_this_frame_down;
+		std::optional<Mousebutton> get_down_mousebutton() const;
+		std::optional<Mousebutton> get_pressed_mousebutton() const;
+		std::optional<Mousebutton> get_released_mousebutton() const;
+
+		std::array<bool, static_cast<i32>(Mousebutton::num_count)> mouse_last_frame_down;
+		std::array<bool, static_cast<i32>(Mousebutton::num_count)> mouse_this_frame_down;
 
 		std::array<bool, static_cast<i32>(Key::count)> key_last_frame_down;
 		std::array<bool, static_cast<i32>(Key::count)> key_this_frame_down;

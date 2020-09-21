@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/textures/crysis/tex_ui_test.asset",
-	"id": "bf4acfdc-ffd5-47ff-9603-32bfd27687a9",
+	"id": "d4cd2d22-4f1b-4ab7-a959-219d0371aa9d",
 	"name": "tex_ui_test",
 	"type": "struct sic::Asset_texture"
 }

@@ -50,3 +50,36 @@ bool sic::State_input::is_mousebutton_released(Mousebutton in_button) const
 
 	return !mouse_this_frame_down[button_idx] && mouse_last_frame_down[button_idx];
 }
+
+std::optional<sic::Mousebutton> sic::State_input::get_down_mousebutton() const
+{
+	for (i32 i = 0; i < static_cast<i32>(Mousebutton::num_count); i++)
+	{
+		if (is_mousebutton_down(static_cast<Mousebutton>(i)))
+			return static_cast<Mousebutton>(i);
+	}
+
+	return {};
+}
+
+std::optional<sic::Mousebutton> sic::State_input::get_pressed_mousebutton() const
+{
+	for (i32 i = 0; i < static_cast<i32>(Mousebutton::num_count); i++)
+	{
+		if (is_mousebutton_pressed(static_cast<Mousebutton>(i)))
+			return static_cast<Mousebutton>(i);
+	}
+
+	return {};
+}
+
+std::optional<sic::Mousebutton> sic::State_input::get_released_mousebutton() const
+{
+	for (i32 i = 0; i < static_cast<i32>(Mousebutton::num_count); i++)
+	{
+		if (is_mousebutton_released(static_cast<Mousebutton>(i)))
+			return static_cast<Mousebutton>(i);
+	}
+
+	return {};
+}

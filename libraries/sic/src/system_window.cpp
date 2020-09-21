@@ -8,6 +8,7 @@
 #include "sic/shader_parser.h"
 #include "sic/system_ui.h"
 #include "sic/state_render_scene.h"
+#include "sic/system_renderer.h"
 
 #include "sic/core/event.h"
 #include "sic/core/logger.h"
@@ -128,6 +129,58 @@ namespace sic
 			wdw->m_scroll_offset_x += in_xoffset;
 			wdw->m_scroll_offset_y += in_yoffset;
 		}
+
+// 		static void window_resized(GLFWwindow* in_window, int in_width, int in_height)
+// 		{
+// 			Window_proxy* wdw = static_cast<Window_proxy*>(glfwGetWindowUserPointer(in_window));
+// 
+// 			if (!wdw)
+// 				return;
+// 
+// 			wdw->m_dimensions = { in_width, in_height };
+// 
+// 			Processor_ui(wdw->m_engine_context).update_state_deferred<State_ui>
+// 			(
+// 				[name = wdw->get_name(), id = wdw->m_window_id, window_dimensions = wdw->m_dimensions](State_ui& inout_ui_state)
+// 				{
+// 					Ui_widget_canvas* canvas = inout_ui_state.find<Ui_widget_canvas>(name);
+// 					assert(canvas);
+// 
+// 					canvas->m_reference_dimensions = window_dimensions;
+// 					inout_ui_state.set_window_info(name, window_dimensions, id);
+// 				}
+// 			);
+// 
+// 			System_renderer::render(Processor_renderer(wdw->m_engine_context));
+// 			System_ui::update_ui(Processor_ui(wdw->m_engine_context));
+// 
+// 			glfwMakeContextCurrent(wdw->m_engine_context.get_state_checked<State_window>().m_resource_context);
+// 		}
+
+		static void window_resized(GLFWwindow* in_window, int in_width, int in_height)
+		{
+			Window_proxy* wdw = static_cast<Window_proxy*>(glfwGetWindowUserPointer(in_window));
+
+			if (!wdw)
+				return;
+
+			if (wdw->m_dimensions.x < in_width && wdw->m_dimensions.y < in_height)
+				wdw->m_is_maximized = false;
+		}
+
+		static void window_moved(GLFWwindow* in_window, int in_x, int in_y)
+		{
+			Window_proxy* wdw = static_cast<Window_proxy*>(glfwGetWindowUserPointer(in_window));
+
+			if (!wdw)
+				return;
+
+			if (wdw->m_being_moved)
+				return;
+
+			wdw->m_monitor_position.x = (float)in_x;
+			wdw->m_monitor_position.y = (float)in_y;
+		}
 	};
 }
 
@@ -241,17 +294,11 @@ void sic::System_window::update_windows(Processor_window in_processor)
 					(
 						[name = focused_window->get_name(), id = focused_window->m_window_id, window_dimensions](State_ui& inout_ui_state)
 						{
-							inout_ui_state.update
-							(
-								[name, id, window_dimensions](Ui_context& inout_ui_context)
-								{
-									Ui_widget_canvas* canvas = inout_ui_context.find<Ui_widget_canvas>(name);
-									assert(canvas);
+							Ui_widget_canvas* canvas = inout_ui_state.find<Ui_widget_canvas>(name);
+							assert(canvas);
 
-									canvas->m_reference_dimensions = window_dimensions;
-									inout_ui_context.set_window_info(name, window_dimensions, id);
-								}
-							);
+							canvas->m_reference_dimensions = window_dimensions;
+							inout_ui_state.set_window_info(name, window_dimensions, id);
 						}
 					);
 				}
@@ -265,17 +312,10 @@ void sic::System_window::update_windows(Processor_window in_processor)
 		{
 			const Render_object_window* main_window = scene_state.m_windows.find_object(window_state.m_main_window_interface->m_window_id);
 			
-			if (main_window == &window)
-			{
-				this_thread().update_deferred([](Engine_context in_context) { in_context.shutdown(); });
-			}
-			else
-			{
-				auto to_destroy_it = window_state.m_window_name_to_interfaces_lut.find(window.m_name);
+			auto to_destroy_it = window_state.m_window_name_to_interfaces_lut.find(window.m_name);
 
-				if (to_destroy_it != window_state.m_window_name_to_interfaces_lut.end())
-					window_state.destroy_window(in_processor, to_destroy_it->first);
-			}
+			if (to_destroy_it != window_state.m_window_name_to_interfaces_lut.end())
+				window_state.destroy_window(in_processor, to_destroy_it->first);
 		}
 		else
 		{
@@ -315,6 +355,8 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 
 	window_interface_ptr_raw->m_name = in_name;
 	window_interface_ptr_raw->m_dimensions = in_dimensions;
+	window_interface_ptr_raw->m_engine_context = Engine_context(*in_processor.m_engine);
+
 	window_interface_ptr_raw->m_window_id = scene_state.m_windows.create_object
 	(
 		[window_interface_ptr_raw, in_name, in_dimensions, resource_context = m_resource_context](Render_object_window& in_out_window)
@@ -325,7 +367,7 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 			glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
 			glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL
 			glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-			//glfwWindowHint(GLFW_DECORATED, 0);
+			//glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 
 			in_out_window.m_context = glfwCreateWindow(in_dimensions.x, in_dimensions.y, in_name.c_str(), NULL, resource_context);
 			in_out_window.m_name = in_name;
@@ -338,7 +380,9 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 			}
 
 			glfwSetWindowUserPointer(in_out_window.m_context, window_interface_ptr_raw);
+			glfwSetWindowSizeCallback(in_out_window.m_context, &System_window_functions::window_resized);
 			glfwSetWindowFocusCallback(in_out_window.m_context, &System_window_functions::window_focused);
+			glfwSetWindowPosCallback(in_out_window.m_context, &System_window_functions::window_moved);
 			glfwSetScrollCallback(in_out_window.m_context, &System_window_functions::window_scrolled);
 
 			glfwMakeContextCurrent(in_out_window.m_context); // Initialize GLEW
@@ -423,16 +467,10 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 	(
 		[in_name, in_dimensions, id = window_interface_ptr_raw->m_window_id](State_ui& inout_ui_state)
 		{
-			inout_ui_state.update
-			(
-				[in_name, in_dimensions, id](Ui_context& inout_ui_context)
-				{
-					Ui_widget_canvas& canvas = inout_ui_context.create<Ui_widget_canvas>(in_name);
-					canvas.m_reference_dimensions = in_dimensions;
+			Ui_widget_canvas& canvas = inout_ui_state.create<Ui_widget_canvas>(in_name);
+			canvas.m_reference_dimensions = in_dimensions;
 
-					inout_ui_context.set_window_info(in_name, in_dimensions, id);
-				}
-			);
+			inout_ui_state.set_window_info(in_name, in_dimensions, id);
 		}
 	);
 
@@ -457,17 +495,69 @@ void sic::State_window::destroy_window(Processor_window in_processor, const std:
 	(
 		[name = window_interface_ptr->second->get_name()](State_ui& inout_ui_state)
 		{
-			inout_ui_state.update
-			(
-				[name](Ui_context& inout_ui_context)
-				{
-					inout_ui_context.destroy(name);
-				}
-			);
+			inout_ui_state.destroy(name);
 		}
 	);
 
+	if (window_interface_ptr->second.get() == m_main_window_interface)
+		this_thread().update_deferred([](Engine_context in_context) { in_context.shutdown(); });
+
 	m_window_name_to_interfaces_lut.erase(window_interface_ptr);
+}
+
+void sic::State_window::minimize_window(Processor_window in_processor, const std::string& in_name)
+{
+	Window_proxy* window = find_window(in_name.c_str());
+	if (!window)
+		return;
+
+	State_render_scene& scene_state = in_processor.get_state_checked_w<State_render_scene>();
+
+	const Render_object_window* window_ro = scene_state.m_windows.find_object(window->m_window_id);
+	if (window_ro)
+		glfwIconifyWindow(window_ro->m_context);
+}
+
+void sic::State_window::toggle_maximize_window(Processor_window in_processor, const std::string& in_name)
+{
+	Window_proxy* window = find_window(in_name.c_str());
+	if (!window)
+		return;
+
+	State_render_scene& scene_state = in_processor.get_state_checked_w<State_render_scene>();
+
+	const Render_object_window* window_ro = scene_state.m_windows.find_object(window->m_window_id);
+	if (window_ro)
+	{
+		if (window->m_is_maximized)
+			glfwRestoreWindow(window_ro->m_context);
+		else
+			glfwMaximizeWindow(window_ro->m_context);
+
+		window->m_is_maximized = !window->m_is_maximized;
+	}
+}
+
+void sic::State_window::set_window_position(Processor_window in_processor, const std::string& in_name, const glm::vec2& in_position)
+{
+	Window_proxy* window = find_window(in_name.c_str());
+	if (!window)
+		return;
+
+	State_render_scene& scene_state = in_processor.get_state_checked_w<State_render_scene>();
+
+	const Render_object_window* window_ro = scene_state.m_windows.find_object(window->m_window_id);
+	if (window_ro)
+	{
+		if (window->m_is_maximized)
+			glfwRestoreWindow(window_ro->m_context);
+
+		window->m_is_maximized = false;
+		window->m_being_moved = true;
+		glfwSetWindowPos(window_ro->m_context, (int)in_position.x, (int)in_position.y);
+		window->m_monitor_position = in_position;
+		window->m_being_moved = false;
+	}
 }
 
 sic::Window_proxy* sic::State_window::find_window(const char* in_name) const

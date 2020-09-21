@@ -422,25 +422,25 @@ void sic::System_renderer::render_ui(Processor_renderer in_processor, const Rend
 			else if (in_a.m_sort_priority > in_b.m_sort_priority)
 				return false;
 
-			return in_a.m_custom_sort_priority < in_b.m_sort_priority;
+			return in_a.m_custom_sort_priority < in_b.m_custom_sort_priority;
 		}
 	);
 
-	auto instanced_begin = sort_instanced(scene_state.m_ui_drawcalls);
+// 	auto instanced_begin = sort_instanced(scene_state.m_ui_drawcalls);
+// 
+// 	for (auto it = scene_state.m_ui_drawcalls.begin(); it != instanced_begin; ++it)
+// 	{
+// 		set_blend_mode(it->m_material->m_blend_mode);
+// 
+// 		const auto& program = it->m_material->m_program.value();
+// 		program.use();
+// 
+// 		apply_parameters(*it->m_material, it->m_instance_data, program);
+// 
+// 		OpenGl_draw_strategy_triangle_element::draw(idx_buffer_max_elements_count, 0);
+// 	}
 
-	for (auto it = scene_state.m_ui_drawcalls.begin(); it != instanced_begin; ++it)
-	{
-		set_blend_mode(it->m_material->m_blend_mode);
-
-		const auto& program = it->m_material->m_program.value();
-		program.use();
-
-		apply_parameters(*it->m_material, it->m_instance_data, program);
-
-		OpenGl_draw_strategy_triangle_element::draw(idx_buffer_max_elements_count, 0);
-	}
-
-	auto&& chunks = gather_instancing_chunks(instanced_begin, scene_state.m_ui_drawcalls.end());
+	auto&& chunks = gather_instancing_chunks(scene_state.m_ui_drawcalls.begin(), scene_state.m_ui_drawcalls.end());
 
 	for (auto&& chunk : chunks)
 		render_instancing_chunk(chunk, renderer_resources_state.m_quad_vertex_buffer_array.value(), renderer_resources_state.m_quad_indexbuffer.value(), renderer_resources_state);
@@ -745,6 +745,9 @@ void sic::System_renderer::do_asset_post_loads(Processor_renderer in_processor)
 
 void sic::System_renderer::post_load_texture(Asset_texture& out_texture)
 {
+	if (!out_texture.m_texture_data)
+		return;
+
 	OpenGl_texture_format gl_texture_format = OpenGl_texture_format::invalid;
 
 	switch (out_texture.m_format)
@@ -762,16 +765,56 @@ void sic::System_renderer::post_load_texture(Asset_texture& out_texture)
 		gl_texture_format = OpenGl_texture_format::rgba;
 		break;
 	default:
+		assert(false);
 		break;
 	}
 
-	if (!out_texture.m_texture_data)
-		return;
+	OpenGl_texture_mag_filter gl_mag_filter = OpenGl_texture_mag_filter::invalid;
+
+	switch (out_texture.m_mag_filter)
+	{
+	case Texture_mag_filter::linear:
+		gl_mag_filter = OpenGl_texture_mag_filter::linear;
+		break;
+	case Texture_mag_filter::nearest:
+		gl_mag_filter = OpenGl_texture_mag_filter::nearest;
+		break;
+	default:
+		assert(false);
+		break;
+	}
+
+	OpenGl_texture_min_filter gl_min_filter = OpenGl_texture_min_filter::invalid;
+
+	switch (out_texture.m_min_filter)
+	{
+	case Texture_min_filter::linear:
+		gl_min_filter = OpenGl_texture_min_filter::linear;
+		break;
+	case Texture_min_filter::nearest:
+		gl_min_filter = OpenGl_texture_min_filter::nearest;
+		break;
+	case Texture_min_filter::nearest_mipmap_nearest:
+		gl_min_filter = OpenGl_texture_min_filter::nearest_mipmap_nearest;
+		break;
+	case Texture_min_filter::linear_mipmap_nearest:
+		gl_min_filter = OpenGl_texture_min_filter::linear_mipmap_nearest;
+		break;
+	case Texture_min_filter::nearest_mipmap_linear:
+		gl_min_filter = OpenGl_texture_min_filter::nearest_mipmap_linear;
+		break;
+	case Texture_min_filter::linear_mipmap_linear:
+		gl_min_filter = OpenGl_texture_min_filter::linear_mipmap_linear;
+		break;
+	default:
+		assert(false);
+		break;
+	}
 
 	OpenGl_texture::Creation_params_2D params;
 	params.set_dimensions(glm::ivec2(out_texture.m_width, out_texture.m_height));
 	params.set_format(gl_texture_format);
-	params.set_filtering(OpenGl_texture_mag_filter::linear, OpenGl_texture_min_filter::linear_mipmap_linear);
+	params.set_filtering(gl_mag_filter, gl_min_filter);
 	params.set_channel_type(OpenGl_texture_channel_type::unsigned_byte);
 	params.set_data(out_texture.m_texture_data.get());
 	params.set_debug_name(out_texture.get_header().m_name);

@@ -166,7 +166,7 @@ namespace sic
 		template<typename T_type>
 		__forceinline void update_state_deferred(std::function<void(T_type&)> in_func) const
 		{
-			static_assert(verify_flags<Processor_flag_deferred_write<T_type>>(), "Processor does not have deferred write flag for T_type");
+			static_assert(verify_flags<Processor_flag_deferred_write<T_type>>() || verify_flags<Processor_flag_write<T_type>>(), "Processor does not have deferred write flag for T_type");
 
 			auto update_func =
 			[in_func](Engine_context in_context)

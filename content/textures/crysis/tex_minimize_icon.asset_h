@@ -1,0 +1,6 @@
+{
+	"asset_path": "content/textures/crysis/tex_minimize_icon.asset",
+	"id": "5b6bce13-3564-4252-a671-7ca56b0583f1",
+	"name": "tex_minimize_icon",
+	"type": "struct sic::Asset_texture"
+}

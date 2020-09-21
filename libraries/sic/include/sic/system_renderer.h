@@ -169,9 +169,9 @@ namespace sic
 		virtual void on_engine_finalized(Engine_context in_context) const override;
 		virtual void on_engine_tick(Engine_context in_context, float in_time_delta) const override;
 
-	private:
 		static void render(Processor_renderer in_processor);
 
+	private:
 		static void render_view(Processor_renderer in_processor, const Render_object_window& in_window, const Render_object_view& inout_view);
 		static void render_ui(Processor_renderer in_processor, const Render_object_window& in_window);
 
@@ -223,24 +223,34 @@ namespace sic
 	template<typename T_drawcall_type>
 	inline auto System_renderer::sort_instanced(std::vector<T_drawcall_type>& inout_drawcalls)
 	{
-		return T_drawcall_type::get_uses_stable_partition() ?
-		std::stable_partition
-		(
-			inout_drawcalls.begin(), inout_drawcalls.end(),
-			[](const T_drawcall_type& in_a)
-			{
-				return !in_a.m_material->m_is_instanced;
-			}
-		)
-		:
-		std::partition
-		(
-			inout_drawcalls.begin(), inout_drawcalls.end(),
-			[](const T_drawcall_type& in_a)
-			{
-				return !in_a.m_material->m_is_instanced;
-			}
-		);
+		if constexpr (T_drawcall_type::get_partition_type() == Drawcall_partition_type::standard)
+		{
+			return std::partition
+			(
+				inout_drawcalls.begin(), inout_drawcalls.end(),
+				[](const T_drawcall_type& in_a)
+				{
+					return !in_a.m_material->m_is_instanced;
+				}
+			);
+		}
+		else if constexpr (T_drawcall_type::get_partition_type() == Drawcall_partition_type::stable)
+		{
+			return std::stable_partition
+			(
+				inout_drawcalls.begin(), inout_drawcalls.end(),
+				[](const T_drawcall_type& in_a)
+				{
+					return !in_a.m_material->m_is_instanced;
+				}
+			);
+		}
+		else
+		{
+			static_assert(false, "Can not sort T_drawcall_type!");
+		}
+		
+		return inout_drawcalls.end();
 	}
 	template<typename T_iterator_type>
 	inline void System_renderer::render_meshes(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix)
@@ -303,28 +313,44 @@ namespace sic
 
 		while (current_instanced_begin != in_end)
 		{
-			auto next_instanced_begin = std::iterator_traits<T_iterator_type>::value_type::get_uses_stable_partition() ?
-			std::stable_partition
-			(
-				current_instanced_begin, in_end,
-				[current_instanced_begin](const auto& in_a)
-				{
-					return in_a.partition(*current_instanced_begin);
-				}
-			)
-			:
-			std::partition
-			(
-				current_instanced_begin, in_end,
-				[current_instanced_begin](const auto& in_a)
-				{
-					return in_a.partition(*current_instanced_begin);
-				}
-			);
+			if constexpr (std::iterator_traits<T_iterator_type>::value_type::get_partition_type() == Drawcall_partition_type::standard)
+			{
+				auto next_instanced_begin = std::partition
+				(
+					current_instanced_begin, in_end,
+					[current_instanced_begin](const auto& in_a)
+					{
+						return in_a.partition(*current_instanced_begin);
+					}
+				);
 
-			chunks.push_back({ current_instanced_begin, next_instanced_begin });
+				chunks.push_back({ current_instanced_begin, next_instanced_begin });
+				current_instanced_begin = next_instanced_begin;
+			}
+			else if constexpr (std::iterator_traits<T_iterator_type>::value_type::get_partition_type() == Drawcall_partition_type::stable)
+			{
+				auto next_instanced_begin = std::stable_partition
+				(
+					current_instanced_begin, in_end,
+					[current_instanced_begin](const auto& in_a)
+					{
+						return in_a.partition(*current_instanced_begin);
+					}
+				);
 
-			current_instanced_begin = next_instanced_begin;
+				chunks.push_back({ current_instanced_begin, next_instanced_begin });
+				current_instanced_begin = next_instanced_begin;
+			}
+			else if constexpr (std::iterator_traits<T_iterator_type>::value_type::get_partition_type() == Drawcall_partition_type::disabled)
+			{
+				auto next_instanced_begin = current_instanced_begin + 1;
+
+				while (next_instanced_begin != in_end && next_instanced_begin->m_material == current_instanced_begin->m_material)
+					++next_instanced_begin;
+
+				chunks.push_back({ current_instanced_begin, next_instanced_begin });
+				current_instanced_begin = next_instanced_begin;
+			}
 		}
 
 		return chunks;

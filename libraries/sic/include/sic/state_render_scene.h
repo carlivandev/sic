@@ -317,14 +317,21 @@ namespace sic
 		}
 	};
 
-	template <bool T_custom_blendmode, bool T_stable_partition>
+	enum struct Drawcall_partition_type
+	{
+		standard,
+		stable,
+		disabled
+	};
+
+	template <bool T_custom_blendmode, Drawcall_partition_type T_stable_partition>
 	struct Drawcall
 	{
 		static constexpr bool get_uses_custom_blendmode() { return T_custom_blendmode; }
-		static constexpr bool get_uses_stable_partition() { return T_stable_partition; }
+		static constexpr Drawcall_partition_type get_partition_type() { return T_stable_partition; }
 	};
 
-	struct Drawcall_mesh : Drawcall<false, false>
+	struct Drawcall_mesh : Drawcall<false, Drawcall_partition_type::standard>
 	{
 		Drawcall_mesh(const glm::mat4x4& in_orientation, const Asset_model::Mesh* in_mesh, Asset_material* in_material,	char* in_instance_data) : 
 			m_orientation(in_orientation), m_mesh(in_mesh), m_material(in_material), m_instance_data(in_instance_data) {}
@@ -340,7 +347,7 @@ namespace sic
 		char* m_instance_data;
 	};
 
-	struct Drawcall_mesh_translucent : Drawcall<true, true>
+	struct Drawcall_mesh_translucent : Drawcall<true, Drawcall_partition_type::stable>
 	{
 		Drawcall_mesh_translucent(const glm::mat4x4& in_orientation, const Asset_model::Mesh* in_mesh, Asset_material* in_material, char* in_instance_data, float in_distance_to_view_2) :
 			m_orientation(in_orientation), m_mesh(in_mesh), m_material(in_material), m_instance_data(in_instance_data), m_distance_to_view_2(in_distance_to_view_2) {}
@@ -358,15 +365,10 @@ namespace sic
 		float m_distance_to_view_2;
 	};
 
-	struct Drawcall_ui_element : Drawcall<true, true>
+	struct Drawcall_ui_element : Drawcall<true, Drawcall_partition_type::disabled>
 	{
 		Drawcall_ui_element(Asset_material* in_material, char* in_instance_data, ui32 in_sort_priority, ui32 in_custom_sort_priority) :
 			m_material(in_material), m_instance_data(in_instance_data), m_sort_priority(in_sort_priority), m_custom_sort_priority(in_custom_sort_priority) {}
-
-		bool partition(const Drawcall_ui_element& in_to_partition_with) const
-		{
-			return in_to_partition_with.m_material == m_material;
-		}
 
 		Asset_material* m_material;
 		char* m_instance_data;

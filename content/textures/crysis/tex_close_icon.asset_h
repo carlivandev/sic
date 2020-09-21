@@ -1,0 +1,6 @@
+{
+	"asset_path": "content/textures/crysis/tex_close_icon.asset",
+	"id": "8492a2df-e2ee-4280-819d-e7c4840928a5",
+	"name": "tex_close_icon",
+	"type": "struct sic::Asset_texture"
+}

@@ -54,7 +54,7 @@ namespace sic
 			[this](i32 in_index)
 			{
 				m_thread_contexts[in_index + 1] = &this_thread();
-				this_thread().set_name(m_system_ticker_threadpool.thread_name(std::this_thread::get_id()));
+				this_thread().set_name("worker_thread: " + std::to_string(in_index + 1));
 			}
 		);
 

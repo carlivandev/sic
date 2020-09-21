@@ -1,8 +1,10 @@
 #pragma once
 #include "sic/state_render_scene.h"
 #include "sic/system_window.h"
+#include "sic/input.h"
 
 #include "sic/core/system.h"
+#include "sic/core/delegate.h"
 
 #include "glm/vec2.hpp"
 
@@ -10,8 +12,11 @@
 
 namespace sic
 {
+	extern Log g_log_ui;
+	extern Log g_log_ui_verbose;
+
 	struct State_ui;
-	using Processor_ui = Processor<Processor_flag_write<State_ui>, Processor_flag_deferred_write<State_render_scene>>;
+	using Processor_ui = Processor<Processor_flag_write<State_ui>, Processor_flag_deferred_write<State_render_scene>, Processor_flag_read<State_input>, Processor_flag_read<State_window>>;
 
 	struct Ui_anchors
 	{
@@ -127,9 +132,26 @@ namespace sic
 	struct Ui_parent_widget_base;
 	struct State_ui;
 
+	enum struct Interaction_consume
+	{
+		consume,
+		fall_through
+	};
+
+	enum struct Ui_interaction_state
+	{
+		idle,
+		hovered,
+		pressed,
+		pressed_not_hovered,
+	};
+
 	struct Ui_widget : Noncopyable
 	{
-		friend struct Ui_context;
+		struct On_clicked : Delegate<> {};
+		struct On_drag : Delegate<const glm::vec2&, const glm::vec2&> {};
+
+		friend struct State_ui;
 		friend struct System_ui;
 
 		template <typename T_slot_type>
@@ -151,6 +173,35 @@ namespace sic
 
 		virtual bool get_ready_to_be_shown() const;
 
+		//interaction events begin, return bool 
+
+		virtual Interaction_consume on_cursor_move_over(const glm::vec2& in_cursor_pos, const glm::vec2& in_cursor_movement);
+		virtual Interaction_consume on_hover_begin(const glm::vec2& in_cursor_pos);
+		virtual Interaction_consume on_hover_end(const glm::vec2& in_cursor_pos);
+		virtual Interaction_consume on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos);
+		virtual Interaction_consume on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos);
+		virtual Interaction_consume on_clicked(Mousebutton in_button, const glm::vec2& in_cursor_pos);
+
+		virtual void on_interaction_state_changed() {}
+		//interaction events end
+
+		Ui_interaction_state get_interaction_state() const { return m_interaction_state; }
+
+		bool is_point_inside(const glm::vec2& in_point) const
+		{
+			return in_point.x >= m_render_translation.x &&
+				in_point.x <= m_render_translation.x + m_global_render_size.x &&
+				in_point.y >= m_render_translation.y &&
+				in_point.y <= m_render_translation.y + m_global_render_size.y;
+		}
+
+		template <typename T_delegate_type, typename ...T_args>
+		__forceinline void invoke(T_args... in_args)
+		{
+			if (m_key.has_value())
+				m_ui_state->invoke<T_delegate_type>(m_key.value(), in_args...);
+		}
+
 		glm::vec2 m_local_scale = { 1.0f, 1.0f };
 		glm::vec2 m_local_translation = { 0.0f, 0.0f };
 		float m_local_rotation = 0.0f;
@@ -162,9 +213,10 @@ namespace sic
 		glm::vec2 m_global_render_size;
 		float m_render_rotation;
 
-	protected:
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor)
 		{ in_final_translation; in_final_size; in_final_rotation; in_window_size; in_window_id; inout_processor; }
+
+		void request_redraw() { m_redraw_requested = true; }
 
 		virtual void destroy(State_ui& inout_ui_state);
 
@@ -175,8 +227,11 @@ namespace sic
 		Ui_parent_widget_base* m_parent = nullptr;
 		i32 m_slot_index = -1;
 		On_asset_loaded::Handle m_dependencies_loaded_handle;
+		State_ui* m_ui_state = nullptr;
 
 		bool m_correctly_added = false;
+		Ui_interaction_state m_interaction_state = Ui_interaction_state::idle;
+		bool m_redraw_requested = false;
 	};
 
 	struct State_ui : State
@@ -188,26 +243,125 @@ namespace sic
 		};
 
 		friend Ui_widget;
-		friend struct Ui_context;
 		friend struct System_ui;
 
 		template <typename T_slot_type>
 		friend struct Ui_parent_widget;
 
-		void update(std::function<void(Ui_context&)> in_update_func)
+		template<typename T_widget_type>
+		T_widget_type& create(std::optional<std::string> in_key)
 		{
-			std::scoped_lock lock(m_update_lock);
-			m_updates.push_back(in_update_func);
+			if (!in_key.has_value())
+				in_key = xg::newGuid().str();
+
+			assert(m_widget_lut.find(in_key.value()) == m_widget_lut.end() && "Can not have two widgets with same key!");
+
+			size_t new_idx;
+
+			if (m_free_widget_indices.empty())
+			{
+				new_idx = m_widgets.size();
+				m_widgets.push_back(std::make_unique<T_widget_type>());
+			}
+			else
+			{
+				new_idx = m_free_widget_indices.back();
+				m_free_widget_indices.pop_back();
+				m_widgets[new_idx] = std::make_unique<T_widget_type>();
+			}
+
+			auto& widget = m_widget_lut[in_key.value()] = m_widgets.back().get();
+			widget->m_key = in_key.value();
+			widget->m_widget_index = static_cast<i32>(new_idx);
+			widget->m_correctly_added = true;
+
+			T_widget_type& ret_val = *reinterpret_cast<T_widget_type*>(widget);
+
+			ret_val.m_ui_state = this;
+
+			m_dirty_root_widgets.insert(widget->get_outermost_parent());
+
+			return ret_val;
+		}
+
+		void destroy(const std::string& in_key)
+		{
+			auto it = m_widget_lut.find(in_key);
+
+			if (it == m_widget_lut.end())
+				return;
+
+			if (it->second != it->second->get_outermost_parent())
+				m_dirty_root_widgets.insert(it->second->get_outermost_parent());
+
+			it->second->destroy(*this);
+
+			m_root_to_window_size_lut.erase(in_key);
+			m_event_delegate_lut.erase(in_key);
+		}
+
+		//finding it with write access causes it to redraw!
+		template<typename T_widget_type>
+		T_widget_type* find(const std::string& in_key)
+		{
+			auto it = m_widget_lut.find(in_key);
+			if (it == m_widget_lut.end())
+				return nullptr;
+
+			m_dirty_root_widgets.insert(it->second->get_outermost_parent());
+
+			return reinterpret_cast<T_widget_type*>(it->second);
+		}
+
+		template<typename T_widget_type>
+		const T_widget_type* find(const std::string& in_key) const
+		{
+			auto it = m_widget_lut.find(in_key);
+			if (it == m_widget_lut.end())
+				return nullptr;
+
+			return reinterpret_cast<T_widget_type*>(it->second);
+		}
+
+		template <typename T_delegate_type>
+		void bind(const std::string& in_widget_key, T_delegate_type::template Signature in_callback)
+		{
+			m_event_delegate_lut[in_widget_key].push_back(*reinterpret_cast<std::function<void()>*>(&in_callback));
+		}
+		
+		template <typename T_delegate_type, typename ...T_args>
+		__forceinline void invoke(const std::string& in_key, T_args... in_args)
+		{
+			auto it = m_event_delegate_lut.find(in_key);
+
+			if (it == m_event_delegate_lut.end())
+				return;
+
+			this_thread().update_deferred
+			(
+				[listeners = it->second, in_args...](Engine_context) mutable
+				{
+					for (auto&& listener : listeners)
+						(*reinterpret_cast<T_delegate_type::template Signature*>(&listener))(in_args...);
+				}
+			);
+		}
+
+		void set_window_info(const std::string& in_root_widget_key, const glm::vec2& in_size, Update_list_id<Render_object_window> in_id)
+		{
+			auto&& it = m_root_to_window_size_lut[in_root_widget_key];
+			it.m_size = in_size;
+			it.m_id = in_id;
 		}
 
 	private:
-		std::mutex m_update_lock;
-		std::vector<std::function<void(Ui_context&)>> m_updates;
 		std::vector<std::unique_ptr<Ui_widget>> m_widgets;
 		std::vector<size_t> m_free_widget_indices;
 		std::unordered_map<std::string, Ui_widget*> m_widget_lut;
 		std::unordered_set<Ui_widget*> m_dirty_root_widgets;
 		std::unordered_map<std::string, Window_info> m_root_to_window_size_lut;
+
+		std::unordered_map<std::string, std::vector<std::function<void()>>> m_event_delegate_lut;
 
 	};
 
@@ -217,6 +371,7 @@ namespace sic
 		void on_engine_tick(Engine_context in_context, float in_time_delta) const override;
 
 		static void update_ui(Processor_ui in_processor);
+		static void update_ui_interactions(Processor_ui in_processor);
 	};
 
 	struct Ui_parent_widget_base : Ui_widget
@@ -230,7 +385,7 @@ namespace sic
 	template <typename T_slot_type>
 	struct Ui_parent_widget : Ui_parent_widget_base
 	{
-		friend struct Ui_context;
+		friend struct State_ui;
 
 		using Slot_type = T_slot_type;
 
@@ -256,7 +411,7 @@ namespace sic
 			Ui_widget::calculate_render_transform(in_window_size);
 		}
 
-		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override final
+		virtual void gather_dependencies(std::vector<Asset_header*>& out_assets) const override
 		{
 			Ui_widget::gather_dependencies(out_assets);
 			for (auto && child : m_children)
@@ -272,7 +427,122 @@ namespace sic
 		const std::pair<Slot_type, Ui_widget&>& get_child(size_t in_slot_index) const { return m_children[in_slot_index]; }
 		std::pair<Slot_type, Ui_widget&>& get_child(size_t in_slot_index) { return m_children[in_slot_index]; }
 
-	protected:
+		virtual Interaction_consume on_cursor_move_over(const glm::vec2& in_cursor_pos, const glm::vec2& in_cursor_movement) override
+		{
+			bool hover_was_consumed = false;
+			bool move_over_was_consumed = false;
+
+			//reverse so the widget rendered last gets the interaction first
+			for (i32 i = m_children.size() - 1; i >= 0; i--)
+			{
+				auto& child = m_children[i];
+
+				if (child.second.is_point_inside(in_cursor_pos))
+				{
+					if (!hover_was_consumed)
+					{
+						if (child.second.m_interaction_state == Ui_interaction_state::idle)
+						{
+							child.second.m_interaction_state = Ui_interaction_state::hovered;
+							child.second.on_interaction_state_changed();
+
+							if (child.second.on_hover_begin(in_cursor_pos) == Interaction_consume::consume)
+								hover_was_consumed = true;
+						}
+					}
+
+					if (!move_over_was_consumed)
+					{
+						if (child.second.on_cursor_move_over(in_cursor_pos, in_cursor_movement) == Interaction_consume::consume)
+							move_over_was_consumed = true;
+					}
+				}
+			}
+
+			return Interaction_consume::fall_through;
+		}
+
+		virtual Interaction_consume on_hover_begin(const glm::vec2& in_cursor_pos) override
+		{
+			//reverse so the widget rendered last gets the interaction first
+			for (i32 i = m_children.size() - 1; i >= 0; i--)
+			{
+				auto& child = m_children[i];
+
+				if (child.second.is_point_inside(in_cursor_pos))
+				{
+					if (child.second.m_interaction_state == Ui_interaction_state::idle)
+					{
+						child.second.m_interaction_state = Ui_interaction_state::hovered;
+						child.second.on_interaction_state_changed();
+
+						if (child.second.on_hover_begin(in_cursor_pos) == Interaction_consume::consume)
+							return Interaction_consume::consume;
+					}
+				}
+			}
+
+			m_interaction_state = Ui_interaction_state::hovered;
+			on_interaction_state_changed();
+
+			return Interaction_consume::fall_through;
+		}
+
+		virtual Interaction_consume on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos) override
+		{
+			//reverse so the widget rendered last gets the interaction first
+			for (i32 i = m_children.size() - 1; i >= 0; i--)
+			{
+				auto& child = m_children[i];
+
+				if (child.second.is_point_inside(in_cursor_pos))
+				{
+					child.second.m_interaction_state = Ui_interaction_state::pressed;
+					child.second.on_interaction_state_changed();
+
+					if (child.second.on_pressed(in_button, in_cursor_pos) == Interaction_consume::consume)
+						return Interaction_consume::consume;
+				}
+			}
+
+			m_interaction_state = Ui_interaction_state::pressed;
+			on_interaction_state_changed();
+
+			return Interaction_consume::fall_through;
+		}
+
+		virtual Interaction_consume on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos) override
+		{
+			bool clicked_was_consumed = false;
+			bool release_was_consumed = false;
+
+			//reverse so the widget rendered last gets the interaction first
+			for (i32 i = m_children.size() - 1; i >= 0; i--)
+			{
+				auto& child = m_children[i];
+
+				if (child.second.is_point_inside(in_cursor_pos))
+				{
+					if (!clicked_was_consumed)
+						if (child.second.m_interaction_state == Ui_interaction_state::pressed)
+							if (child.second.on_clicked(in_button, in_cursor_pos) == Interaction_consume::consume)
+								clicked_was_consumed = true;
+
+					child.second.m_interaction_state = Ui_interaction_state::idle;
+					child.second.on_interaction_state_changed();
+
+					if (!release_was_consumed)
+						if (child.second.on_released(in_button, in_cursor_pos) == Interaction_consume::consume)
+							release_was_consumed = true;
+				}
+			}
+
+			m_interaction_state = Ui_interaction_state::idle;
+			on_interaction_state_changed();
+
+			return Interaction_consume::fall_through;
+		}
+
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override
 		{
 			in_final_translation; in_final_size; in_final_rotation;
@@ -300,98 +570,6 @@ namespace sic
 
 	private:
 		std::vector<std::pair<Slot_type, Ui_widget&>> m_children;
-		State_ui* m_ui_state = nullptr;
-	};
-
-	struct Ui_context
-	{
-		Ui_context(State_ui& inout_ui_state) : m_ui_state(inout_ui_state) {}
-
-		template<typename T_widget_type>
-		T_widget_type& create(std::optional<std::string> in_key)
-		{
-			if (!in_key.has_value())
-				in_key = xg::newGuid().str();
-
-			assert(m_ui_state.m_widget_lut.find(in_key.value()) == m_ui_state.m_widget_lut.end() && "Can not have two widgets with same key!");
-
-			size_t new_idx;
-
-			if (m_ui_state.m_free_widget_indices.empty())
-			{
-				new_idx = m_ui_state.m_widgets.size();
-				m_ui_state.m_widgets.push_back(std::make_unique<T_widget_type>());
-			}
-			else
-			{
-				new_idx = m_ui_state.m_free_widget_indices.back();
-				m_ui_state.m_free_widget_indices.pop_back();
-				m_ui_state.m_widgets[new_idx] = std::make_unique<T_widget_type>();
-			}
-
-			auto& widget = m_ui_state.m_widget_lut[in_key.value()] = m_ui_state.m_widgets.back().get();
-			widget->m_key = in_key.value();
-			widget->m_widget_index = static_cast<i32>(new_idx);
-			widget->m_correctly_added = true;
-
-			T_widget_type& ret_val = *reinterpret_cast<T_widget_type*>(widget);
-
-			if constexpr (std::is_base_of<Ui_parent_widget_base, T_widget_type>::value)
-			{
-				ret_val.m_ui_state = &m_ui_state;
-			}
-
-			m_ui_state.m_dirty_root_widgets.insert(widget->get_outermost_parent());
-
-			return ret_val;
-		}
-
-		void destroy(const std::string& in_key)
-		{
-			auto it = m_ui_state.m_widget_lut.find(in_key);
-
-			if (it == m_ui_state.m_widget_lut.end())
-				return;
-
-			if (it->second != it->second->get_outermost_parent())
-				m_ui_state.m_dirty_root_widgets.insert(it->second->get_outermost_parent());
-
-			it->second->destroy(m_ui_state);
-
-			m_ui_state.m_root_to_window_size_lut.erase(in_key);
-		}
-
-		//finding it with write access causes it to redraw!
-		template<typename T_widget_type>
-		T_widget_type* find(const std::string& in_key)
-		{
-			auto it = m_ui_state.m_widget_lut.find(in_key);
-			if (it == m_ui_state.m_widget_lut.end())
-				return nullptr;
-
-			m_ui_state.m_dirty_root_widgets.insert(it->second->get_outermost_parent());
-
-			return reinterpret_cast<T_widget_type*>(it->second);
-		}
-
-		template<typename T_widget_type>
-		const T_widget_type* find(const std::string& in_key) const
-		{
-			auto it = m_ui_state.m_widget_lut.find(in_key);
-			if (it == m_ui_state.m_widget_lut.end())
-				return nullptr;
-
-			return reinterpret_cast<T_widget_type*>(it->second);
-		}
-
-		void set_window_info(const std::string& in_root_widget_key, const glm::vec2& in_size, Update_list_id<Render_object_window> in_id)
-		{
-			auto&& it = m_ui_state.m_root_to_window_size_lut[in_root_widget_key];
-			it.m_size = in_size;
-			it.m_id = in_id;
-		}
-
-		State_ui& m_ui_state;
 	};
 
 	struct Ui_slot_canvas : Ui_slot
@@ -401,6 +579,7 @@ namespace sic
 		Ui_slot_canvas& size(const glm::vec2& in_size) { m_size = in_size; return *this; }
 		Ui_slot_canvas& pivot(const glm::vec2& in_pivot) { m_pivot = in_pivot; return *this; }
 		Ui_slot_canvas& rotation(float in_rotation) { m_rotation = in_rotation; return *this; }
+		Ui_slot_canvas& autosize(bool in_autosize) { m_autosize = in_autosize; return *this; }
 		Ui_slot_canvas& z_order(ui32 in_z_order) { m_z_order = in_z_order; return *this; }
 
 		Ui_anchors m_anchors;
@@ -409,6 +588,7 @@ namespace sic
 		glm::vec2 m_size;
 		glm::vec2 m_pivot;
 		float m_rotation = 0;
+		bool m_autosize = false;
 
 		ui32 m_z_order = 0;
 	};
@@ -436,9 +616,18 @@ namespace sic
 				glm::vec2 translation = slot.m_translation / m_reference_dimensions;
 				translation += slot.m_anchors.get_min() + (anchor_vec * 0.5f);
 
-				//Todo (carl): maaaybe we should support stretching with anchors, so if they are not the same we restrain the size inbetween the anchor points?
 
-				child.m_global_render_size = slot.m_size / m_reference_dimensions;
+				glm::vec2 slot_size = slot.m_size;
+
+				if (slot.m_anchors.get_min().x < slot.m_anchors.get_max().x)
+					slot_size.x = (slot.m_anchors.get_max().x - slot.m_anchors.get_min().x) * in_window_size.x;
+
+				if (slot.m_anchors.get_min().y < slot.m_anchors.get_max().y)
+					slot_size.y = (slot.m_anchors.get_max().y - slot.m_anchors.get_min().y) * in_window_size.y;
+
+				const glm::vec2 render_size = slot.m_autosize ? child.get_content_size(in_window_size) : slot_size / m_reference_dimensions;
+
+				child.m_global_render_size = render_size;
 				child.m_render_translation += translation;
 				child.m_render_translation -= child.m_global_render_size * slot.m_pivot;
 				child.m_render_rotation += slot.m_rotation;
@@ -595,7 +784,7 @@ namespace sic
 
 				child.calculate_render_transform(in_window_size);
 
-				prev_x = child.m_render_translation.x - m_render_translation.x + child.m_global_render_size.x;
+				prev_x = child.m_render_translation.x - m_render_translation.x + child.m_global_render_size.x + (slot.m_padding.get_right() / in_window_size.x);
 			}
 		}
 
@@ -622,18 +811,18 @@ namespace sic
 	{
 		Ui_widget_image& material(const Asset_ref<Asset_material>& in_asset_ref) { m_material = in_asset_ref; return *this; }
 		Ui_widget_image& image_size(const glm::vec2& in_size) { m_image_size = in_size; return *this; }
-
+		Ui_widget_image& tint(const glm::vec4& in_tint) { m_tint = in_tint; return *this; }
 
 		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override { return m_image_size / in_window_size; };
 
 		Asset_ref<Asset_material> m_material;
 		glm::vec2 m_image_size = { 64.0f, 64.0f };
+		glm::vec4 m_tint = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-	protected:
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override
 		{
 			auto update_lambda =
-			[in_final_translation, in_final_size, in_final_rotation, mat = m_material, id = in_window_id, in_window_size](Render_object_ui& inout_object)
+			[in_final_translation, in_final_size, in_final_rotation, mat = m_material, id = in_window_id, in_window_size, tint = m_tint](Render_object_ui& inout_object)
 			{
 				inout_object.m_window_id = id;
 
@@ -665,6 +854,7 @@ namespace sic
 				const glm::vec4 lefttop_rightbottom_packed = { top_left.x, top_left.y, bottom_right.x, bottom_right.y };
 
 				mat.get_mutable()->set_parameter_on_instance("lefttop_rightbottom_packed", lefttop_rightbottom_packed, inout_object.m_instance_data_index);
+				mat.get_mutable()->set_parameter_on_instance("tint", tint, inout_object.m_instance_data_index);
 			};
 
 			inout_processor.update_state_deferred<State_render_scene>
@@ -683,6 +873,168 @@ namespace sic
 		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override final { if (m_material.is_valid()) out_assets.push_back(m_material.get_header()); }
 
 		Update_list_id<Render_object_ui> m_ro_id;
+	};
+
+	struct Ui_slot_button : Ui_slot
+	{
+		Ui_slot_button& padding(const Ui_padding& in_padding) { m_padding = in_padding; return *this; }
+		Ui_slot_button& h_align(Ui_h_alignment in_horizontal_alignment) { m_horizontal_alignment = in_horizontal_alignment; return *this; }
+		Ui_slot_button& v_align(Ui_v_alignment in_vertical_alignment) { m_vertical_alignment = in_vertical_alignment; return *this; }
+
+		Ui_padding m_padding;
+		Ui_h_alignment m_horizontal_alignment = Ui_h_alignment::center;
+		Ui_v_alignment m_vertical_alignment = Ui_v_alignment::center;
+	};
+
+	struct Ui_widget_button : Ui_parent_widget<Ui_slot_button>
+	{
+		//assigns all materials that have not yet been assigned
+		Ui_widget_button& base_material(const Asset_ref<Asset_material>& in_asset_ref)
+		{
+			if (!m_idle_material.is_valid())
+				m_idle_material = in_asset_ref;
+
+			if (!m_hovered_material.is_valid())
+				m_hovered_material = in_asset_ref;
+
+			if (!m_pressed_material.is_valid())
+				m_pressed_material = in_asset_ref;
+
+			return *this;
+		}
+
+		Ui_widget_button& idle_material(const Asset_ref<Asset_material>& in_asset_ref) { m_idle_material = in_asset_ref; return *this; }
+		Ui_widget_button& hovered_material(const Asset_ref<Asset_material>& in_asset_ref) { m_hovered_material = in_asset_ref; return *this; }
+		Ui_widget_button& pressed_material(const Asset_ref<Asset_material>& in_asset_ref) { m_pressed_material = in_asset_ref; return *this; }
+
+		Ui_widget_button& tints(const glm::vec4& in_tint_idle, const glm::vec4& in_tint_hovered, const glm::vec4& in_tint_pressed)
+		{
+			m_tint_idle = in_tint_idle;
+			m_tint_hovered = in_tint_hovered;
+			m_tint_pressed = in_tint_pressed;
+
+			return *this;
+		}
+
+		Ui_widget_button& size(const glm::vec2& in_size) { m_size = in_size; return *this; }
+
+		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override { return m_size / in_window_size; };
+
+		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override
+		{
+			m_image.m_image_size = m_size;
+			
+			switch (get_interaction_state())
+			{
+			case sic::Ui_interaction_state::idle:
+				m_image.m_material = m_idle_material;
+				m_image.m_tint = m_tint_idle;
+				break;
+			case sic::Ui_interaction_state::hovered:
+				m_image.m_material = m_hovered_material;
+				m_image.m_tint = m_tint_hovered;
+				break;
+			case sic::Ui_interaction_state::pressed:
+				m_image.m_material = m_pressed_material;
+				m_image.m_tint = m_tint_pressed;
+				break;
+			case sic::Ui_interaction_state::pressed_not_hovered:
+				m_image.m_material = m_hovered_material;
+				m_image.m_tint = m_tint_hovered;
+				break;
+			default:
+				break;
+			}
+
+			m_image.update_render_scene(in_final_translation, in_final_size, in_final_rotation, in_window_size, in_window_id, inout_processor);
+
+			Ui_parent_widget<Ui_slot_button>::update_render_scene(in_final_translation, in_final_size, in_final_rotation, in_window_size, in_window_id, inout_processor);
+		}
+
+		void calculate_render_transform(const glm::vec2& in_window_size) override
+		{
+			Ui_widget::calculate_render_transform(in_window_size);
+
+			if (get_child_count() == 0)
+				return;
+
+			auto&& [slot, child] = get_child(0);
+
+			child.m_render_translation = m_render_translation;
+			child.m_render_rotation = m_render_rotation;
+
+			child.m_render_translation.x += slot.m_padding.get_left() / in_window_size.x;
+			child.m_render_translation.y += slot.m_padding.get_top() / in_window_size.y;
+
+			const float new_render_x = m_global_render_size.x - ((slot.m_padding.get_right() + slot.m_padding.get_left()) / in_window_size.x);
+
+			switch (slot.m_horizontal_alignment)
+			{
+			case Ui_h_alignment::fill:
+				child.m_global_render_size.x = new_render_x;
+				break;
+			case Ui_h_alignment::left:
+				child.m_global_render_size.x = glm::min(child.m_global_render_size.x, new_render_x);
+				break;
+			case Ui_h_alignment::right:
+				child.m_global_render_size.x = glm::min(child.m_global_render_size.x, new_render_x);
+				child.m_render_translation.x += new_render_x - child.m_global_render_size.x;
+				break;
+			case Ui_h_alignment::center:
+				child.m_global_render_size.x = glm::min(child.m_global_render_size.x, new_render_x);
+				child.m_render_translation.x += (new_render_x - child.m_global_render_size.x) * 0.5f;
+				break;
+			default:
+				break;
+			}
+
+			const float new_render_y = m_global_render_size.y - ((slot.m_padding.get_top() + slot.m_padding.get_bottom()) / in_window_size.y);
+
+			switch (slot.m_vertical_alignment)
+			{
+			case Ui_v_alignment::fill:
+				child.m_global_render_size.y = new_render_y;
+				break;
+			case Ui_v_alignment::top:
+				child.m_global_render_size.y = glm::min(child.m_global_render_size.y, new_render_y);
+				break;
+			case Ui_v_alignment::bottom:
+				child.m_global_render_size.y = glm::min(child.m_global_render_size.y, new_render_y);
+				child.m_render_translation.y += new_render_y - child.m_global_render_size.y;
+				break;
+			case Ui_v_alignment::center:
+				child.m_global_render_size.y = glm::min(child.m_global_render_size.y, new_render_y);
+				child.m_render_translation.y += (new_render_y - child.m_global_render_size.y) * 0.5f;
+				break;
+			default:
+				break;
+			}
+
+			child.calculate_render_transform(in_window_size);
+		}
+
+		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override
+		{
+			Ui_parent_widget<Ui_slot_button>::gather_dependencies(out_assets);
+
+			out_assets.push_back(m_idle_material.get_header());
+			out_assets.push_back(m_hovered_material.get_header());
+			out_assets.push_back(m_pressed_material.get_header());
+		}
+
+		virtual void on_interaction_state_changed() { request_redraw(); }
+
+		glm::vec2 m_size = { 64.0f, 64.0f };
+
+		Asset_ref<Asset_material> m_idle_material;
+		Asset_ref<Asset_material> m_hovered_material;
+		Asset_ref<Asset_material> m_pressed_material;
+
+		glm::vec4 m_tint_idle = { 1.0f, 1.0f, 1.0f, 1.0f };
+		glm::vec4 m_tint_hovered = { 1.0f, 1.0f, 1.0f, 1.0f };
+		glm::vec4 m_tint_pressed = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+		Ui_widget_image m_image;
 	};
 
 	struct Ui_widget_text : Ui_widget

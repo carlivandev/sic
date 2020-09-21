@@ -48,6 +48,9 @@ namespace sic
 		void set_input_mode(Processor<Processor_flag_deferred_write<State_render_scene>> in_processor, Window_input_mode in_input_mode);
 
 		const glm::vec2& get_cursor_movement() const { return m_cursor_movement; }
+		const glm::vec2& get_cursor_postition() const { return m_cursor_position; }
+		const glm::vec2& get_monitor_position() const { return m_monitor_position; }
+
 		const std::string& get_name() const { return m_name; }
 
 		bool m_is_focused = true;
@@ -57,7 +60,7 @@ namespace sic
 		Update_list_id<Render_object_window> m_window_id;
 
 		On_destroyed m_on_destroyed;
-
+		Engine_context m_engine_context;
 	private:
 		Window_input_mode m_input_mode = Window_input_mode::normal;
 
@@ -65,7 +68,11 @@ namespace sic
 		glm::ivec2 m_dimensions = { 1600, 800 };
 		glm::vec2 m_cursor_position = { 0.0f, 0.0f };
 		glm::vec2 m_cursor_movement = { 0.0f, 0.0f };
+		glm::vec2 m_monitor_position = { 0.0f, 0.0f };
+
 		bool m_needs_cursor_reset = false;
+		bool m_is_maximized = false;
+		bool m_being_moved = false;
 	};
 
 	struct State_window : public State
@@ -74,6 +81,10 @@ namespace sic
 
 		Window_proxy& create_window(Processor_window in_processor, const std::string& in_name, const glm::ivec2& in_dimensions);
 		void destroy_window(Processor_window in_processor, const std::string& in_name);
+
+		void minimize_window(Processor_window in_processor, const std::string& in_name);
+		void toggle_maximize_window(Processor_window in_processor, const std::string& in_name);
+		void set_window_position(Processor_window in_processor, const std::string& in_name, const glm::vec2& in_position);
 
 		Window_proxy* find_window(const char* in_name) const;
 		Window_proxy* get_focused_window() const;
