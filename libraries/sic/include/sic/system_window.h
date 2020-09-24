@@ -54,6 +54,7 @@ namespace sic
 		const std::string& get_name() const { return m_name; }
 
 		bool m_is_focused = true;
+		bool m_is_being_dragged = false;
 		double m_scroll_offset_x = 0.0;
 		double m_scroll_offset_y = 0.0;
 
@@ -69,6 +70,9 @@ namespace sic
 		glm::vec2 m_cursor_position = { 0.0f, 0.0f };
 		glm::vec2 m_cursor_movement = { 0.0f, 0.0f };
 		glm::vec2 m_monitor_position = { 0.0f, 0.0f };
+		glm::vec2 m_cursor_drag = { 0.0f, 0.0f };
+		std::optional<glm::vec2> m_cursor_initial_drag_offset;
+		std::optional<glm::vec2> m_resize_edge;
 
 		bool m_needs_cursor_reset = false;
 		bool m_is_maximized = false;
@@ -85,6 +89,12 @@ namespace sic
 		void minimize_window(Processor_window in_processor, const std::string& in_name);
 		void toggle_maximize_window(Processor_window in_processor, const std::string& in_name);
 		void set_window_position(Processor_window in_processor, const std::string& in_name, const glm::vec2& in_position);
+
+		void begin_drag_window(Processor_window in_processor, const std::string& in_name);
+		void end_drag_window(Processor_window in_processor, const std::string& in_name);
+
+		void begin_resize(Processor_window in_processor, const std::string& in_name, const glm::vec2& in_resize_edge);
+		void end_resize(Processor_window in_processor, const std::string& in_name);
 
 		Window_proxy* find_window(const char* in_name) const;
 		Window_proxy* get_focused_window() const;

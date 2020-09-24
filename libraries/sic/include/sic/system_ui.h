@@ -148,6 +148,8 @@ namespace sic
 
 	struct Ui_widget : Noncopyable
 	{
+		struct On_pressed : Delegate<> {};
+		struct On_released : Delegate<> {};
 		struct On_clicked : Delegate<> {};
 		struct On_drag : Delegate<const glm::vec2&, const glm::vec2&> {};
 
@@ -231,6 +233,7 @@ namespace sic
 
 		bool m_correctly_added = false;
 		Ui_interaction_state m_interaction_state = Ui_interaction_state::idle;
+		Interaction_consume m_interaction_consume_type = Interaction_consume::consume;
 		bool m_redraw_requested = false;
 	};
 
@@ -326,20 +329,27 @@ namespace sic
 		template <typename T_delegate_type>
 		void bind(const std::string& in_widget_key, T_delegate_type::template Signature in_callback)
 		{
-			m_event_delegate_lut[in_widget_key].push_back(*reinterpret_cast<std::function<void()>*>(&in_callback));
+			auto& events_for_key = m_event_delegate_lut[in_widget_key][Type_index<Delegate<>>::get<T_delegate_type>()];
+
+			events_for_key.push_back(*reinterpret_cast<std::function<void()>*>(&in_callback));
 		}
 		
 		template <typename T_delegate_type, typename ...T_args>
 		__forceinline void invoke(const std::string& in_key, T_args... in_args)
 		{
-			auto it = m_event_delegate_lut.find(in_key);
+			auto event_lists_it = m_event_delegate_lut.find(in_key);
 
-			if (it == m_event_delegate_lut.end())
+			if (event_lists_it == m_event_delegate_lut.end())
+				return;
+
+			auto event_list_it = event_lists_it->second.find(Type_index<Delegate<>>::get<T_delegate_type>());
+
+			if (event_list_it == event_lists_it->second.end())
 				return;
 
 			this_thread().update_deferred
 			(
-				[listeners = it->second, in_args...](Engine_context) mutable
+				[listeners = event_list_it->second, in_args...](Engine_context) mutable
 				{
 					for (auto&& listener : listeners)
 						(*reinterpret_cast<T_delegate_type::template Signature*>(&listener))(in_args...);
@@ -361,7 +371,7 @@ namespace sic
 		std::unordered_set<Ui_widget*> m_dirty_root_widgets;
 		std::unordered_map<std::string, Window_info> m_root_to_window_size_lut;
 
-		std::unordered_map<std::string, std::vector<std::function<void()>>> m_event_delegate_lut;
+		std::unordered_map<std::string, std::unordered_map<i32, std::vector<std::function<void()>>>> m_event_delegate_lut;
 
 	};
 
@@ -459,7 +469,10 @@ namespace sic
 				}
 			}
 
-			return Interaction_consume::fall_through;
+			if (move_over_was_consumed)
+				return Interaction_consume::consume;
+
+			return m_interaction_consume_type;
 		}
 
 		virtual Interaction_consume on_hover_begin(const glm::vec2& in_cursor_pos) override
@@ -485,7 +498,7 @@ namespace sic
 			m_interaction_state = Ui_interaction_state::hovered;
 			on_interaction_state_changed();
 
-			return Interaction_consume::fall_through;
+			return m_interaction_consume_type;
 		}
 
 		virtual Interaction_consume on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos) override
@@ -508,7 +521,7 @@ namespace sic
 			m_interaction_state = Ui_interaction_state::pressed;
 			on_interaction_state_changed();
 
-			return Interaction_consume::fall_through;
+			return m_interaction_consume_type;
 		}
 
 		virtual Interaction_consume on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos) override
@@ -540,7 +553,10 @@ namespace sic
 			m_interaction_state = Ui_interaction_state::idle;
 			on_interaction_state_changed();
 
-			return Interaction_consume::fall_through;
+			if (release_was_consumed)
+				return Interaction_consume::consume;
+
+			return m_interaction_consume_type;
 		}
 
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override
@@ -821,6 +837,9 @@ namespace sic
 
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override
 		{
+			if (!m_material.is_valid())
+				return;
+
 			auto update_lambda =
 			[in_final_translation, in_final_size, in_final_rotation, mat = m_material, id = in_window_id, in_window_size, tint = m_tint](Render_object_ui& inout_object)
 			{

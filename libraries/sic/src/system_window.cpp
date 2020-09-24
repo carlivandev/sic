@@ -181,6 +181,42 @@ namespace sic
 			wdw->m_monitor_position.x = (float)in_x;
 			wdw->m_monitor_position.y = (float)in_y;
 		}
+
+		static void cursor_moved(GLFWwindow* in_window, double in_x, double in_y)
+		{
+			Window_proxy* wdw = static_cast<Window_proxy*>(glfwGetWindowUserPointer(in_window));
+
+			if (!wdw)
+				return;
+
+			if (wdw->m_cursor_initial_drag_offset.has_value())
+			{
+				wdw->m_cursor_drag.x = in_x - wdw->m_cursor_initial_drag_offset.value().x;
+				wdw->m_cursor_drag.y = in_y - wdw->m_cursor_initial_drag_offset.value().y;
+
+				SIC_LOG_W(g_log_game, "x: {0}, y: {1}", wdw->m_cursor_drag.x, wdw->m_cursor_drag.y);
+			}
+		}
+
+		static void mousebutton(GLFWwindow* in_window, int in_button, int in_action, int in_mods)
+		{
+			Window_proxy* wdw = static_cast<Window_proxy*>(glfwGetWindowUserPointer(in_window));
+
+			if (!wdw)
+				return;
+
+			if (in_action == GLFW_PRESS && !wdw->m_cursor_initial_drag_offset.has_value())
+			{
+				double x, y;
+				glfwGetCursorPos(in_window, &x, &y);
+
+				wdw->m_cursor_initial_drag_offset = { (float)glm::floor(x), (float)glm::floor(y) };
+			}
+			else if (in_action == GLFW_RELEASE)
+			{
+				wdw->m_cursor_initial_drag_offset.reset();
+			}
+		}
 	};
 }
 
@@ -281,6 +317,76 @@ void sic::System_window::update_windows(Processor_window in_processor)
 				focused_window->m_cursor_movement = focused_window->m_cursor_position - prev_pos;
 			}
 
+			if (focused_window->m_cursor_initial_drag_offset.has_value() && (focused_window->m_cursor_drag.x != 0.0f || focused_window->m_cursor_drag.y != 0.0f))
+			{
+				if (focused_window->m_is_being_dragged)
+				{
+					if (focused_window->m_is_maximized)
+					{
+						focused_window->m_is_maximized = false;
+
+						const glm::vec2 offset_percentage = focused_window->m_cursor_initial_drag_offset.value() / glm::vec2(focused_window->m_dimensions.x, focused_window->m_dimensions.y);
+						const glm::ivec2 old_cursor_pos_on_monitor = focused_window->m_monitor_position + focused_window->m_cursor_initial_drag_offset.value();
+
+						glfwRestoreWindow(focused_window_ro->m_context);
+
+						glm::ivec2 window_dimensions;
+						glfwGetWindowSize(focused_window_ro->m_context, &window_dimensions.x, &window_dimensions.y);
+
+						focused_window->m_cursor_initial_drag_offset.value().x = window_dimensions.x * offset_percentage.x;
+						focused_window->m_cursor_initial_drag_offset.value().y = window_dimensions.y * offset_percentage.y;
+
+						glm::ivec2 new_pos = old_cursor_pos_on_monitor;
+						new_pos += glm::ivec2((offset_percentage.x * window_dimensions.x), (offset_percentage.y * window_dimensions.y));
+						glfwSetWindowPos(focused_window_ro->m_context, new_pos.x, new_pos.y);
+					}
+
+					int w_x, w_y;
+					glfwGetWindowPos(focused_window_ro->m_context, &w_x, &w_y);
+
+					const glm::ivec2 new_pos =
+					{
+						w_x + focused_window->m_cursor_drag.x,
+						w_y + focused_window->m_cursor_drag.y
+					};
+
+					glfwSetWindowPos(focused_window_ro->m_context, new_pos.x, new_pos.y);
+				}
+				else if (focused_window->m_resize_edge.has_value())
+				{
+					glfwMakeContextCurrent(focused_window_ro->m_context);
+
+					GLFWcursor* cursor = glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR);
+					glfwSetCursor(focused_window_ro->m_context, cursor);
+
+					glm::ivec2 old_pos;
+					glfwGetWindowPos(focused_window_ro->m_context, &old_pos.x, &old_pos.y);
+
+					glm::ivec2 old_size;
+					glfwGetWindowSize(focused_window_ro->m_context, &old_size.x, &old_size.y);
+
+					const glm::ivec2 new_size =
+					{
+						glm::max(old_size.x + (focused_window->m_resize_edge.value().x * focused_window->m_cursor_drag.x), 200.0f),
+						glm::max(old_size.y + (focused_window->m_resize_edge.value().y * focused_window->m_cursor_drag.y), 200.0f)
+					};
+
+					const glm::ivec2 new_pos =
+					{
+						old_pos.x + (focused_window->m_resize_edge.value().x < 0.0f ? old_size.x - new_size.x : 0.0f),
+						old_pos.y + (focused_window->m_resize_edge.value().y < 0.0f ? old_size.y - new_size.y : 0.0f)
+					};
+
+					glfwSetWindowSize(focused_window_ro->m_context, new_size.x, new_size.y);
+					glfwSetWindowPos(focused_window_ro->m_context, new_pos.x, new_pos.y);
+
+					focused_window->m_cursor_initial_drag_offset.value().x -= (focused_window->m_resize_edge.value().x > 0.0f ? old_size.x - new_size.x : 0.0f);
+					focused_window->m_cursor_initial_drag_offset.value().y -= (focused_window->m_resize_edge.value().y > 0.0f ? old_size.y - new_size.y : 0.0f);
+				}
+
+ 				focused_window->m_cursor_drag = { 0.0f, 0.0f };
+			}
+
 			glm::ivec2 window_dimensions;
 			glfwGetWindowSize(focused_window_ro->m_context, &window_dimensions.x, &window_dimensions.y);
 
@@ -305,6 +411,8 @@ void sic::System_window::update_windows(Processor_window in_processor)
 			}
 		}
 	}
+
+	glfwMakeContextCurrent(window_state.m_resource_context);
 
 	for (Render_object_window& window : scene_state.m_windows.m_objects)
 	{
@@ -367,7 +475,7 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 			glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
 			glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL
 			glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-			//glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+			glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 
 			in_out_window.m_context = glfwCreateWindow(in_dimensions.x, in_dimensions.y, in_name.c_str(), NULL, resource_context);
 			in_out_window.m_name = in_name;
@@ -384,6 +492,8 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 			glfwSetWindowFocusCallback(in_out_window.m_context, &System_window_functions::window_focused);
 			glfwSetWindowPosCallback(in_out_window.m_context, &System_window_functions::window_moved);
 			glfwSetScrollCallback(in_out_window.m_context, &System_window_functions::window_scrolled);
+			glfwSetCursorPosCallback(in_out_window.m_context, &System_window_functions::cursor_moved);
+			glfwSetMouseButtonCallback(in_out_window.m_context, &System_window_functions::mousebutton);
 
 			glfwMakeContextCurrent(in_out_window.m_context); // Initialize GLEW
 			glewExperimental = true; // Needed in core profile
@@ -558,6 +668,42 @@ void sic::State_window::set_window_position(Processor_window in_processor, const
 		window->m_monitor_position = in_position;
 		window->m_being_moved = false;
 	}
+}
+
+void sic::State_window::begin_drag_window(Processor_window in_processor, const std::string& in_name)
+{
+	Window_proxy* window = find_window(in_name.c_str());
+	if (!window)
+		return;
+
+	window->m_is_being_dragged = true;
+}
+
+void sic::State_window::end_drag_window(Processor_window in_processor, const std::string& in_name)
+{
+	Window_proxy* window = find_window(in_name.c_str());
+	if (!window)
+		return;
+
+	window->m_is_being_dragged = false;
+}
+
+void sic::State_window::begin_resize(Processor_window in_processor, const std::string& in_name, const glm::vec2& in_resize_edge)
+{
+	Window_proxy* window = find_window(in_name.c_str());
+	if (!window)
+		return;
+
+	window->m_resize_edge = in_resize_edge;
+}
+
+void sic::State_window::end_resize(Processor_window in_processor, const std::string& in_name)
+{
+	Window_proxy* window = find_window(in_name.c_str());
+	if (!window)
+		return;
+
+	window->m_resize_edge.reset();
 }
 
 sic::Window_proxy* sic::State_window::find_window(const char* in_name) const

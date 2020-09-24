@@ -56,14 +56,38 @@ sic::Interaction_consume sic::Ui_widget::on_cursor_move_over(const glm::vec2& in
 	if (m_interaction_state == Ui_interaction_state::pressed || m_interaction_state == Ui_interaction_state::pressed_not_hovered)
 		invoke<On_drag>(in_cursor_pos, in_cursor_movement);
 
-	return Interaction_consume::fall_through;
+	return m_interaction_consume_type;
 }
 
-sic::Interaction_consume sic::Ui_widget::on_hover_begin(const glm::vec2& in_cursor_pos) { in_cursor_pos; SIC_LOG(g_log_ui_verbose, "on_hover_begin"); return Interaction_consume::fall_through; }
-sic::Interaction_consume sic::Ui_widget::on_hover_end(const glm::vec2& in_cursor_pos) { in_cursor_pos; SIC_LOG(g_log_ui_verbose, "on_hover_end"); return Interaction_consume::fall_through; }
-sic::Interaction_consume sic::Ui_widget::on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos) { in_button; in_cursor_pos; SIC_LOG(g_log_ui_verbose, "on_pressed"); return Interaction_consume::fall_through; }
-sic::Interaction_consume sic::Ui_widget::on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos) { in_button; in_cursor_pos; SIC_LOG(g_log_ui_verbose, "on_released"); return Interaction_consume::fall_through; }
-sic::Interaction_consume sic::Ui_widget::on_clicked(Mousebutton in_button, const glm::vec2& in_cursor_pos) { in_button; in_cursor_pos; SIC_LOG(g_log_ui_verbose, "on_clicked"); invoke<On_clicked>(); return Interaction_consume::fall_through; }
+sic::Interaction_consume sic::Ui_widget::on_hover_begin(const glm::vec2& in_cursor_pos) { in_cursor_pos; SIC_LOG(g_log_ui_verbose, "on_hover_begin"); return m_interaction_consume_type; }
+sic::Interaction_consume sic::Ui_widget::on_hover_end(const glm::vec2& in_cursor_pos) { in_cursor_pos; SIC_LOG(g_log_ui_verbose, "on_hover_end"); return m_interaction_consume_type; }
+
+sic::Interaction_consume sic::Ui_widget::on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos)
+{
+	in_button; in_cursor_pos;
+	SIC_LOG(g_log_ui_verbose, "on_pressed");
+	
+	invoke<On_pressed>();
+	return m_interaction_consume_type;
+}
+
+sic::Interaction_consume sic::Ui_widget::on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos)
+{
+	in_button; in_cursor_pos;
+	SIC_LOG(g_log_ui_verbose, "on_released");
+	
+	invoke<On_released>();
+	return m_interaction_consume_type;
+}
+
+sic::Interaction_consume sic::Ui_widget::on_clicked(Mousebutton in_button, const glm::vec2& in_cursor_pos)
+{
+	in_button; in_cursor_pos;
+	SIC_LOG(g_log_ui_verbose, "on_clicked");
+	
+	invoke<On_clicked>();
+	return m_interaction_consume_type;
+}
 
 void sic::System_ui::on_created(Engine_context in_context)
 {
