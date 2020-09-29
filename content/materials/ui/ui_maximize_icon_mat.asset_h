@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/materials/ui/ui_maximize_icon_mat.asset",
-	"id": "fc02fa3a-a5c7-4a1c-8c7e-a31539569438",
+	"id": "c511c302-b78b-417b-9b26-76335d5cce55",
 	"name": "ui_maximize_icon_mat",
 	"type": "struct sic::Asset_material"
 }

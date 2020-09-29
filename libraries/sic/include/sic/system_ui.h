@@ -151,6 +151,8 @@ namespace sic
 		struct On_pressed : Delegate<> {};
 		struct On_released : Delegate<> {};
 		struct On_clicked : Delegate<> {};
+		struct On_hover_begin : Delegate<> {};
+		struct On_hover_end : Delegate<> {};
 		struct On_drag : Delegate<const glm::vec2&, const glm::vec2&> {};
 
 		friend struct State_ui;
@@ -186,6 +188,7 @@ namespace sic
 
 		virtual void on_interaction_state_changed() {}
 		//interaction events end
+		virtual void gather_widgets_over_point(const glm::vec2& in_point, std::vector<Ui_widget*>& out_widgets) { if (is_point_inside(in_point)) out_widgets.push_back(this); }
 
 		Ui_interaction_state get_interaction_state() const { return m_interaction_state; }
 
@@ -437,126 +440,13 @@ namespace sic
 		const std::pair<Slot_type, Ui_widget&>& get_child(size_t in_slot_index) const { return m_children[in_slot_index]; }
 		std::pair<Slot_type, Ui_widget&>& get_child(size_t in_slot_index) { return m_children[in_slot_index]; }
 
-		virtual Interaction_consume on_cursor_move_over(const glm::vec2& in_cursor_pos, const glm::vec2& in_cursor_movement) override
-		{
-			bool hover_was_consumed = false;
-			bool move_over_was_consumed = false;
-
-			//reverse so the widget rendered last gets the interaction first
-			for (i32 i = m_children.size() - 1; i >= 0; i--)
-			{
-				auto& child = m_children[i];
-
-				if (child.second.is_point_inside(in_cursor_pos))
-				{
-					if (!hover_was_consumed)
-					{
-						if (child.second.m_interaction_state == Ui_interaction_state::idle)
-						{
-							child.second.m_interaction_state = Ui_interaction_state::hovered;
-							child.second.on_interaction_state_changed();
-
-							if (child.second.on_hover_begin(in_cursor_pos) == Interaction_consume::consume)
-								hover_was_consumed = true;
-						}
-					}
-
-					if (!move_over_was_consumed)
-					{
-						if (child.second.on_cursor_move_over(in_cursor_pos, in_cursor_movement) == Interaction_consume::consume)
-							move_over_was_consumed = true;
-					}
-				}
-			}
-
-			if (move_over_was_consumed)
-				return Interaction_consume::consume;
-
-			return m_interaction_consume_type;
-		}
-
-		virtual Interaction_consume on_hover_begin(const glm::vec2& in_cursor_pos) override
+		virtual void gather_widgets_over_point(const glm::vec2& in_point, std::vector<Ui_widget*>& out_widgets) override
 		{
 			//reverse so the widget rendered last gets the interaction first
 			for (i32 i = m_children.size() - 1; i >= 0; i--)
-			{
-				auto& child = m_children[i];
+				m_children[i].second.gather_widgets_over_point(in_point, out_widgets);
 
-				if (child.second.is_point_inside(in_cursor_pos))
-				{
-					if (child.second.m_interaction_state == Ui_interaction_state::idle)
-					{
-						child.second.m_interaction_state = Ui_interaction_state::hovered;
-						child.second.on_interaction_state_changed();
-
-						if (child.second.on_hover_begin(in_cursor_pos) == Interaction_consume::consume)
-							return Interaction_consume::consume;
-					}
-				}
-			}
-
-			m_interaction_state = Ui_interaction_state::hovered;
-			on_interaction_state_changed();
-
-			return m_interaction_consume_type;
-		}
-
-		virtual Interaction_consume on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos) override
-		{
-			//reverse so the widget rendered last gets the interaction first
-			for (i32 i = m_children.size() - 1; i >= 0; i--)
-			{
-				auto& child = m_children[i];
-
-				if (child.second.is_point_inside(in_cursor_pos))
-				{
-					child.second.m_interaction_state = Ui_interaction_state::pressed;
-					child.second.on_interaction_state_changed();
-
-					if (child.second.on_pressed(in_button, in_cursor_pos) == Interaction_consume::consume)
-						return Interaction_consume::consume;
-				}
-			}
-
-			m_interaction_state = Ui_interaction_state::pressed;
-			on_interaction_state_changed();
-
-			return m_interaction_consume_type;
-		}
-
-		virtual Interaction_consume on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos) override
-		{
-			bool clicked_was_consumed = false;
-			bool release_was_consumed = false;
-
-			//reverse so the widget rendered last gets the interaction first
-			for (i32 i = m_children.size() - 1; i >= 0; i--)
-			{
-				auto& child = m_children[i];
-
-				if (child.second.is_point_inside(in_cursor_pos))
-				{
-					if (!clicked_was_consumed)
-						if (child.second.m_interaction_state == Ui_interaction_state::pressed)
-							if (child.second.on_clicked(in_button, in_cursor_pos) == Interaction_consume::consume)
-								clicked_was_consumed = true;
-
-					child.second.m_interaction_state = Ui_interaction_state::idle;
-					child.second.on_interaction_state_changed();
-
-					if (!release_was_consumed)
-						if (child.second.on_released(in_button, in_cursor_pos) == Interaction_consume::consume)
-							release_was_consumed = true;
-				}
-			}
-
-			m_interaction_state = Ui_interaction_state::idle;
-			on_interaction_state_changed();
-
-			if (release_was_consumed)
-				return Interaction_consume::consume;
-
-			return m_interaction_consume_type;
+			Ui_widget::gather_widgets_over_point(in_point, out_widgets);
 		}
 
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override

@@ -10,6 +10,7 @@
 #include "sic/core/delegate.h"
 
 #include "glm/vec2.hpp"
+#include "glm/vec4.hpp"
 
 #include <optional>
 #include <string>
@@ -31,6 +32,7 @@ namespace sic
 		disabled,
 		hidden
 	};
+
 	struct Window_proxy : Noncopyable
 	{
 		struct On_destroyed : Delegate<> {};
@@ -73,7 +75,9 @@ namespace sic
 		glm::vec2 m_cursor_drag = { 0.0f, 0.0f };
 		std::optional<glm::vec2> m_cursor_initial_drag_offset;
 		std::optional<glm::vec2> m_resize_edge;
+		std::optional<glm::vec4> m_resize_border;
 
+		std::unordered_map<std::string, GLFWcursor*> m_cursors;
 		bool m_needs_cursor_reset = false;
 		bool m_is_maximized = false;
 		bool m_being_moved = false;
@@ -95,6 +99,9 @@ namespace sic
 
 		void begin_resize(Processor_window in_processor, const std::string& in_name, const glm::vec2& in_resize_edge);
 		void end_resize(Processor_window in_processor, const std::string& in_name);
+
+		void set_cursor(Processor_window in_processor, const std::string& in_name, const std::string& in_cursor_key);
+		void set_cursor_icon(Processor_window in_processor, const std::string& in_name, const std::string& in_cursor_key, const glm::ivec2& in_dimensions, const glm::ivec2& in_pointer_location, unsigned char* in_data);
 
 		Window_proxy* find_window(const char* in_name) const;
 		Window_proxy* get_focused_window() const;
@@ -118,5 +125,7 @@ namespace sic
 		virtual void on_engine_tick(Engine_context in_context, float in_time_delta) const override;
 
 		static void update_windows(Processor_window in_processor);
+
+		static void update_dragging(Window_proxy& inout_window, const Render_object_window& in_window_ro);
 	};
 }

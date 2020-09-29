@@ -317,75 +317,7 @@ void sic::System_window::update_windows(Processor_window in_processor)
 				focused_window->m_cursor_movement = focused_window->m_cursor_position - prev_pos;
 			}
 
-			if (focused_window->m_cursor_initial_drag_offset.has_value() && (focused_window->m_cursor_drag.x != 0.0f || focused_window->m_cursor_drag.y != 0.0f))
-			{
-				if (focused_window->m_is_being_dragged)
-				{
-					if (focused_window->m_is_maximized)
-					{
-						focused_window->m_is_maximized = false;
-
-						const glm::vec2 offset_percentage = focused_window->m_cursor_initial_drag_offset.value() / glm::vec2(focused_window->m_dimensions.x, focused_window->m_dimensions.y);
-						const glm::ivec2 old_cursor_pos_on_monitor = focused_window->m_monitor_position + focused_window->m_cursor_initial_drag_offset.value();
-
-						glfwRestoreWindow(focused_window_ro->m_context);
-
-						glm::ivec2 window_dimensions;
-						glfwGetWindowSize(focused_window_ro->m_context, &window_dimensions.x, &window_dimensions.y);
-
-						focused_window->m_cursor_initial_drag_offset.value().x = window_dimensions.x * offset_percentage.x;
-						focused_window->m_cursor_initial_drag_offset.value().y = window_dimensions.y * offset_percentage.y;
-
-						glm::ivec2 new_pos = old_cursor_pos_on_monitor;
-						new_pos += glm::ivec2((offset_percentage.x * window_dimensions.x), (offset_percentage.y * window_dimensions.y));
-						glfwSetWindowPos(focused_window_ro->m_context, new_pos.x, new_pos.y);
-					}
-
-					int w_x, w_y;
-					glfwGetWindowPos(focused_window_ro->m_context, &w_x, &w_y);
-
-					const glm::ivec2 new_pos =
-					{
-						w_x + focused_window->m_cursor_drag.x,
-						w_y + focused_window->m_cursor_drag.y
-					};
-
-					glfwSetWindowPos(focused_window_ro->m_context, new_pos.x, new_pos.y);
-				}
-				else if (focused_window->m_resize_edge.has_value())
-				{
-					glfwMakeContextCurrent(focused_window_ro->m_context);
-
-					GLFWcursor* cursor = glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR);
-					glfwSetCursor(focused_window_ro->m_context, cursor);
-
-					glm::ivec2 old_pos;
-					glfwGetWindowPos(focused_window_ro->m_context, &old_pos.x, &old_pos.y);
-
-					glm::ivec2 old_size;
-					glfwGetWindowSize(focused_window_ro->m_context, &old_size.x, &old_size.y);
-
-					const glm::ivec2 new_size =
-					{
-						glm::max(old_size.x + (focused_window->m_resize_edge.value().x * focused_window->m_cursor_drag.x), 200.0f),
-						glm::max(old_size.y + (focused_window->m_resize_edge.value().y * focused_window->m_cursor_drag.y), 200.0f)
-					};
-
-					const glm::ivec2 new_pos =
-					{
-						old_pos.x + (focused_window->m_resize_edge.value().x < 0.0f ? old_size.x - new_size.x : 0.0f),
-						old_pos.y + (focused_window->m_resize_edge.value().y < 0.0f ? old_size.y - new_size.y : 0.0f)
-					};
-
-					glfwSetWindowSize(focused_window_ro->m_context, new_size.x, new_size.y);
-					glfwSetWindowPos(focused_window_ro->m_context, new_pos.x, new_pos.y);
-
-					focused_window->m_cursor_initial_drag_offset.value().x -= (focused_window->m_resize_edge.value().x > 0.0f ? old_size.x - new_size.x : 0.0f);
-					focused_window->m_cursor_initial_drag_offset.value().y -= (focused_window->m_resize_edge.value().y > 0.0f ? old_size.y - new_size.y : 0.0f);
-				}
-
- 				focused_window->m_cursor_drag = { 0.0f, 0.0f };
-			}
+			update_dragging(*focused_window, *focused_window_ro);
 
 			glm::ivec2 window_dimensions;
 			glfwGetWindowSize(focused_window_ro->m_context, &window_dimensions.x, &window_dimensions.y);
@@ -442,6 +374,79 @@ void sic::System_window::update_windows(Processor_window in_processor)
 	}
 
 	glfwMakeContextCurrent(nullptr);
+}
+
+void sic::System_window::update_dragging(Window_proxy& inout_window, const Render_object_window& in_window_ro)
+{
+	if (!inout_window.m_cursor_initial_drag_offset.has_value())
+		return;
+
+	if (inout_window.m_cursor_drag.x == 0.0f && inout_window.m_cursor_drag.y == 0.0f)
+		return;
+
+	if (inout_window.m_is_being_dragged)
+	{
+		if (inout_window.m_is_maximized)
+		{
+			inout_window.m_is_maximized = false;
+
+			const glm::vec2 offset_percentage = inout_window.m_cursor_initial_drag_offset.value() / glm::vec2(inout_window.m_dimensions.x, inout_window.m_dimensions.y);
+			const glm::ivec2 old_cursor_pos_on_monitor = inout_window.m_monitor_position + inout_window.m_cursor_initial_drag_offset.value();
+
+			glfwRestoreWindow(in_window_ro.m_context);
+
+			glm::ivec2 window_dimensions;
+			glfwGetWindowSize(in_window_ro.m_context, &window_dimensions.x, &window_dimensions.y);
+
+			inout_window.m_cursor_initial_drag_offset.value().x = window_dimensions.x * offset_percentage.x;
+			inout_window.m_cursor_initial_drag_offset.value().y = window_dimensions.y * offset_percentage.y;
+
+			glm::ivec2 new_pos = old_cursor_pos_on_monitor;
+			new_pos += glm::ivec2((offset_percentage.x * window_dimensions.x), (offset_percentage.y * window_dimensions.y));
+			glfwSetWindowPos(in_window_ro.m_context, new_pos.x, new_pos.y);
+		}
+
+		int w_x, w_y;
+		glfwGetWindowPos(in_window_ro.m_context, &w_x, &w_y);
+
+		const glm::ivec2 new_pos =
+		{
+			w_x + inout_window.m_cursor_drag.x,
+			w_y + inout_window.m_cursor_drag.y
+		};
+
+		glfwSetWindowPos(in_window_ro.m_context, new_pos.x, new_pos.y);
+	}
+	else if (inout_window.m_resize_edge.has_value())
+	{
+		glfwMakeContextCurrent(in_window_ro.m_context);
+
+		glm::ivec2 old_pos;
+		glfwGetWindowPos(in_window_ro.m_context, &old_pos.x, &old_pos.y);
+
+		glm::ivec2 old_size;
+		glfwGetWindowSize(in_window_ro.m_context, &old_size.x, &old_size.y);
+
+		const glm::ivec2 new_size =
+		{
+			glm::max(old_size.x + (inout_window.m_resize_edge.value().x * inout_window.m_cursor_drag.x), 200.0f),
+			glm::max(old_size.y + (inout_window.m_resize_edge.value().y * inout_window.m_cursor_drag.y), 200.0f)
+		};
+
+		const glm::ivec2 new_pos =
+		{
+			old_pos.x + (inout_window.m_resize_edge.value().x < 0.0f ? old_size.x - new_size.x : 0.0f),
+			old_pos.y + (inout_window.m_resize_edge.value().y < 0.0f ? old_size.y - new_size.y : 0.0f)
+		};
+
+		glfwSetWindowSize(in_window_ro.m_context, new_size.x, new_size.y);
+		glfwSetWindowPos(in_window_ro.m_context, new_pos.x, new_pos.y);
+
+		inout_window.m_cursor_initial_drag_offset.value().x -= (inout_window.m_resize_edge.value().x > 0.0f ? old_size.x - new_size.x : 0.0f);
+		inout_window.m_cursor_initial_drag_offset.value().y -= (inout_window.m_resize_edge.value().y > 0.0f ? old_size.y - new_size.y : 0.0f);
+	}
+
+	inout_window.m_cursor_drag = { 0.0f, 0.0f };
 }
 
 sic::Window_proxy& sic::State_window::create_window(Processor_window in_processor, const std::string& in_name, const glm::ivec2& in_dimensions)
@@ -522,6 +527,12 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 			// Ensure we can capture the escape key being pressed below
 			glfwSetInputMode(in_out_window.m_context, GLFW_STICKY_KEYS, GL_TRUE);
 
+			window_interface_ptr_raw->m_cursors["arrow"] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
+			window_interface_ptr_raw->m_cursors["resize_ew"] = glfwCreateStandardCursor(GLFW_RESIZE_EW_CURSOR);
+			window_interface_ptr_raw->m_cursors["resize_ns"] = glfwCreateStandardCursor(GLFW_RESIZE_NS_CURSOR);
+			window_interface_ptr_raw->m_cursors["resize_nesw"] = glfwCreateStandardCursor(GLFW_RESIZE_NESW_CURSOR);
+			window_interface_ptr_raw->m_cursors["resize_nwse"] = glfwCreateStandardCursor(GLFW_RESIZE_NWSE_CURSOR);
+
 			in_out_window.m_quad_vertex_buffer_array.emplace();
 
 			const char* quad_vertex_shader_path = "content/engine/materials/pass_through.vert";
@@ -599,6 +610,13 @@ void sic::State_window::destroy_window(Processor_window in_processor, const std:
 	window_interface_ptr->second->m_on_destroyed.invoke();
 
 	State_render_scene& scene_state = in_processor.get_state_checked_w<State_render_scene>();
+	Render_object_window* window_ro = scene_state.m_windows.find_object(window_interface_ptr->second->m_window_id);
+
+	glfwMakeContextCurrent(window_ro->m_context);
+
+	for (auto&& cursor_it : window_interface_ptr->second->m_cursors)
+		glfwDestroyCursor(cursor_it.second);
+
 	scene_state.m_windows.destroy_object(window_interface_ptr->second->m_window_id);
 
 	in_processor.update_state_deferred<State_ui>
@@ -704,6 +722,51 @@ void sic::State_window::end_resize(Processor_window in_processor, const std::str
 		return;
 
 	window->m_resize_edge.reset();
+}
+
+void sic::State_window::set_cursor(Processor_window in_processor, const std::string& in_name, const std::string& in_cursor_key)
+{
+	Window_proxy* window = find_window(in_name.c_str());
+	if (!window)
+		return;
+
+	auto cursor_it = window->m_cursors.find(in_cursor_key);
+	if (cursor_it == window->m_cursors.end())
+		return;
+
+	State_render_scene& scene_state = in_processor.get_state_checked_w<State_render_scene>();
+
+	const Render_object_window* window_ro = scene_state.m_windows.find_object(window->m_window_id);
+	if (window_ro)
+		glfwSetCursor(window_ro->m_context, cursor_it->second);
+}
+
+void sic::State_window::set_cursor_icon(Processor_window in_processor, const std::string& in_name, const std::string& in_cursor_key, const glm::ivec2& in_dimensions, const glm::ivec2& in_pointer_location, unsigned char* in_data)
+{
+	Window_proxy* window = find_window(in_name.c_str());
+	if (!window)
+		return;
+
+	State_render_scene& scene_state = in_processor.get_state_checked_w<State_render_scene>();
+
+	const Render_object_window* window_ro = scene_state.m_windows.find_object(window->m_window_id);
+	if (!window_ro)
+		return;
+
+	glfwMakeContextCurrent(window_ro->m_context);
+
+	auto cur_cursor_it = window->m_cursors.find(in_cursor_key);
+
+	if (cur_cursor_it != window->m_cursors.end())
+		glfwDestroyCursor(cur_cursor_it->second);
+
+	GLFWimage cursor;
+	cursor.width = in_dimensions.x;
+	cursor.height = in_dimensions.y;
+
+	cursor.pixels = in_data;
+
+	window->m_cursors[in_cursor_key] = glfwCreateCursor(&cursor, in_pointer_location.x, in_pointer_location.y);
 }
 
 sic::Window_proxy* sic::State_window::find_window(const char* in_name) const

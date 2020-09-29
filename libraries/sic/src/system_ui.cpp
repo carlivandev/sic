@@ -51,7 +51,7 @@ void sic::Ui_widget::destroy(State_ui& inout_ui_state)
 
 sic::Interaction_consume sic::Ui_widget::on_cursor_move_over(const glm::vec2& in_cursor_pos, const glm::vec2& in_cursor_movement)
 {
-	SIC_LOG(g_log_ui_verbose, "on_cursor_move_over");
+	SIC_LOG(g_log_ui_verbose, "on_cursor_move_over({0})", m_key.value());
 
 	if (m_interaction_state == Ui_interaction_state::pressed || m_interaction_state == Ui_interaction_state::pressed_not_hovered)
 		invoke<On_drag>(in_cursor_pos, in_cursor_movement);
@@ -59,13 +59,28 @@ sic::Interaction_consume sic::Ui_widget::on_cursor_move_over(const glm::vec2& in
 	return m_interaction_consume_type;
 }
 
-sic::Interaction_consume sic::Ui_widget::on_hover_begin(const glm::vec2& in_cursor_pos) { in_cursor_pos; SIC_LOG(g_log_ui_verbose, "on_hover_begin"); return m_interaction_consume_type; }
-sic::Interaction_consume sic::Ui_widget::on_hover_end(const glm::vec2& in_cursor_pos) { in_cursor_pos; SIC_LOG(g_log_ui_verbose, "on_hover_end"); return m_interaction_consume_type; }
+sic::Interaction_consume sic::Ui_widget::on_hover_begin(const glm::vec2& in_cursor_pos)
+{
+	in_cursor_pos;
+	SIC_LOG(g_log_ui_verbose, "on_hover_begin({0})", m_key.value());
+
+	invoke<On_hover_begin>();
+	return m_interaction_consume_type;
+}
+
+sic::Interaction_consume sic::Ui_widget::on_hover_end(const glm::vec2& in_cursor_pos)
+{
+	in_cursor_pos;
+	SIC_LOG(g_log_ui_verbose, "on_hover_end({0})", m_key.value());
+
+	invoke<On_hover_end>();
+	return m_interaction_consume_type;
+}
 
 sic::Interaction_consume sic::Ui_widget::on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos)
 {
 	in_button; in_cursor_pos;
-	SIC_LOG(g_log_ui_verbose, "on_pressed");
+	SIC_LOG(g_log_ui_verbose, "on_pressed({0})", m_key.value());
 	
 	invoke<On_pressed>();
 	return m_interaction_consume_type;
@@ -74,7 +89,7 @@ sic::Interaction_consume sic::Ui_widget::on_pressed(Mousebutton in_button, const
 sic::Interaction_consume sic::Ui_widget::on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos)
 {
 	in_button; in_cursor_pos;
-	SIC_LOG(g_log_ui_verbose, "on_released");
+	SIC_LOG(g_log_ui_verbose, "on_released({0})", m_key.value());
 	
 	invoke<On_released>();
 	return m_interaction_consume_type;
@@ -83,7 +98,7 @@ sic::Interaction_consume sic::Ui_widget::on_released(Mousebutton in_button, cons
 sic::Interaction_consume sic::Ui_widget::on_clicked(Mousebutton in_button, const glm::vec2& in_cursor_pos)
 {
 	in_button; in_cursor_pos;
-	SIC_LOG(g_log_ui_verbose, "on_clicked");
+	SIC_LOG(g_log_ui_verbose, "on_clicked({0})", m_key.value());
 	
 	invoke<On_clicked>();
 	return m_interaction_consume_type;
@@ -202,26 +217,20 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 
 	const glm::vec2& cursor_pos = focused_window->get_cursor_postition() / glm::vec2(focused_window->get_dimensions().x, focused_window->get_dimensions().y);
 
+	std::vector<Ui_widget*> widgets_over_cursor;
+	root_widget_it->second->gather_widgets_over_point(cursor_pos, widgets_over_cursor);
+
+	auto consume_widget_it = std::find_if(widgets_over_cursor.begin(), widgets_over_cursor.end(), [](Ui_widget* in_widget) { return in_widget->m_interaction_consume_type == Interaction_consume::consume; });
+
+	if (consume_widget_it != widgets_over_cursor.end())
+		++consume_widget_it;
+
 	auto released_button = input_state.get_released_mousebutton();
-
-	if (root_widget_it->second->is_point_inside(cursor_pos))
-	{
-		root_widget_it->second->on_hover_begin(cursor_pos);
-
-		if (root_widget_it->second->m_interaction_state == Ui_interaction_state::hovered)
-		{
-			if (auto button = input_state.get_pressed_mousebutton())
-				root_widget_it->second->on_pressed(button.value(), cursor_pos);
-		}
-
-		if (released_button)
-			root_widget_it->second->on_released(released_button.value(), cursor_pos);
-	}
 
 	if (focused_window->get_cursor_movement().x != 0.0f || focused_window->get_cursor_movement().y != 0.0f)
 	{
-		if (root_widget_it->second->is_point_inside(cursor_pos))
-			root_widget_it->second->on_cursor_move_over(cursor_pos, focused_window->get_cursor_movement());
+		for (auto widget = widgets_over_cursor.begin(); widget != consume_widget_it; ++widget)
+			(*widget)->on_cursor_move_over(cursor_pos, focused_window->get_cursor_movement());
 
 		for (auto&& widget : ui_state.m_widgets)
 		{
@@ -242,7 +251,9 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 					}
 				}
 			}
-			else
+
+			//if its not over, or if its not above the consume widget
+			if (!raw_widget->is_point_inside(cursor_pos) || std::find(widgets_over_cursor.begin(), consume_widget_it, raw_widget) == consume_widget_it)
 			{
 				if (raw_widget->m_interaction_state == Ui_interaction_state::hovered)
 				{
@@ -257,6 +268,40 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 					raw_widget->on_interaction_state_changed();
 				}
 			}
+		}
+	}
+
+	for (auto widget = widgets_over_cursor.begin(); widget != consume_widget_it; ++widget)
+	{
+		if ((*widget)->m_interaction_state == Ui_interaction_state::idle)
+		{
+			(*widget)->m_interaction_state = Ui_interaction_state::hovered;
+			(*widget)->on_hover_begin(cursor_pos);
+		}
+	}
+
+	if (auto pressed_button = input_state.get_pressed_mousebutton())
+	{
+		for (auto widget = widgets_over_cursor.begin(); widget != consume_widget_it; ++widget)
+		{
+			if ((*widget)->m_interaction_state == Ui_interaction_state::hovered)
+			{
+				(*widget)->m_interaction_state = Ui_interaction_state::pressed;
+				(*widget)->on_pressed(pressed_button.value(), cursor_pos);
+			}
+		}
+	}
+
+	if (released_button)
+	{
+		for (auto widget = widgets_over_cursor.begin(); widget != consume_widget_it; ++widget)
+		{
+			if ((*widget)->m_interaction_state == Ui_interaction_state::pressed)
+				(*widget)->on_clicked(released_button.value(), cursor_pos);
+
+			(*widget)->on_released(released_button.value(), cursor_pos);
+
+			(*widget)->m_interaction_state = Ui_interaction_state::idle;
 		}
 	}
 
