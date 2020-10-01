@@ -49,59 +49,54 @@ void sic::Ui_widget::destroy(State_ui& inout_ui_state)
 	inout_ui_state.m_widgets[m_widget_index].reset();
 }
 
-sic::Interaction_consume sic::Ui_widget::on_cursor_move_over(const glm::vec2& in_cursor_pos, const glm::vec2& in_cursor_movement)
+void sic::Ui_widget::on_cursor_move_over(const glm::vec2& in_cursor_pos, const glm::vec2& in_cursor_movement)
 {
 	SIC_LOG(g_log_ui_verbose, "on_cursor_move_over({0})", m_key.value());
 
+	invoke<On_cursor_move_over>();
+
 	if (m_interaction_state == Ui_interaction_state::pressed || m_interaction_state == Ui_interaction_state::pressed_not_hovered)
 		invoke<On_drag>(in_cursor_pos, in_cursor_movement);
-
-	return m_interaction_consume_type;
 }
 
-sic::Interaction_consume sic::Ui_widget::on_hover_begin(const glm::vec2& in_cursor_pos)
+void sic::Ui_widget::on_hover_begin(const glm::vec2& in_cursor_pos)
 {
 	in_cursor_pos;
 	SIC_LOG(g_log_ui_verbose, "on_hover_begin({0})", m_key.value());
 
 	invoke<On_hover_begin>();
-	return m_interaction_consume_type;
 }
 
-sic::Interaction_consume sic::Ui_widget::on_hover_end(const glm::vec2& in_cursor_pos)
+void sic::Ui_widget::on_hover_end(const glm::vec2& in_cursor_pos)
 {
 	in_cursor_pos;
 	SIC_LOG(g_log_ui_verbose, "on_hover_end({0})", m_key.value());
 
 	invoke<On_hover_end>();
-	return m_interaction_consume_type;
 }
 
-sic::Interaction_consume sic::Ui_widget::on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos)
+void sic::Ui_widget::on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos)
 {
 	in_button; in_cursor_pos;
 	SIC_LOG(g_log_ui_verbose, "on_pressed({0})", m_key.value());
 	
 	invoke<On_pressed>();
-	return m_interaction_consume_type;
 }
 
-sic::Interaction_consume sic::Ui_widget::on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos)
+void sic::Ui_widget::on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos)
 {
 	in_button; in_cursor_pos;
 	SIC_LOG(g_log_ui_verbose, "on_released({0})", m_key.value());
 	
 	invoke<On_released>();
-	return m_interaction_consume_type;
 }
 
-sic::Interaction_consume sic::Ui_widget::on_clicked(Mousebutton in_button, const glm::vec2& in_cursor_pos)
+void sic::Ui_widget::on_clicked(Mousebutton in_button, const glm::vec2& in_cursor_pos)
 {
 	in_button; in_cursor_pos;
 	SIC_LOG(g_log_ui_verbose, "on_clicked({0})", m_key.value());
 	
 	invoke<On_clicked>();
-	return m_interaction_consume_type;
 }
 
 void sic::System_ui::on_created(Engine_context in_context)
@@ -276,6 +271,7 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 		if ((*widget)->m_interaction_state == Ui_interaction_state::idle)
 		{
 			(*widget)->m_interaction_state = Ui_interaction_state::hovered;
+			(*widget)->on_interaction_state_changed();
 			(*widget)->on_hover_begin(cursor_pos);
 		}
 	}
@@ -287,6 +283,7 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 			if ((*widget)->m_interaction_state == Ui_interaction_state::hovered)
 			{
 				(*widget)->m_interaction_state = Ui_interaction_state::pressed;
+				(*widget)->on_interaction_state_changed();
 				(*widget)->on_pressed(pressed_button.value(), cursor_pos);
 			}
 		}
@@ -302,6 +299,7 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 			(*widget)->on_released(released_button.value(), cursor_pos);
 
 			(*widget)->m_interaction_state = Ui_interaction_state::idle;
+			(*widget)->on_interaction_state_changed();
 		}
 	}
 
@@ -316,6 +314,8 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 
 			if (raw_widget->m_interaction_state == Ui_interaction_state::pressed_not_hovered)
 			{
+				raw_widget->on_released(released_button.value(), cursor_pos);
+
 				raw_widget->m_interaction_state = Ui_interaction_state::idle;
 				raw_widget->on_interaction_state_changed();
 			}

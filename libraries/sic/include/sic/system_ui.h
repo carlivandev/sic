@@ -153,6 +153,7 @@ namespace sic
 		struct On_clicked : Delegate<> {};
 		struct On_hover_begin : Delegate<> {};
 		struct On_hover_end : Delegate<> {};
+		struct On_cursor_move_over : Delegate<> {};
 		struct On_drag : Delegate<const glm::vec2&, const glm::vec2&> {};
 
 		friend struct State_ui;
@@ -160,6 +161,8 @@ namespace sic
 
 		template <typename T_slot_type>
 		friend struct Ui_parent_widget;
+
+		Ui_widget& interaction_consume(Interaction_consume in_interaction_consume_type) { m_interaction_consume_type = in_interaction_consume_type; return *this; }
 
 		virtual void calculate_render_transform(const glm::vec2& in_window_size);
 		virtual void calculate_content_size(const glm::vec2& in_window_size) { m_global_render_size = get_content_size(in_window_size); }
@@ -171,6 +174,10 @@ namespace sic
 
 		ui32 get_slot_index() const { return m_slot_index; }
 
+		//this overrides all sorting behaviour of UI!
+		void set_sort_priority(ui32 in_sort_priority) { m_sort_priority = in_sort_priority; }
+		ui32 get_sort_priority() const { return m_sort_priority; }
+
 		virtual void gather_dependencies(std::vector<Asset_header*>& out_assets) const { out_assets; }
 
 		void get_dependencies_not_loaded(std::vector<Asset_header*>& out_assets) const;
@@ -179,12 +186,12 @@ namespace sic
 
 		//interaction events begin, return bool 
 
-		virtual Interaction_consume on_cursor_move_over(const glm::vec2& in_cursor_pos, const glm::vec2& in_cursor_movement);
-		virtual Interaction_consume on_hover_begin(const glm::vec2& in_cursor_pos);
-		virtual Interaction_consume on_hover_end(const glm::vec2& in_cursor_pos);
-		virtual Interaction_consume on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos);
-		virtual Interaction_consume on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos);
-		virtual Interaction_consume on_clicked(Mousebutton in_button, const glm::vec2& in_cursor_pos);
+		virtual void on_cursor_move_over(const glm::vec2& in_cursor_pos, const glm::vec2& in_cursor_movement);
+		virtual void on_hover_begin(const glm::vec2& in_cursor_pos);
+		virtual void on_hover_end(const glm::vec2& in_cursor_pos);
+		virtual void on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos);
+		virtual void on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos);
+		virtual void on_clicked(Mousebutton in_button, const glm::vec2& in_cursor_pos);
 
 		virtual void on_interaction_state_changed() {}
 		//interaction events end
@@ -231,6 +238,7 @@ namespace sic
 		std::optional<std::string> m_key;
 		Ui_parent_widget_base* m_parent = nullptr;
 		i32 m_slot_index = -1;
+		ui32 m_sort_priority = 0;
 		On_asset_loaded::Handle m_dependencies_loaded_handle;
 		State_ui* m_ui_state = nullptr;
 
@@ -409,6 +417,19 @@ namespace sic
 			m_children.emplace_back(in_slot_data, inout_widget);
 			inout_widget.m_parent = this;
 			inout_widget.m_slot_index = static_cast<i32>(m_children.size() - 1);
+
+			ui32 steps_until_no_parent = 0;
+
+			const Ui_parent_widget_base* parent = this;
+			while (parent)
+			{
+				++steps_until_no_parent;
+				parent = parent->get_parent();
+			}
+
+			inout_widget.m_sort_priority = 0;
+			inout_widget.m_sort_priority = steps_until_no_parent << 16;
+			inout_widget.m_sort_priority += static_cast<ui32>(inout_widget.m_slot_index);
 			
 			m_ui_state->m_dirty_root_widgets.erase(&inout_widget);
 			m_ui_state->m_dirty_root_widgets.insert(get_outermost_parent());
@@ -452,7 +473,7 @@ namespace sic
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override
 		{
 			in_final_translation; in_final_size; in_final_rotation;
-			for (auto && child : m_children)
+			for (auto&& child : m_children)
 				child.second.update_render_scene(child.second.m_render_translation, child.second.m_global_render_size, child.second.m_render_rotation, in_window_size, in_window_id, inout_processor);
 		}
 
@@ -501,6 +522,8 @@ namespace sic
 
 	struct Ui_widget_canvas : Ui_parent_widget<Ui_slot_canvas>
 	{
+		Ui_widget_canvas& reference_dimensions(const glm::vec2& in_reference_dimensions) { m_reference_dimensions = in_reference_dimensions; return *this; }
+
 		void calculate_render_transform(const glm::vec2& in_window_size) override
 		{
 			Ui_widget::calculate_render_transform(in_window_size);
@@ -531,7 +554,7 @@ namespace sic
 				if (slot.m_anchors.get_min().y < slot.m_anchors.get_max().y)
 					slot_size.y = (slot.m_anchors.get_max().y - slot.m_anchors.get_min().y) * in_window_size.y;
 
-				const glm::vec2 render_size = slot.m_autosize ? child.get_content_size(in_window_size) : slot_size / m_reference_dimensions;
+				const glm::vec2 render_size = slot.m_autosize ? child.get_content_size(in_window_size) : slot_size / in_window_size;
 
 				child.m_global_render_size = render_size;
 				child.m_render_translation += translation;
@@ -731,7 +754,7 @@ namespace sic
 				return;
 
 			auto update_lambda =
-			[in_final_translation, in_final_size, in_final_rotation, mat = m_material, id = in_window_id, in_window_size, tint = m_tint](Render_object_ui& inout_object)
+			[in_final_translation, in_final_size, in_final_rotation, mat = m_material, id = in_window_id, in_window_size, tint = m_tint, sort_priority = get_sort_priority()](Render_object_ui& inout_object)
 			{
 				inout_object.m_window_id = id;
 
@@ -742,6 +765,7 @@ namespace sic
 
 					inout_object.m_instance_data_index = mat.get_mutable()->add_instance_data();
 					inout_object.m_material = mat.get_mutable();
+					inout_object.m_sort_priority = sort_priority;
 				}
 
 				struct Local
@@ -855,6 +879,7 @@ namespace sic
 				break;
 			}
 
+			m_image.set_sort_priority(get_sort_priority());
 			m_image.update_render_scene(in_final_translation, in_final_size, in_final_rotation, in_window_size, in_window_id, inout_processor);
 
 			Ui_parent_widget<Ui_slot_button>::update_render_scene(in_final_translation, in_final_size, in_final_rotation, in_window_size, in_window_id, inout_processor);
@@ -1097,7 +1122,7 @@ namespace sic
 					}
 
 					auto update_lambda =
-						[font_ref = m_font, top_left, bottom_right, in_final_rotation, mat = m_material, id = in_window_id, in_window_size, atlas_offset, atlas_glyph_size](Render_object_ui& inout_object)
+						[font_ref = m_font, top_left, bottom_right, in_final_rotation, mat = m_material, id = in_window_id, in_window_size, atlas_offset, atlas_glyph_size, sort_priority = get_sort_priority()](Render_object_ui& inout_object)
 					{
 						inout_object.m_window_id = id;
 
@@ -1108,6 +1133,7 @@ namespace sic
 
 							inout_object.m_instance_data_index = mat.get_mutable()->add_instance_data();
 							inout_object.m_material = mat.get_mutable();
+							inout_object.m_sort_priority = sort_priority;
 						}
 
 						const glm::vec4 lefttop_rightbottom_packed = { top_left.x, top_left.y, bottom_right.x, bottom_right.y };
