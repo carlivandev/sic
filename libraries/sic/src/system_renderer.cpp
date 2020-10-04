@@ -417,28 +417,12 @@ void sic::System_renderer::render_ui(Processor_renderer in_processor, const Rend
 		scene_state.m_ui_drawcalls.begin(), scene_state.m_ui_drawcalls.end(),
 		[](const Drawcall_ui_element& in_a, const Drawcall_ui_element& in_b)
 		{
-			if (in_a.m_sort_priority < in_b.m_sort_priority)
+			if (in_a.m_custom_sort_priority < in_b.m_custom_sort_priority)
 				return true;
-			else if (in_a.m_sort_priority > in_b.m_sort_priority)
-				return false;
 
-			return in_a.m_custom_sort_priority < in_b.m_custom_sort_priority;
+			return in_a.m_sort_priority < in_b.m_sort_priority;
 		}
 	);
-
-// 	auto instanced_begin = sort_instanced(scene_state.m_ui_drawcalls);
-// 
-// 	for (auto it = scene_state.m_ui_drawcalls.begin(); it != instanced_begin; ++it)
-// 	{
-// 		set_blend_mode(it->m_material->m_blend_mode);
-// 
-// 		const auto& program = it->m_material->m_program.value();
-// 		program.use();
-// 
-// 		apply_parameters(*it->m_material, it->m_instance_data, program);
-// 
-// 		OpenGl_draw_strategy_triangle_element::draw(idx_buffer_max_elements_count, 0);
-// 	}
 
 	auto&& chunks = gather_instancing_chunks(scene_state.m_ui_drawcalls.begin(), scene_state.m_ui_drawcalls.end());
 

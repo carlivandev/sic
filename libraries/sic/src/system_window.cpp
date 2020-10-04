@@ -117,6 +117,8 @@ namespace sic
 				return;
 
 			wdw->m_is_focused = in_focused != 0;
+
+			// focused window changed, need to clear input
 		}
 
 		static void window_scrolled(GLFWwindow* in_window, double in_xoffset, double in_yoffset)
@@ -129,33 +131,6 @@ namespace sic
 			wdw->m_scroll_offset_x += in_xoffset;
 			wdw->m_scroll_offset_y += in_yoffset;
 		}
-
-// 		static void window_resized(GLFWwindow* in_window, int in_width, int in_height)
-// 		{
-// 			Window_proxy* wdw = static_cast<Window_proxy*>(glfwGetWindowUserPointer(in_window));
-// 
-// 			if (!wdw)
-// 				return;
-// 
-// 			wdw->m_dimensions = { in_width, in_height };
-// 
-// 			Processor_ui(wdw->m_engine_context).update_state_deferred<State_ui>
-// 			(
-// 				[name = wdw->get_name(), id = wdw->m_window_id, window_dimensions = wdw->m_dimensions](State_ui& inout_ui_state)
-// 				{
-// 					Ui_widget_canvas* canvas = inout_ui_state.find<Ui_widget_canvas>(name);
-// 					assert(canvas);
-// 
-// 					canvas->m_reference_dimensions = window_dimensions;
-// 					inout_ui_state.set_window_info(name, window_dimensions, id);
-// 				}
-// 			);
-// 
-// 			System_renderer::render(Processor_renderer(wdw->m_engine_context));
-// 			System_ui::update_ui(Processor_ui(wdw->m_engine_context));
-// 
-// 			glfwMakeContextCurrent(wdw->m_engine_context.get_state_checked<State_window>().m_resource_context);
-// 		}
 
 		static void window_resized(GLFWwindow* in_window, int in_width, int in_height)
 		{
@@ -453,6 +428,8 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 {
 	std::scoped_lock lock(m_mutex);
 
+	const glm::ivec2 clamped_dimensions = glm::max(in_dimensions, glm::ivec2(200, 200));
+
 	State_render_scene& scene_state = in_processor.get_state_checked_w<State_render_scene>();
 
 	auto& window_interface_ptr = m_window_name_to_interfaces_lut[in_name];
@@ -467,12 +444,12 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 		m_main_window_interface = window_interface_ptr_raw;
 
 	window_interface_ptr_raw->m_name = in_name;
-	window_interface_ptr_raw->m_dimensions = in_dimensions;
+	window_interface_ptr_raw->m_dimensions = clamped_dimensions;
 	window_interface_ptr_raw->m_engine_context = Engine_context(*in_processor.m_engine);
 
 	window_interface_ptr_raw->m_window_id = scene_state.m_windows.create_object
 	(
-		[window_interface_ptr_raw, in_name, in_dimensions, resource_context = m_resource_context](Render_object_window& in_out_window)
+		[window_interface_ptr_raw, in_name, clamped_dimensions, resource_context = m_resource_context](Render_object_window& in_out_window)
 		{
 			glfwWindowHint(GLFW_SAMPLES, 4); // 4x antialiasing
 			glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); // We want OpenGL 3.3
@@ -482,7 +459,7 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 			glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
 			glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 
-			in_out_window.m_context = glfwCreateWindow(in_dimensions.x, in_dimensions.y, in_name.c_str(), NULL, resource_context);
+			in_out_window.m_context = glfwCreateWindow(clamped_dimensions.x, clamped_dimensions.y, in_name.c_str(), NULL, resource_context);
 			in_out_window.m_name = in_name;
 
 			if (in_out_window.m_context == NULL)
@@ -579,19 +556,19 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 
 			//we have to initialize fbo on main context cause it is not shared
 			glfwMakeContextCurrent(resource_context);
-			in_out_window.m_render_target.emplace(in_dimensions, OpenGl_texture_format::rgb,  false);
-			in_out_window.m_ui_render_target.emplace(in_dimensions * 2, OpenGl_texture_format::rgba, false);
+			in_out_window.m_render_target.emplace(clamped_dimensions, OpenGl_texture_format::rgb,  false);
+			in_out_window.m_ui_render_target.emplace(clamped_dimensions * 2, OpenGl_texture_format::rgba, false);
 		}
 	);
 
 	in_processor.update_state_deferred<State_ui>
 	(
-		[in_name, in_dimensions, id = window_interface_ptr_raw->m_window_id](State_ui& inout_ui_state)
+		[in_name, clamped_dimensions, id = window_interface_ptr_raw->m_window_id](State_ui& inout_ui_state)
 		{
 			Ui_widget_canvas& canvas = inout_ui_state.create<Ui_widget_canvas>(in_name);
-			canvas.m_reference_dimensions = in_dimensions;
+			canvas.m_reference_dimensions = clamped_dimensions;
 
-			inout_ui_state.set_window_info(in_name, in_dimensions, id);
+			inout_ui_state.set_window_info(in_name, clamped_dimensions, id);
 		}
 	);
 

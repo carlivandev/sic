@@ -249,8 +249,6 @@ namespace sic
 		{
 			static_assert(false, "Can not sort T_drawcall_type!");
 		}
-		
-		return inout_drawcalls.end();
 	}
 	template<typename T_iterator_type>
 	inline void System_renderer::render_meshes(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix)

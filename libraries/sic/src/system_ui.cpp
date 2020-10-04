@@ -44,14 +44,19 @@ bool sic::Ui_widget::get_ready_to_be_shown() const
 
 void sic::Ui_widget::destroy(State_ui& inout_ui_state)
 {
-	inout_ui_state.m_widget_lut.erase(m_key.value());
+	inout_ui_state.m_widget_lut.erase(m_key);
 	inout_ui_state.m_free_widget_indices.push_back(m_widget_index);
 	inout_ui_state.m_widgets[m_widget_index].reset();
 }
 
+void sic::Ui_widget::destroy_render_object(State_ui& inout_ui_state, Update_list_id<Render_object_ui> in_ro_id) const
+{
+	inout_ui_state.m_ro_ids_to_destroy.push_back(in_ro_id);
+}
+
 void sic::Ui_widget::on_cursor_move_over(const glm::vec2& in_cursor_pos, const glm::vec2& in_cursor_movement)
 {
-	SIC_LOG(g_log_ui_verbose, "on_cursor_move_over({0})", m_key.value());
+	SIC_LOG(g_log_ui_verbose, "on_cursor_move_over({0})", m_key);
 
 	invoke<On_cursor_move_over>();
 
@@ -62,7 +67,7 @@ void sic::Ui_widget::on_cursor_move_over(const glm::vec2& in_cursor_pos, const g
 void sic::Ui_widget::on_hover_begin(const glm::vec2& in_cursor_pos)
 {
 	in_cursor_pos;
-	SIC_LOG(g_log_ui_verbose, "on_hover_begin({0})", m_key.value());
+	SIC_LOG(g_log_ui_verbose, "on_hover_begin({0})", m_key);
 
 	invoke<On_hover_begin>();
 }
@@ -70,7 +75,7 @@ void sic::Ui_widget::on_hover_begin(const glm::vec2& in_cursor_pos)
 void sic::Ui_widget::on_hover_end(const glm::vec2& in_cursor_pos)
 {
 	in_cursor_pos;
-	SIC_LOG(g_log_ui_verbose, "on_hover_end({0})", m_key.value());
+	SIC_LOG(g_log_ui_verbose, "on_hover_end({0})", m_key);
 
 	invoke<On_hover_end>();
 }
@@ -78,7 +83,7 @@ void sic::Ui_widget::on_hover_end(const glm::vec2& in_cursor_pos)
 void sic::Ui_widget::on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos)
 {
 	in_button; in_cursor_pos;
-	SIC_LOG(g_log_ui_verbose, "on_pressed({0})", m_key.value());
+	SIC_LOG(g_log_ui_verbose, "on_pressed({0})", m_key);
 	
 	invoke<On_pressed>();
 }
@@ -86,7 +91,7 @@ void sic::Ui_widget::on_pressed(Mousebutton in_button, const glm::vec2& in_curso
 void sic::Ui_widget::on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos)
 {
 	in_button; in_cursor_pos;
-	SIC_LOG(g_log_ui_verbose, "on_released({0})", m_key.value());
+	SIC_LOG(g_log_ui_verbose, "on_released({0})", m_key);
 	
 	invoke<On_released>();
 }
@@ -94,7 +99,7 @@ void sic::Ui_widget::on_released(Mousebutton in_button, const glm::vec2& in_curs
 void sic::Ui_widget::on_clicked(Mousebutton in_button, const glm::vec2& in_cursor_pos)
 {
 	in_button; in_cursor_pos;
-	SIC_LOG(g_log_ui_verbose, "on_clicked({0})", m_key.value());
+	SIC_LOG(g_log_ui_verbose, "on_clicked({0})", m_key);
 	
 	invoke<On_clicked>();
 }
@@ -117,28 +122,27 @@ void sic::System_ui::update_ui(Processor_ui in_processor)
 	//update ui before drawing, using their previous render transforms (1 frame delay if they are modified)
 	update_ui_interactions(in_processor);
 
-	//TODO: two separate flags
-	//redraw = only redraws the widget that requested the redraw
-	//invalidate layout = recalculates the entire tree (maybe make a check that compares its previous render transform? so if no redraw was requested, it doesnt have to update the render scene, unless explicitly told so
-
 	for (auto&& widget : ui_state.m_widgets)
 	{
-		if (widget && widget->m_redraw_requested)
+		if (!widget)
+			continue;
+
+		if ((ui8)widget->m_update_requested & (ui8)Ui_widget_update::layout)
 		{
 			ui_state.m_dirty_root_widgets.insert(widget->get_outermost_parent());
-			widget->m_redraw_requested = false;
+			((ui8&)widget->m_update_requested) &= ~(ui8)Ui_widget_update::layout;
 		}
+
+		if ((ui8)widget->m_update_requested & (ui8)Ui_widget_update::appearance)
+			ui_state.m_widgets_to_redraw.push_back(widget.get());
 	}
 
 	std::vector<Asset_header*> asset_dependencies;
 
 	for (Ui_widget* dirty_widget : ui_state.m_dirty_root_widgets)
 	{
-		if (!dirty_widget->m_key.has_value())
-			dirty_widget->m_key = xg::newGuid().str();
-
-		if (ui_state.m_widget_lut.find(dirty_widget->m_key.value()) == ui_state.m_widget_lut.end())
-			ui_state.m_widget_lut.insert_or_assign(dirty_widget->m_key.value(), dirty_widget);
+		if (ui_state.m_widget_lut.find(dirty_widget->m_key) == ui_state.m_widget_lut.end())
+			ui_state.m_widget_lut.insert_or_assign(dirty_widget->m_key, dirty_widget);
 
 		asset_dependencies.clear();
 		dirty_widget->gather_dependencies(asset_dependencies);
@@ -153,7 +157,7 @@ void sic::System_ui::update_ui(Processor_ui in_processor)
 
 				dirty_widget->m_dependencies_loaded_handle.set_callback
 				(
-					[&ui_state, key = dirty_widget->m_key.value()](Asset*)
+					[&ui_state, key = dirty_widget->m_key](Asset*)
 					{
 						auto it = ui_state.m_widget_lut.find(key);
 						if (it == ui_state.m_widget_lut.end())
@@ -174,13 +178,16 @@ void sic::System_ui::update_ui(Processor_ui in_processor)
 		if (!should_update_render_scene)
 			continue;
 
-		auto it = ui_state.m_root_to_window_size_lut.find(dirty_widget->m_key.value());
+		auto it = ui_state.m_root_to_window_size_lut.find(dirty_widget->m_key);
 		assert(it != ui_state.m_root_to_window_size_lut.end() && "Dirty_widget was not a properly setup root widget!");
 
 		const glm::vec2 window_size = it->second.m_size;
 
 		dirty_widget->calculate_content_size(window_size);
 		dirty_widget->calculate_render_transform(window_size);
+
+		ui32 cur_sort_priority = 0;
+		dirty_widget->calculate_sort_priority(cur_sort_priority);
 
 		dirty_widget->update_render_scene
 		(
@@ -194,6 +201,44 @@ void sic::System_ui::update_ui(Processor_ui in_processor)
 	}
 
 	ui_state.m_dirty_root_widgets.clear();
+
+	for (Ui_widget* widget_to_redraw : ui_state.m_widgets_to_redraw)
+	{
+		if (widget_to_redraw->m_update_requested == Ui_widget_update::none)
+			continue;
+
+		auto it = ui_state.m_root_to_window_size_lut.find(widget_to_redraw->get_outermost_parent()->m_key);
+		assert(it != ui_state.m_root_to_window_size_lut.end() && "Dirty_widget was not a properly setup root widget!");
+
+		const glm::vec2 window_size = it->second.m_size;
+
+		widget_to_redraw->update_render_scene
+		(
+			widget_to_redraw->m_render_translation + widget_to_redraw->m_local_translation,
+			widget_to_redraw->m_global_render_size * widget_to_redraw->m_local_scale,
+			widget_to_redraw->m_render_rotation + widget_to_redraw->m_local_rotation,
+			window_size,
+			it->second.m_id,
+			in_processor
+		);
+	}
+
+	ui_state.m_widgets_to_redraw.clear();
+
+	if (!ui_state.m_ro_ids_to_destroy.empty())
+	{
+		in_processor.update_state_deferred<State_render_scene>
+		(
+			[ro_ids = ui_state.m_ro_ids_to_destroy](State_render_scene& inout_state)
+			{
+				for (auto ro_id : ro_ids)
+					if (ro_id.is_valid())
+						inout_state.m_ui_elements.destroy_object(ro_id);
+			}
+		);
+
+		ui_state.m_ro_ids_to_destroy.clear();
+	}
 }
 
 void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
