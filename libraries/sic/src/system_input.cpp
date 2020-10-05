@@ -45,11 +45,8 @@ void sic::System_input::update_input(Processor<Processor_flag_write<State_input>
 	
 	const i32 first_valid_key = 32;
 
-	for (i32 i = first_valid_key; i < GLFW_KEY_LAST; i++)
-		input_state.key_last_frame_down[i] = input_state.key_this_frame_down[i];
-
-	for (i32 i = first_valid_key; i < GLFW_KEY_LAST; i++)
-		input_state.key_this_frame_down[i] = glfwGetKey(window_ro->m_context, i) == GLFW_PRESS;
+	input_state.key_last_frame_down = input_state.key_this_frame_down;
+	input_state.key_this_frame_down = focused_window->m_key_this_frame_down;
 
 	for (i32 i = 0; i < GLFW_MOUSE_BUTTON_LAST; i++)
 		input_state.mouse_last_frame_down[i] = input_state.mouse_this_frame_down[i];

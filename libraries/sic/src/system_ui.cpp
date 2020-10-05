@@ -1,4 +1,5 @@
 #include "sic/system_ui.h"
+#include <algorithm>
 
 sic::Log sic::g_log_ui("UI");
 sic::Log sic::g_log_ui_verbose("UI", false);
@@ -247,123 +248,139 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 	const State_input& input_state = in_processor.get_state_checked_r<State_input>();
 	const State_window& window_state = in_processor.get_state_checked_r<State_window>();
 
-	auto focused_window = window_state.get_focused_window();
-	if (!focused_window)
-		return;
+	std::vector<const Window_proxy*> windows;
+	for (auto&& window_it : window_state.get_windows())
+		windows.push_back(window_it.second.get());
 
-	auto root_widget_it = ui_state.m_widget_lut.find(window_state.get_focused_window()->get_name());
-	if (root_widget_it == ui_state.m_widget_lut.end())
-		return;
-
-	const glm::vec2& cursor_pos = focused_window->get_cursor_postition() / glm::vec2(focused_window->get_dimensions().x, focused_window->get_dimensions().y);
-
-	std::vector<Ui_widget*> widgets_over_cursor;
-	root_widget_it->second->gather_widgets_over_point(cursor_pos, widgets_over_cursor);
-
-	auto consume_widget_it = std::find_if(widgets_over_cursor.begin(), widgets_over_cursor.end(), [](Ui_widget* in_widget) { return in_widget->m_interaction_consume_type == Interaction_consume::consume; });
-
-	if (consume_widget_it != widgets_over_cursor.end())
-		++consume_widget_it;
+	std::sort
+	(
+		windows.begin(), windows.end(),
+		[](const Window_proxy* in_a, const Window_proxy* in_b)
+		{
+			return in_a->m_time_since_focused < in_b->m_time_since_focused;
+		}
+	);
 
 	auto released_button = input_state.get_released_mousebutton();
 
-	if (focused_window->get_cursor_movement().x != 0.0f || focused_window->get_cursor_movement().y != 0.0f)
+	for (const Window_proxy* cur_window : windows)
 	{
-		for (auto widget = widgets_over_cursor.begin(); widget != consume_widget_it; ++widget)
-			(*widget)->on_cursor_move_over(cursor_pos, focused_window->get_cursor_movement());
+		auto root_widget_it = ui_state.m_widget_lut.find(cur_window->get_name());
+		if (root_widget_it == ui_state.m_widget_lut.end())
+			continue;
 
-		for (auto&& widget : ui_state.m_widgets)
+		const glm::vec2& cursor_pos = cur_window->get_cursor_postition() / glm::vec2(cur_window->get_dimensions().x, cur_window->get_dimensions().y);
+
+		std::vector<Ui_widget*> widgets_over_cursor;
+		root_widget_it->second->gather_widgets_over_point(cursor_pos, widgets_over_cursor);
+
+		auto consume_widget_it = std::find_if(widgets_over_cursor.begin(), widgets_over_cursor.end(), [](Ui_widget* in_widget) { return in_widget->m_interaction_consume_type == Interaction_consume::consume; });
+
+		if (consume_widget_it != widgets_over_cursor.end())
+			++consume_widget_it;
+
+		if (cur_window->get_cursor_movement().x != 0.0f || cur_window->get_cursor_movement().y != 0.0f)
 		{
-			Ui_widget* raw_widget = widget.get();
+			for (auto widget = widgets_over_cursor.begin(); widget != consume_widget_it; ++widget)
+				(*widget)->on_cursor_move_over(cursor_pos, cur_window->get_cursor_movement());
 
-			if (!raw_widget || raw_widget->get_outermost_parent() != root_widget_it->second)
-				continue;
-
-			if (raw_widget->is_point_inside(cursor_pos))
+			for (auto&& widget : ui_state.m_widgets)
 			{
-				if (raw_widget->m_interaction_state == Ui_interaction_state::pressed_not_hovered)
+				Ui_widget* raw_widget = widget.get();
+
+				if (!raw_widget || raw_widget->get_outermost_parent() != root_widget_it->second)
+					continue;
+
+				if (raw_widget->is_point_inside(cursor_pos))
 				{
-					if (auto button = input_state.get_down_mousebutton())
+					if (raw_widget->m_interaction_state == Ui_interaction_state::pressed_not_hovered)
 					{
-						raw_widget->on_pressed(button.value(), cursor_pos);
-						raw_widget->m_interaction_state = Ui_interaction_state::pressed;
+						if (auto button = input_state.get_down_mousebutton())
+						{
+							raw_widget->on_pressed(button.value(), cursor_pos);
+							raw_widget->m_interaction_state = Ui_interaction_state::pressed;
+							raw_widget->on_interaction_state_changed();
+						}
+					}
+				}
+
+				//if its not over, or if its not above the consume widget
+				if (!raw_widget->is_point_inside(cursor_pos) || std::find(widgets_over_cursor.begin(), consume_widget_it, raw_widget) == consume_widget_it)
+				{
+					if (raw_widget->m_interaction_state == Ui_interaction_state::hovered)
+					{
+						raw_widget->on_hover_end(cursor_pos);
+						raw_widget->m_interaction_state = Ui_interaction_state::idle;
+						raw_widget->on_interaction_state_changed();
+					}
+					else if (raw_widget->m_interaction_state == Ui_interaction_state::pressed)
+					{
+						raw_widget->on_hover_end(cursor_pos);
+						raw_widget->m_interaction_state = Ui_interaction_state::pressed_not_hovered;
 						raw_widget->on_interaction_state_changed();
 					}
 				}
 			}
+		}
 
-			//if its not over, or if its not above the consume widget
-			if (!raw_widget->is_point_inside(cursor_pos) || std::find(widgets_over_cursor.begin(), consume_widget_it, raw_widget) == consume_widget_it)
+		for (auto widget = widgets_over_cursor.begin(); widget != consume_widget_it; ++widget)
+		{
+			if ((*widget)->m_interaction_state == Ui_interaction_state::idle)
 			{
-				if (raw_widget->m_interaction_state == Ui_interaction_state::hovered)
+				(*widget)->m_interaction_state = Ui_interaction_state::hovered;
+				(*widget)->on_interaction_state_changed();
+				(*widget)->on_hover_begin(cursor_pos);
+			}
+		}
+
+		if (auto pressed_button = input_state.get_pressed_mousebutton())
+		{
+			for (auto widget = widgets_over_cursor.begin(); widget != consume_widget_it; ++widget)
+			{
+				if ((*widget)->m_interaction_state == Ui_interaction_state::hovered)
 				{
-					raw_widget->on_hover_end(cursor_pos);
+					(*widget)->m_interaction_state = Ui_interaction_state::pressed;
+					(*widget)->on_interaction_state_changed();
+					(*widget)->on_pressed(pressed_button.value(), cursor_pos);
+				}
+			}
+		}
+
+		if (released_button)
+		{
+			for (auto widget = widgets_over_cursor.begin(); widget != consume_widget_it; ++widget)
+			{
+				if ((*widget)->m_interaction_state == Ui_interaction_state::pressed)
+					(*widget)->on_clicked(released_button.value(), cursor_pos);
+
+				(*widget)->on_released(released_button.value(), cursor_pos);
+
+				(*widget)->m_interaction_state = Ui_interaction_state::idle;
+				(*widget)->on_interaction_state_changed();
+			}
+		}
+
+		if (released_button)
+		{
+			for (auto&& widget : ui_state.m_widgets)
+			{
+				Ui_widget* raw_widget = widget.get();
+
+				if (!raw_widget || raw_widget->get_outermost_parent() != root_widget_it->second)
+					continue;
+
+				if (raw_widget->m_interaction_state == Ui_interaction_state::pressed_not_hovered)
+				{
+					raw_widget->on_released(released_button.value(), cursor_pos);
+
 					raw_widget->m_interaction_state = Ui_interaction_state::idle;
 					raw_widget->on_interaction_state_changed();
 				}
-				else if (raw_widget->m_interaction_state == Ui_interaction_state::pressed)
-				{
-					raw_widget->on_hover_end(cursor_pos);
-					raw_widget->m_interaction_state = Ui_interaction_state::pressed_not_hovered;
-					raw_widget->on_interaction_state_changed();
-				}
 			}
 		}
-	}
 
-	for (auto widget = widgets_over_cursor.begin(); widget != consume_widget_it; ++widget)
-	{
-		if ((*widget)->m_interaction_state == Ui_interaction_state::idle)
-		{
-			(*widget)->m_interaction_state = Ui_interaction_state::hovered;
-			(*widget)->on_interaction_state_changed();
-			(*widget)->on_hover_begin(cursor_pos);
-		}
-	}
-
-	if (auto pressed_button = input_state.get_pressed_mousebutton())
-	{
-		for (auto widget = widgets_over_cursor.begin(); widget != consume_widget_it; ++widget)
-		{
-			if ((*widget)->m_interaction_state == Ui_interaction_state::hovered)
-			{
-				(*widget)->m_interaction_state = Ui_interaction_state::pressed;
-				(*widget)->on_interaction_state_changed();
-				(*widget)->on_pressed(pressed_button.value(), cursor_pos);
-			}
-		}
-	}
-
-	if (released_button)
-	{
-		for (auto widget = widgets_over_cursor.begin(); widget != consume_widget_it; ++widget)
-		{
-			if ((*widget)->m_interaction_state == Ui_interaction_state::pressed)
-				(*widget)->on_clicked(released_button.value(), cursor_pos);
-
-			(*widget)->on_released(released_button.value(), cursor_pos);
-
-			(*widget)->m_interaction_state = Ui_interaction_state::idle;
-			(*widget)->on_interaction_state_changed();
-		}
-	}
-
-	if (released_button)
-	{
-		for (auto&& widget : ui_state.m_widgets)
-		{
-			Ui_widget* raw_widget = widget.get();
-
-			if (!raw_widget || raw_widget->get_outermost_parent() != root_widget_it->second)
-				continue;
-
-			if (raw_widget->m_interaction_state == Ui_interaction_state::pressed_not_hovered)
-			{
-				raw_widget->on_released(released_button.value(), cursor_pos);
-
-				raw_widget->m_interaction_state = Ui_interaction_state::idle;
-				raw_widget->on_interaction_state_changed();
-			}
-		}
+		//dont continue updating next window if we already hovered 
+		if (widgets_over_cursor.size() > 0)
+			break;
 	}
 }

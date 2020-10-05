@@ -117,8 +117,7 @@ namespace sic
 				return;
 
 			wdw->m_is_focused = in_focused != 0;
-
-			// focused window changed, need to clear input
+			wdw->m_time_since_focused = 0.0f;
 		}
 
 		static void window_scrolled(GLFWwindow* in_window, double in_xoffset, double in_yoffset)
@@ -168,8 +167,6 @@ namespace sic
 			{
 				wdw->m_cursor_drag.x = in_x - wdw->m_cursor_initial_drag_offset.value().x;
 				wdw->m_cursor_drag.y = in_y - wdw->m_cursor_initial_drag_offset.value().y;
-
-				SIC_LOG_W(g_log_game, "x: {0}, y: {1}", wdw->m_cursor_drag.x, wdw->m_cursor_drag.y);
 			}
 		}
 
@@ -191,6 +188,16 @@ namespace sic
 			{
 				wdw->m_cursor_initial_drag_offset.reset();
 			}
+		}
+
+		static void key(GLFWwindow* in_window, int in_key, int in_scancode, int in_action, int in_mods)
+		{
+			Window_proxy* wdw = static_cast<Window_proxy*>(glfwGetWindowUserPointer(in_window));
+
+			if (!wdw)
+				return;
+
+			wdw->m_key_this_frame_down[in_key] = in_action == GLFW_PRESS || in_action == GLFW_REPEAT;
 		}
 	};
 }
@@ -269,43 +276,48 @@ void sic::System_window::update_windows(Processor_window in_processor)
 	glfwMakeContextCurrent(window_state.m_resource_context);
 	glfwPollEvents();
 
-	if (focused_window)
+	for (auto&& window_it : window_state.m_window_name_to_interfaces_lut)
 	{
+		Window_proxy* cur_window = window_it.second.get();
+
+		if (!cur_window->m_is_focused)
+			cur_window->m_time_since_focused += in_processor.get_time_delta();
+
 		glm::dvec2 new_pos;
 
-		const Render_object_window* focused_window_ro = scene_state.m_windows.find_object(focused_window->m_window_id);
-		if (focused_window_ro)
+		const Render_object_window* cur_window_ro = scene_state.m_windows.find_object(cur_window->m_window_id);
+		if (cur_window_ro)
 		{
-			glfwGetCursorPos(focused_window_ro->m_context, &new_pos.x, &new_pos.y);
+			glfwGetCursorPos(cur_window_ro->m_context, &new_pos.x, &new_pos.y);
 
-			const glm::vec2 prev_pos = focused_window->m_cursor_position;
+			const glm::vec2 prev_pos = cur_window->m_cursor_position;
 
-			focused_window->m_cursor_position = new_pos;
+			cur_window->m_cursor_position = new_pos;
 
-			if (focused_window->m_needs_cursor_reset)
+			if (cur_window->m_needs_cursor_reset)
 			{
-				focused_window->m_cursor_movement = { 0.0f, 0.0f };
-				focused_window->m_needs_cursor_reset = false;
+				cur_window->m_cursor_movement = { 0.0f, 0.0f };
+				cur_window->m_needs_cursor_reset = false;
 			}
 			else
 			{
-				focused_window->m_cursor_movement = focused_window->m_cursor_position - prev_pos;
+				cur_window->m_cursor_movement = cur_window->m_cursor_position - prev_pos;
 			}
 
-			update_dragging(*focused_window, *focused_window_ro);
+			update_dragging(*cur_window, *cur_window_ro);
 
 			glm::ivec2 window_dimensions;
-			glfwGetWindowSize(focused_window_ro->m_context, &window_dimensions.x, &window_dimensions.y);
+			glfwGetWindowSize(cur_window_ro->m_context, &window_dimensions.x, &window_dimensions.y);
 
-			if (focused_window->m_dimensions != window_dimensions)
+			if (cur_window->m_dimensions != window_dimensions)
 			{
 				if (window_dimensions.x != 0 && window_dimensions.y != 0)
 				{
-					focused_window->m_dimensions = window_dimensions;
+					cur_window->m_dimensions = window_dimensions;
 
 					in_processor.update_state_deferred<State_ui>
 					(
-						[name = focused_window->get_name(), id = focused_window->m_window_id, window_dimensions](State_ui& inout_ui_state)
+						[name = cur_window->get_name(), id = cur_window->m_window_id, window_dimensions](State_ui& inout_ui_state)
 						{
 							Ui_widget_canvas* canvas = inout_ui_state.find<Ui_widget_canvas>(name);
 							assert(canvas);
@@ -476,6 +488,7 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 			glfwSetScrollCallback(in_out_window.m_context, &System_window_functions::window_scrolled);
 			glfwSetCursorPosCallback(in_out_window.m_context, &System_window_functions::cursor_moved);
 			glfwSetMouseButtonCallback(in_out_window.m_context, &System_window_functions::mousebutton);
+			glfwSetKeyCallback(in_out_window.m_context, &System_window_functions::key);
 
 			glfwMakeContextCurrent(in_out_window.m_context); // Initialize GLEW
 			glewExperimental = true; // Needed in core profile

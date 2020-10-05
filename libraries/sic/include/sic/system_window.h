@@ -40,6 +40,7 @@ namespace sic
 		friend struct System_window;
 		friend struct State_window;
 		friend struct System_window_functions;
+		friend struct System_input;
 
 		void set_dimensions(Processor_window in_processor, const glm::ivec2& in_dimensions);
 		const glm::ivec2& get_dimensions() const { return m_dimensions; }
@@ -59,6 +60,7 @@ namespace sic
 		bool m_is_being_dragged = false;
 		double m_scroll_offset_x = 0.0;
 		double m_scroll_offset_y = 0.0;
+		float m_time_since_focused = 0.0f;
 
 		Update_list_id<Render_object_window> m_window_id;
 
@@ -81,6 +83,8 @@ namespace sic
 		bool m_needs_cursor_reset = false;
 		bool m_is_maximized = false;
 		bool m_being_moved = false;
+
+		std::array<bool, static_cast<i32>(Key::count)> m_key_this_frame_down;
 	};
 
 	struct State_window : public State
@@ -105,6 +109,8 @@ namespace sic
 
 		Window_proxy* find_window(const char* in_name) const;
 		Window_proxy* get_focused_window() const;
+
+		const std::unordered_map<std::string, std::unique_ptr<Window_proxy>>& get_windows() const { return m_window_name_to_interfaces_lut; }
 
 		Window_proxy* m_main_window_interface = nullptr;
 		GLFWwindow* m_resource_context = nullptr;
