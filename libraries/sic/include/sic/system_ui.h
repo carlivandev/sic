@@ -837,6 +837,8 @@ namespace sic
 
 	struct Ui_widget_button : Ui_parent_widget<Ui_slot_button>
 	{
+		struct On_toggled : Delegate<bool> {};
+
 		//assigns all materials that have not yet been assigned
 		Ui_widget_button& base_material(const Asset_ref<Asset_material>& in_asset_ref)
 		{
@@ -869,7 +871,15 @@ namespace sic
 			return *this;
 		}
 
+		Ui_widget_button& tint_idle(const glm::vec4& in_tint_idle) { m_tint_idle = in_tint_idle; request_update(Ui_widget_update::appearance); return *this;	}
+		Ui_widget_button& tint_hovered(const glm::vec4& in_tint_hovered) { m_tint_hovered = in_tint_hovered; request_update(Ui_widget_update::appearance); return *this; }
+		Ui_widget_button& tint_pressed(const glm::vec4& in_tint_pressed) { m_tint_pressed = in_tint_pressed; request_update(Ui_widget_update::appearance); return *this; }
+
 		Ui_widget_button& size(const glm::vec2& in_size) { m_size = in_size; request_update(Ui_widget_update::layout_and_appearance); return *this; }
+
+		Ui_widget_button& toggled(bool in_is_toggled) { m_toggled = in_is_toggled; request_update(Ui_widget_update::appearance); return *this; }
+		Ui_widget_button& is_toggle(bool in_is_toggle) { m_is_toggle = in_is_toggle; request_update(Ui_widget_update::appearance); return *this; }
+
 
 		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override { return m_size / in_window_size; };
 
@@ -978,6 +988,17 @@ namespace sic
 
 		virtual void on_interaction_state_changed() { request_update(Ui_widget_update::appearance); }
 
+		virtual void on_clicked(Mousebutton in_button, const glm::vec2& in_cursor_pos) override
+		{
+			Ui_widget::on_clicked(in_button, in_cursor_pos);
+
+			if (m_is_toggle)
+			{
+				m_toggled = !m_toggled;
+				invoke<On_toggled>(m_toggled);
+			}
+		}
+
 		void destroy(State_ui& inout_ui_state) override
 		{
 			m_image.destroy_render_object(inout_ui_state, m_image.m_ro_id);
@@ -996,6 +1017,8 @@ namespace sic
 		glm::vec4 m_tint_pressed = { 1.0f, 1.0f, 1.0f, 1.0f };
 
 		Ui_widget_image m_image;
+		bool m_toggled = false;
+		bool m_is_toggle = false;
 	};
 
 	struct Ui_widget_text : Ui_widget

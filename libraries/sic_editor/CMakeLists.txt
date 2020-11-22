@@ -23,11 +23,13 @@ endfunction()
 add_headers(SIC_EDITOR_HEADERS
 	asset_import.h
 	system_editor.h
+	editor_ui_common.h
 	)
 
 add_sources(SIC_EDITOR_SOURCES
 	asset_import.cpp
 	system_editor.cpp
+	editor_ui_common.cpp
 	)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
