@@ -199,6 +199,16 @@ namespace sic
 
 			wdw->m_key_this_frame_down[in_key] = in_action == GLFW_PRESS || in_action == GLFW_REPEAT;
 		}
+
+		static void input_character(GLFWwindow* in_window, unsigned int in_character)
+		{
+			Window_proxy* wdw = static_cast<Window_proxy*>(glfwGetWindowUserPointer(in_window));
+
+			if (!wdw)
+				return;
+
+			wdw->m_character_input = in_character;
+		}
 	};
 }
 
@@ -272,6 +282,9 @@ void sic::System_window::update_windows(Processor_window in_processor)
 	State_render_scene& scene_state = in_processor.get_state_checked_w<State_render_scene>();
 
 	Window_proxy* focused_window = window_state.get_focused_window();
+
+	if (focused_window)
+		focused_window->m_character_input.reset();
 
 	glfwMakeContextCurrent(window_state.m_resource_context);
 	glfwPollEvents();
@@ -489,6 +502,7 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 			glfwSetCursorPosCallback(in_out_window.m_context, &System_window_functions::cursor_moved);
 			glfwSetMouseButtonCallback(in_out_window.m_context, &System_window_functions::mousebutton);
 			glfwSetKeyCallback(in_out_window.m_context, &System_window_functions::key);
+			glfwSetCharCallback(in_out_window.m_context, &System_window_functions::input_character);
 
 			glfwMakeContextCurrent(in_out_window.m_context); // Initialize GLEW
 			glewExperimental = true; // Needed in core profile

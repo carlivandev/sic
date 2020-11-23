@@ -176,6 +176,8 @@ namespace sic
 		std::array<bool, static_cast<i32>(Key::count)> key_last_frame_down;
 		std::array<bool, static_cast<i32>(Key::count)> key_this_frame_down;
 
+		std::optional<unsigned int> m_character_input;
+
 		double m_scroll_offset_x = 0.0;
 		double m_scroll_offset_y = 0.0;
 	};

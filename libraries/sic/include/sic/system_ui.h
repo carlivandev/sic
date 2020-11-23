@@ -163,6 +163,9 @@ namespace sic
 		struct On_hover_end : Delegate<> {};
 		struct On_cursor_move_over : Delegate<> {};
 		struct On_drag : Delegate<const glm::vec2&, const glm::vec2&> {};
+		struct On_character_input : Delegate<unsigned int> {};
+		struct On_focus_begin : Delegate<> {};
+		struct On_focus_end : Delegate<> {};
 
 		friend struct State_ui;
 		friend struct System_ui;
@@ -201,7 +204,11 @@ namespace sic
 		virtual void on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos);
 		virtual void on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos);
 		virtual void on_clicked(Mousebutton in_button, const glm::vec2& in_cursor_pos);
+		virtual void on_character_input(unsigned int in_character);
+		virtual void on_focus_begin();
+		virtual void on_focus_end();
 
+		virtual std::optional<std::string> get_clipboard_string() { return {}; }
 		virtual void on_interaction_state_changed() {}
 		//interaction events end
 		virtual void gather_widgets_over_point(const glm::vec2& in_point, std::vector<Ui_widget*>& out_widgets) { if (is_point_inside(in_point)) out_widgets.push_back(this); }
@@ -317,6 +324,12 @@ namespace sic
 			if (it->second != it->second->get_outermost_parent())
 				m_dirty_root_widgets.insert(it->second->get_outermost_parent());
 
+			if (it->second == m_focused_widget)
+			{
+				m_focused_widget->on_focus_end();
+				m_focused_widget = nullptr;
+			}
+
 			it->second->destroy(*this);
 
 			m_root_to_window_size_lut.erase(in_key);
@@ -392,6 +405,7 @@ namespace sic
 		std::unordered_map<std::string, Window_info> m_root_to_window_size_lut;
 
 		std::vector<Ui_widget*> m_widgets_to_redraw;
+		Ui_widget* m_focused_widget = nullptr;
 
 		std::unordered_map<std::string, std::unordered_map<i32, std::vector<std::function<void()>>>> m_event_delegate_lut;
 		std::vector<Update_list_id<Render_object_ui>> m_ro_ids_to_destroy;
@@ -1032,10 +1046,18 @@ namespace sic
 		Ui_widget_text& align(Ui_h_alignment in_alignment) { m_alignment = in_alignment; request_update(Ui_widget_update::layout_and_appearance); return *this; }
 		Ui_widget_text& autowrap(bool in_autowrap) { m_autowrap = in_autowrap; request_update(Ui_widget_update::layout_and_appearance); return *this; }
 		Ui_widget_text& wrap_text_at(std::optional<float> in_wrap_text_at) { m_wrap_text_at = in_wrap_text_at; request_update(Ui_widget_update::layout_and_appearance); return *this; }
+		Ui_widget_text& foreground_color(const glm::vec4& in_foreground_color) { m_foreground_color = in_foreground_color; request_update(Ui_widget_update::appearance); return *this; }
+		Ui_widget_text& background_color(const glm::vec4& in_background_color) { m_background_color = in_background_color; request_update(Ui_widget_update::appearance); return *this; }
+		Ui_widget_text& selected_foreground_color(const glm::vec4& in_foreground_color) { m_selected_foreground_color = in_foreground_color; request_update(Ui_widget_update::appearance); return *this; }
+		Ui_widget_text& selected_background_color(const glm::vec4& in_background_color) { m_selected_background_color = in_background_color; request_update(Ui_widget_update::appearance); return *this; }
+		Ui_widget_text& selectable(bool in_selectable) { m_selectable = in_selectable; if (!m_selectable) { m_selection_start.reset(); m_selection_end.reset(); request_update(Ui_widget_update::appearance); } return *this; }
 
 		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override
 		{
 			const Asset_font* font = m_font.get();
+
+			if (!font)
+				return glm::vec2(0.0f, 0.0f);
 
 			glm::vec2 size = { 0.0f, 0.0f };
 
@@ -1063,6 +1085,7 @@ namespace sic
 					cur_size_x += font->m_glyphs[c].m_kerning_values[m_text[i - 1]];
 			}
 
+			size.x = glm::max(size.x, cur_size_x);
 			size.y = font->m_max_glyph_height;
 
 			const float scale_ratio = m_px / font->m_em_size;
@@ -1073,6 +1096,81 @@ namespace sic
 			return size;
 		};
 
+		virtual void on_cursor_move_over(const glm::vec2& in_cursor_pos, const glm::vec2& in_cursor_movement) override
+		{
+			Ui_widget::on_cursor_move_over(in_cursor_pos, in_cursor_movement);
+
+			if (!m_selectable)
+				return;
+
+			if (!m_is_selecting)
+				return;
+
+			if (m_selection_end.value() != in_cursor_movement)
+				request_update(Ui_widget_update::appearance);
+
+			m_selection_end = in_cursor_pos;
+		}
+		virtual void on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos) override
+		{
+			Ui_widget::on_pressed(in_button, in_cursor_pos);
+			
+			if (!m_selectable)
+				return;
+
+			if (in_button != Mousebutton::left)
+				return;
+
+			if (m_is_selecting)
+				return;
+
+			m_selection_start_index.reset();
+			m_selection_end_index.reset();
+
+			m_selection_start = m_selection_end = in_cursor_pos;
+			request_update(Ui_widget_update::appearance);
+			m_is_selecting = true;
+		}
+
+		virtual void on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos) override
+		{
+			Ui_widget::on_released(in_button, in_cursor_pos);
+
+			if (!m_selectable)
+				return;
+
+			if (in_button != Mousebutton::left || !m_selection_start.has_value())
+				return;
+
+			m_selection_end = in_cursor_pos;
+			request_update(Ui_widget_update::appearance);
+			m_is_selecting = false;
+		}
+
+		virtual void on_focus_end() override
+		{
+			Ui_widget::on_focus_end();
+
+			if (!m_selectable)
+				return;
+
+			if (!m_selection_start.has_value())
+				return;
+
+			m_selection_start.reset();
+			m_selection_end.reset();
+			request_update(Ui_widget_update::appearance);
+			m_is_selecting = false;
+		}
+
+		virtual std::optional<std::string> get_clipboard_string() override
+		{
+			if (!m_selection_start_index.has_value() || !m_selection_end_index.has_value())
+				return {};
+
+			return m_text.substr(m_selection_start_index.value(), m_selection_end_index.value() - m_selection_start_index.value());
+		}
+
 		Asset_ref<Asset_material> m_material;
 		Asset_ref<Asset_font> m_font;
 		std::string m_text;
@@ -1081,6 +1179,15 @@ namespace sic
 		float m_line_height_percentage = 1.0f;
 		std::optional<float> m_wrap_text_at;
 		bool m_autowrap = false;
+		glm::vec4 m_foreground_color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+		glm::vec4 m_background_color = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+		glm::vec4 m_selected_foreground_color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+		glm::vec4 m_selected_background_color = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+		bool m_selectable = false;
+		std::optional<glm::vec2> m_selection_start;
+		std::optional<glm::vec2> m_selection_end;
+		std::optional<size_t> m_selection_start_index;
+		std::optional<size_t> m_selection_end_index;
 
 	protected:
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override
@@ -1088,6 +1195,10 @@ namespace sic
 			Ui_widget::update_render_scene(in_final_translation, in_final_size, in_final_rotation, in_window_size, in_window_id, inout_processor);
 
 			const Asset_font* font = m_font.get();
+
+			if (!font)
+				return;
+
 			const float scale_ratio = m_px / font->m_em_size;
 
 			std::vector<Update_list_id<Render_object_ui>> ro_ids_to_destroy;
@@ -1150,11 +1261,14 @@ namespace sic
 
 					const glm::vec2& top_left = render_translation;
 					const glm::vec2 bottom_right = render_translation + render_size;
+					const glm::vec2 center = top_left + (render_size * 0.5f);
 
 					//only cull edges if we are not auto-wrapping
 					if (!m_autowrap)
 					{
-						if (bottom_right.x - (top_left_start.x - render_translation.x) > in_final_translation.x + in_final_size.x)
+						const float width_overflow = (bottom_right.x - (top_left_start.x - render_translation.x)) - (in_final_translation.x + in_final_size.x);
+						//cull only if it overflows by half the character or more
+						if (width_overflow >= in_final_size.x * 0.5f)
 						{
 							if (ro_id.is_valid())
 								ro_ids_to_destroy.push_back(ro_id);
@@ -1170,8 +1284,29 @@ namespace sic
 						}
 					}
 
+					glm::vec4 fg_color = m_foreground_color;
+					glm::vec4 bg_color = m_background_color;
+
+					if (m_selectable && m_selection_start.has_value() && m_selection_end.has_value())
+					{
+						const glm::vec2 selection_top_left = { glm::min(m_selection_start.value().x, m_selection_end.value().x), glm::min(m_selection_start.value().y, m_selection_end.value().y) };
+						const glm::vec2 selection_bottom_right = { glm::max(m_selection_start.value().x, m_selection_end.value().x), glm::max(m_selection_start.value().y, m_selection_end.value().y) };
+
+						if (center.x >= selection_top_left.x && center.x <= selection_bottom_right.x)
+						{
+							fg_color = m_selected_foreground_color;
+							bg_color = m_selected_background_color;
+
+							if (!m_selection_start_index.has_value() || m_selection_start_index.value() > i)
+								m_selection_start_index = i;
+
+							if (!m_selection_end_index.has_value() || m_selection_end_index.value() < i + 1)
+								m_selection_end_index = i + 1;
+						}
+					}
+
 					auto update_lambda =
-						[font_ref = m_font, top_left, bottom_right, in_final_rotation, mat = m_material, id = in_window_id, in_window_size, atlas_offset, atlas_glyph_size, sort_priority = get_sort_priority()](Render_object_ui& inout_object)
+						[font_ref = m_font, top_left, bottom_right, in_final_rotation, mat = m_material, id = in_window_id, in_window_size, atlas_offset, atlas_glyph_size, sort_priority = get_sort_priority(), fg_color, bg_color](Render_object_ui& inout_object)
 					{
 						inout_object.m_window_id = id;
 						inout_object.m_sort_priority = sort_priority;
@@ -1190,6 +1325,8 @@ namespace sic
 						mat.get_mutable()->set_parameter_on_instance("lefttop_rightbottom_packed", lefttop_rightbottom_packed, inout_object.m_instance_data_index);
 						mat.get_mutable()->set_parameter_on_instance("msdf", font_ref.as<Asset_texture_base>(), inout_object.m_instance_data_index);
 						mat.get_mutable()->set_parameter_on_instance("offset_and_size", glm::vec4(atlas_offset, atlas_glyph_size), inout_object.m_instance_data_index);
+						mat.get_mutable()->set_parameter_on_instance("fg_color", fg_color, inout_object.m_instance_data_index);
+						mat.get_mutable()->set_parameter_on_instance("bg_color", bg_color, inout_object.m_instance_data_index);
 					};
 
 					inout_processor.update_state_deferred<State_render_scene>
@@ -1329,6 +1466,7 @@ namespace sic
 		};
 
 		std::vector<Text_line> m_lines;
+		bool m_is_selecting = false;
 	};
 
 }

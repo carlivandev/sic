@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/materials/ui/ui_sic_icon_mat.asset",
-	"id": "ee0b625e-418d-469a-9a28-f35423028e53",
+	"id": "bec43ee5-3602-42e3-8eb5-cfb561212592",
 	"name": "ui_sic_icon_mat",
 	"type": "struct sic::Asset_material"
 }

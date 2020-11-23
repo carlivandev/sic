@@ -45,6 +45,12 @@ bool sic::Ui_widget::get_ready_to_be_shown() const
 
 void sic::Ui_widget::destroy(State_ui& inout_ui_state)
 {
+	if (inout_ui_state.m_focused_widget == this)
+	{
+		on_focus_end();
+		inout_ui_state.m_focused_widget = nullptr;
+	}
+
 	inout_ui_state.m_widget_lut.erase(m_key);
 	inout_ui_state.m_free_widget_indices.push_back(m_widget_index);
 	inout_ui_state.m_widgets[m_widget_index].reset();
@@ -103,6 +109,27 @@ void sic::Ui_widget::on_clicked(Mousebutton in_button, const glm::vec2& in_curso
 	SIC_LOG(g_log_ui_verbose, "on_clicked({0})", m_key);
 	
 	invoke<On_clicked>();
+}
+
+void sic::Ui_widget::on_character_input(unsigned int in_character)
+{
+	SIC_LOG(g_log_ui_verbose, "on_character_input({0}), character: {1}", m_key, in_character);
+
+	invoke<On_character_input>(in_character);
+}
+
+void sic::Ui_widget::on_focus_begin()
+{
+	SIC_LOG(g_log_ui_verbose, "on_focus_begin({0})", m_key);
+
+	invoke<On_focus_begin>();
+}
+
+void sic::Ui_widget::on_focus_end()
+{
+	SIC_LOG(g_log_ui_verbose, "on_focus_end({0})", m_key);
+
+	invoke<On_focus_end>();
 }
 
 void sic::System_ui::on_created(Engine_context in_context)
@@ -339,9 +366,16 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 			{
 				if ((*widget)->m_interaction_state == Ui_interaction_state::hovered)
 				{
+					if (ui_state.m_focused_widget && *widget != ui_state.m_focused_widget)
+						ui_state.m_focused_widget->on_focus_end();
+
 					(*widget)->m_interaction_state = Ui_interaction_state::pressed;
 					(*widget)->on_interaction_state_changed();
 					(*widget)->on_pressed(pressed_button.value(), cursor_pos);
+
+					if (*widget != ui_state.m_focused_widget)
+						(*widget)->on_focus_begin();
+					ui_state.m_focused_widget = *widget;
 				}
 			}
 		}
@@ -351,7 +385,9 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 			for (auto widget = widgets_over_cursor.begin(); widget != consume_widget_it; ++widget)
 			{
 				if ((*widget)->m_interaction_state == Ui_interaction_state::pressed)
+				{
 					(*widget)->on_clicked(released_button.value(), cursor_pos);
+				}
 
 				(*widget)->on_released(released_button.value(), cursor_pos);
 
@@ -382,5 +418,17 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 		//dont continue updating next window if we already hovered 
 		if (widgets_over_cursor.size() > 0)
 			break;
+	}
+
+	if (ui_state.m_focused_widget)
+	{
+		if (input_state.m_character_input.has_value())
+			ui_state.m_focused_widget->on_character_input(input_state.m_character_input.value());
+
+		if (input_state.is_key_down(Key::left_control) && input_state.is_key_pressed(Key::c))
+		{
+			auto clipboard_string = ui_state.m_focused_widget->get_clipboard_string();
+			SIC_LOG(g_log_ui, "clipboard: \"{0}\"", clipboard_string.value_or("DONT SET"));
+		}
 	}
 }

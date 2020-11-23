@@ -53,4 +53,6 @@ void sic::System_input::update_input(Processor<Processor_flag_write<State_input>
 
 	for (i32 i = 0; i < GLFW_MOUSE_BUTTON_LAST; i++)
 		input_state.mouse_this_frame_down[i] = glfwGetMouseButton(window_ro->m_context, i) == GLFW_PRESS;
+
+	input_state.m_character_input = focused_window->m_character_input;
 }

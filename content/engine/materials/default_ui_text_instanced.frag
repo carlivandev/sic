@@ -24,12 +24,10 @@ void main()
 
     sampler2D msdf = read_sampler2D(instance_data_texture_sampler, instance_data_begin, instance_data_it);
     vec4 offset_and_size = read_vec4(instance_data_texture_sampler, instance_data_begin, instance_data_it);
-    vec4 cutoff_box = read_vec4(instance_data_texture_sampler, instance_data_begin, instance_data_it);
+    vec4 fg_color = read_vec4(instance_data_texture_sampler, instance_data_begin, instance_data_it);
+    vec4 bg_color = read_vec4(instance_data_texture_sampler, instance_data_begin, instance_data_it);
 
     //instancing setup end
-
-    vec4 bgColor = vec4(0.0f, 1.0f, 0.0f, 0.0f);
-    vec4 fgColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
 
     vec2 sample_coord = offset_and_size.xy + (offset_and_size.zw * texcoord);
     vec3 sample_result = texture(msdf, sample_coord).rgb;
@@ -38,6 +36,6 @@ void main()
     float sigDist = 1.0 - med;
     float opacity = 1.0 - smoothstep(width, width + edge, sigDist);
 
-    out_color = mix(bgColor, fgColor, opacity);
+    out_color = mix(bg_color, fg_color, opacity);
 
 }

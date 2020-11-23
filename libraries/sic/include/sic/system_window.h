@@ -85,6 +85,7 @@ namespace sic
 		bool m_being_moved = false;
 
 		std::array<bool, static_cast<i32>(Key::count)> m_key_this_frame_down;
+		std::optional<unsigned int> m_character_input;
 	};
 
 	struct State_window : public State

@@ -897,7 +897,7 @@ void sic::System_renderer::post_load_font(Asset_font& inout_font)
 	OpenGl_texture::Creation_params_2D params;
 	params.set_dimensions(glm::ivec2(inout_font.m_width, inout_font.m_height));
 	params.set_format(OpenGl_texture_format::rgb);
-	params.set_filtering(OpenGl_texture_mag_filter::linear, OpenGl_texture_min_filter::linear_mipmap_linear);
+	params.set_filtering(OpenGl_texture_mag_filter::nearest, OpenGl_texture_min_filter::nearest);
 	params.set_channel_type(OpenGl_texture_channel_type::whole_float);
 	params.set_data(inout_font.m_atlas_data.get());
 	params.set_debug_name(inout_font.get_header().m_name);

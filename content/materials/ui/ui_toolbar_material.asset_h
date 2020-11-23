@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/materials/ui/ui_toolbar_material.asset",
-	"id": "15fad6ec-9cd6-415c-a171-4f2ca5c3f675",
+	"id": "23b3db15-4cd9-4bd1-8b77-278edb595c70",
 	"name": "ui_toolbar_material",
 	"type": "struct sic::Asset_material"
 }
