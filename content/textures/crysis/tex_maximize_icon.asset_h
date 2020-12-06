@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/textures/crysis/tex_maximize_icon.asset",
-	"id": "55c6b6de-ce0a-4b1d-81f8-853a0991415f",
+	"id": "bec5842c-e6a7-4311-bd02-e52139b7f575",
 	"name": "tex_maximize_icon",
 	"type": "struct sic::Asset_texture"
 }

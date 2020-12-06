@@ -1052,6 +1052,10 @@ namespace sic
 		Ui_widget_text& selected_background_color(const glm::vec4& in_background_color) { m_selected_background_color = in_background_color; request_update(Ui_widget_update::appearance); return *this; }
 		Ui_widget_text& selectable(bool in_selectable) { m_selectable = in_selectable; if (!m_selectable) { m_selection_start.reset(); m_selection_end.reset(); request_update(Ui_widget_update::appearance); } return *this; }
 
+		Ui_widget_text& selection_box_material(Asset_ref<Asset_material> in_material) { m_selection_box_material = in_material; request_update(Ui_widget_update::appearance); return *this; }
+		Ui_widget_text& selection_box_image_size(const::glm::vec2& in_size) { m_selection_box_image_size = in_size; request_update(Ui_widget_update::appearance); return *this; }
+		Ui_widget_text& selection_box_tint(const::glm::vec4& in_tint) { m_selection_box_tint = in_tint; request_update(Ui_widget_update::appearance); return *this; }
+
 		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override
 		{
 			const Asset_font* font = m_font.get();
@@ -1180,6 +1184,7 @@ namespace sic
 		std::optional<float> m_wrap_text_at;
 		bool m_autowrap = false;
 		glm::vec4 m_foreground_color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+
 		glm::vec4 m_background_color = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
 		glm::vec4 m_selected_foreground_color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
 		glm::vec4 m_selected_background_color = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -1188,6 +1193,10 @@ namespace sic
 		std::optional<glm::vec2> m_selection_end;
 		std::optional<size_t> m_selection_start_index;
 		std::optional<size_t> m_selection_end_index;
+
+		Asset_ref<Asset_material> m_selection_box_material;
+		glm::vec2 m_selection_box_image_size = { 64.0f, 64.0f };
+		glm::vec4 m_selection_box_tint = { 1.0f, 1.0f, 1.0f, 1.0f };
 
 	protected:
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override
@@ -1203,32 +1212,39 @@ namespace sic
 
 			std::vector<Update_list_id<Render_object_ui>> ro_ids_to_destroy;
 
-			for (size_t i = m_text.size(); i < m_ro_ids.size(); i++)
+			for (size_t i = m_text.size(); i < m_glyph_instances.size(); i++)
 			{
-				ro_ids_to_destroy.push_back(m_ro_ids[i]);
-				m_ro_ids[i].reset();
+				ro_ids_to_destroy.push_back(m_glyph_instances[i].m_ro_id);
+				m_glyph_instances[i].m_ro_id.reset();
 			}
 
-			m_ro_ids.resize(m_text.size());
+			m_glyph_instances.resize(m_text.size());
 
 			generate_lines(in_final_size.x * in_window_size.x);
 
 			if (m_lines.empty())
 			{
-				for (auto& m_ro_id : m_ro_ids)
+				for (auto& glyph_instance : m_glyph_instances)
 				{
-					if (!m_ro_id.is_valid())
+					if (!glyph_instance.m_ro_id.is_valid())
 						continue;
 
-					ro_ids_to_destroy.push_back(m_ro_id);
-					m_ro_id.reset();
+					ro_ids_to_destroy.push_back(glyph_instance.m_ro_id);
+					glyph_instance.m_ro_id.reset();
 				}
 
 				return;
 			}
 
-			for (const Text_line& line : m_lines)
+			for (size_t i = m_lines.size(); i < m_selection_box_images.size(); i++)
+				if (m_selection_box_images[i].m_ro_id.is_valid())
+					ro_ids_to_destroy.push_back(m_selection_box_images[i].m_ro_id);
+			
+			m_selection_box_images.resize(m_lines.size());
+
+			for (size_t line_idx = 0; line_idx < m_lines.size(); ++line_idx)
 			{
+				const Text_line& line = m_lines[line_idx];
 				float cur_advance = 0.0f;
 
 				if (m_alignment == Ui_h_alignment::right)
@@ -1236,10 +1252,12 @@ namespace sic
 				else if (m_alignment == Ui_h_alignment::center)
 					cur_advance = (in_final_size.x * in_window_size.x * 0.5f) - (line.m_total_width * 0.5f);
 
+				auto& selection_box_image = m_selection_box_images[line_idx];
+
 				for (size_t i = line.m_start_index; i <= line.m_end_index; i++)
 				{
 					auto c = m_text[i];
-					auto& ro_id = m_ro_ids[i];
+					auto& glyph_instance = m_glyph_instances[i];
 					const auto& glyph = font->m_glyphs[c];
 
 					const glm::vec2 top_left_start = in_final_translation + ((glm::vec2(cur_advance, font->m_em_size + line.m_y) * scale_ratio) / in_window_size);
@@ -1259,27 +1277,30 @@ namespace sic
 					const glm::vec2 atlas_offset = (glyph.m_atlas_pixel_position / glm::vec2(font->m_width, font->m_height));
 					const glm::vec2 atlas_glyph_size = (glyph.m_atlas_pixel_size / glm::vec2(font->m_width, font->m_height));
 
-					const glm::vec2& top_left = render_translation;
-					const glm::vec2 bottom_right = render_translation + render_size;
-					const glm::vec2 center = top_left + (render_size * 0.5f);
+					glyph_instance.m_top_left = render_translation;
+					if (render_size.x == 0.0f)
+						glyph_instance.m_bottom_right = render_translation + render_size + glm::vec2{ (glyph.m_pixel_advance + kerning) / in_window_size.x, 0.0f };
+					else
+						glyph_instance.m_bottom_right = render_translation + render_size;
+					const glm::vec2 center = glyph_instance.m_top_left + (render_size * 0.5f);
 
 					//only cull edges if we are not auto-wrapping
 					if (!m_autowrap)
 					{
-						const float width_overflow = (bottom_right.x - (top_left_start.x - render_translation.x)) - (in_final_translation.x + in_final_size.x);
+						const float width_overflow = (glyph_instance.m_bottom_right.x - (top_left_start.x - render_translation.x)) - (in_final_translation.x + in_final_size.x);
 						//cull only if it overflows by half the character or more
 						if (width_overflow >= in_final_size.x * 0.5f)
 						{
-							if (ro_id.is_valid())
-								ro_ids_to_destroy.push_back(ro_id);
-							ro_id.reset();
+							if (glyph_instance.m_ro_id.is_valid())
+								ro_ids_to_destroy.push_back(glyph_instance.m_ro_id);
+							glyph_instance.m_ro_id.reset();
 							continue;
 						}
 						else if (top_left_start.x < in_final_translation.x)
 						{
-							if (ro_id.is_valid())
-								ro_ids_to_destroy.push_back(ro_id);
-							ro_id.reset();
+							if (glyph_instance.m_ro_id.is_valid())
+								ro_ids_to_destroy.push_back(glyph_instance.m_ro_id);
+							glyph_instance.m_ro_id.reset();
 							continue;
 						}
 					}
@@ -1287,6 +1308,7 @@ namespace sic
 					glm::vec4 fg_color = m_foreground_color;
 					glm::vec4 bg_color = m_background_color;
 
+					glyph_instance.m_is_selected = false;
 					if (m_selectable && m_selection_start.has_value() && m_selection_end.has_value())
 					{
 						const glm::vec2 selection_top_left = { glm::min(m_selection_start.value().x, m_selection_end.value().x), glm::min(m_selection_start.value().y, m_selection_end.value().y) };
@@ -1302,11 +1324,13 @@ namespace sic
 
 							if (!m_selection_end_index.has_value() || m_selection_end_index.value() < i + 1)
 								m_selection_end_index = i + 1;
+
+							glyph_instance.m_is_selected = true;
 						}
 					}
 
 					auto update_lambda =
-						[font_ref = m_font, top_left, bottom_right, in_final_rotation, mat = m_material, id = in_window_id, in_window_size, atlas_offset, atlas_glyph_size, sort_priority = get_sort_priority(), fg_color, bg_color](Render_object_ui& inout_object)
+						[font_ref = m_font, top_left = glyph_instance.m_top_left, bottom_right = glyph_instance.m_bottom_right, in_final_rotation, mat = m_material, id = in_window_id, in_window_size, atlas_offset, atlas_glyph_size, sort_priority = get_sort_priority(), fg_color, bg_color](Render_object_ui& inout_object)
 					{
 						inout_object.m_window_id = id;
 						inout_object.m_sort_priority = sort_priority;
@@ -1331,7 +1355,7 @@ namespace sic
 
 					inout_processor.update_state_deferred<State_render_scene>
 					(
-						[&ro_id, update_lambda](State_render_scene& inout_state)
+						[&ro_id = glyph_instance.m_ro_id, update_lambda](State_render_scene& inout_state)
 						{
 							if (ro_id.is_valid())
 								inout_state.m_ui_elements.update_object(ro_id, update_lambda);
@@ -1339,6 +1363,49 @@ namespace sic
 								ro_id = inout_state.m_ui_elements.create_object(update_lambda);
 						}
 					);
+
+				}
+
+				if (m_selection_start.has_value() && m_selection_end.has_value())
+				{
+					std::optional<glm::vec2> selection_start, selection_end;
+					for (size_t i = line.m_start_index; i <= line.m_end_index; i++)
+					{
+						auto& glyph_instance = m_glyph_instances[i];
+						if (glyph_instance.m_is_selected)
+						{
+							if (!selection_start.has_value())
+								selection_start = glyph_instance.m_top_left;
+
+							selection_end = glyph_instance.m_bottom_right;
+						}
+					}
+
+					if (selection_start.has_value() && selection_end.has_value())
+					{
+						selection_box_image.m_material = m_selection_box_material;
+						selection_box_image.m_image_size = m_selection_box_image_size;
+						selection_box_image.m_tint = m_selection_box_tint;
+
+						selection_box_image.set_sort_priority(get_sort_priority() - 1);
+						const float x_min = selection_start.value().x;
+						const float x_max = selection_end.value().x;
+						const float y_min = in_final_translation.y;
+						const float y_max = in_final_translation.y + (((font->m_max_glyph_height + line.m_y) * scale_ratio) / in_window_size.y);
+						selection_box_image.update_render_scene({ x_min, y_min }, { x_max - x_min, y_max - y_min }, 0.0f, in_window_size, in_window_id, inout_processor);
+					}
+					else
+					{
+						selection_box_image.m_tint = { 0.0f, 0.0f, 0.0f, 0.0f };
+						selection_box_image.set_sort_priority(get_sort_priority() - 1);
+						selection_box_image.update_render_scene(glm::vec2(0.0f, 0.0f), glm::vec2(0.0f, 0.0f), 0.0f, in_window_size, in_window_id, inout_processor);
+					}
+				}
+				else
+				{
+					selection_box_image.m_tint = { 0.0f, 0.0f, 0.0f, 0.0f };
+					selection_box_image.set_sort_priority(get_sort_priority() - 1);
+					selection_box_image.update_render_scene(glm::vec2(0.0f, 0.0f), glm::vec2(0.0f, 0.0f), 0.0f, in_window_size, in_window_id, inout_processor);
 				}
 			}
 
@@ -1354,17 +1421,30 @@ namespace sic
 
 		void destroy(State_ui& inout_ui_state) override
 		{
-			for (auto ro_id : m_ro_ids)
-				destroy_render_object(inout_ui_state, ro_id);
+			for (auto&& glyph_instance : m_glyph_instances)
+				destroy_render_object(inout_ui_state, glyph_instance.m_ro_id);
 
-			m_ro_ids.clear();
+			for (auto& image : m_selection_box_images)
+				image.destroy_render_object(inout_ui_state, image.m_ro_id);
+
+			m_glyph_instances.clear();
+			m_selection_box_images.clear();
 
 			Ui_widget::destroy(inout_ui_state);
 		}
 
 		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override final { if (m_material.is_valid()) out_assets.push_back(m_material.get_header()); }
 
-		std::vector<Update_list_id<Render_object_ui>> m_ro_ids;
+		struct Glyph
+		{
+			Update_list_id<Render_object_ui> m_ro_id;
+			glm::vec2 m_top_left;
+			glm::vec2 m_bottom_right;
+			bool m_is_selected = false;
+		};
+
+		std::vector<Glyph> m_glyph_instances;
+		std::vector<Ui_widget_image> m_selection_box_images;
 
 	private:
 		void generate_lines(float in_max_line_width)
