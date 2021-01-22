@@ -92,7 +92,7 @@ namespace sic
 	{
 		friend struct System_window;
 
-		Window_proxy& create_window(Processor_window in_processor, const std::string& in_name, const glm::ivec2& in_dimensions);
+		Window_proxy& create_window(Processor_window in_processor, const std::string& in_name, const glm::ivec2& in_dimensions, bool in_decorated);
 		void destroy_window(Processor_window in_processor, const std::string& in_name);
 
 		void minimize_window(Processor_window in_processor, const std::string& in_name);

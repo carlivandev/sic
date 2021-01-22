@@ -164,7 +164,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 {
 	in_time_delta;
 
-	in_context.schedule(System_renderer::render, Schedule_data().run_on_main_thread(true));
+	in_context.schedule(make_functor(System_renderer::render), Schedule_data().run_on_main_thread(true));
 }
 
 void sic::System_renderer::render(Processor_renderer in_processor)

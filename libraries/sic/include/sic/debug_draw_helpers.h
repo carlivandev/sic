@@ -10,7 +10,7 @@
 
 namespace sic
 {
-	struct Processor_debug_draw : Processor<Processor_flag_read<State_debug_drawing>, Processor_flag_deferred_write<State_render_scene>> {};
+	struct Processor_debug_draw : Processor<Processor_flag_read<State_debug_drawing>> {};
 
 	namespace debug_draw
 	{

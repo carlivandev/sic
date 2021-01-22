@@ -16,7 +16,7 @@ namespace sic
 	extern Log g_log_ui_verbose;
 
 	struct State_ui;
-	using Processor_ui = Processor<Processor_flag_write<State_ui>, Processor_flag_deferred_write<State_render_scene>, Processor_flag_read<State_input>, Processor_flag_read<State_window>>;
+	using Processor_ui = Processor<Processor_flag_write<State_ui>, Processor_flag_read<State_input>, Processor_flag_read<State_window>>;
 
 	struct Ui_anchors
 	{
@@ -129,13 +129,14 @@ namespace sic
 		fill
 	};
 
-	struct Ui_parent_widget_base;
+	struct Ui_widget_base;
 	struct State_ui;
 
 	enum struct Interaction_consume
 	{
 		consume,
-		fall_through
+		fall_through,
+		disabled
 	};
 
 	enum struct Ui_interaction_state
@@ -154,7 +155,7 @@ namespace sic
 		layout_and_appearance = 3
 	};
 
-	struct Ui_widget : Noncopyable
+	struct Ui_widget_base : Noncopyable
 	{
 		struct On_pressed : Delegate<> {};
 		struct On_released : Delegate<> {};
@@ -170,19 +171,24 @@ namespace sic
 		friend struct State_ui;
 		friend struct System_ui;
 
-		template <typename T_slot_type>
+		template <typename T_subtype, typename T_slot_type>
 		friend struct Ui_parent_widget;
 
-		Ui_widget& interaction_consume(Interaction_consume in_interaction_consume_type) { m_interaction_consume_type = in_interaction_consume_type; return *this; }
+		template <typename T_subtype>
+		friend struct Ui_widget;
+		
 
 		virtual void calculate_render_transform(const glm::vec2& in_window_size);
 		virtual void calculate_content_size(const glm::vec2& in_window_size) { m_global_render_size = get_content_size(in_window_size); }
 		virtual void calculate_sort_priority(ui32& inout_current_sort_priority) { m_sort_priority = ++inout_current_sort_priority; }
 
-		virtual glm::vec2 get_content_size(const glm::vec2& in_window_size) const { in_window_size; return glm::vec2(0.0f, 0.0f); }
+		virtual glm::vec2 get_content_size(const glm::vec2& in_window_size) const { in_window_size;  return glm::vec2(0.0f, 0.0f); }
 
-		Ui_widget* get_outermost_parent();
-		const Ui_parent_widget_base* get_parent() const { return m_parent; }
+		Ui_widget_base* get_outermost_parent();
+		Ui_widget_base* get_parent() { return m_parent; }
+		const Ui_widget_base* get_parent() const { return m_parent; }
+
+		const std::string& get_key() const { return m_key; }
 
 		ui32 get_slot_index() const { return m_slot_index; }
 
@@ -211,7 +217,7 @@ namespace sic
 		virtual std::optional<std::string> get_clipboard_string() { return {}; }
 		virtual void on_interaction_state_changed() {}
 		//interaction events end
-		virtual void gather_widgets_over_point(const glm::vec2& in_point, std::vector<Ui_widget*>& out_widgets) { if (is_point_inside(in_point)) out_widgets.push_back(this); }
+		virtual void gather_widgets_over_point(const glm::vec2& in_point, std::vector<Ui_widget_base*>& out_widgets) { if (is_point_inside(in_point)) out_widgets.push_back(this); }
 
 		Ui_interaction_state get_interaction_state() const { return m_interaction_state; }
 
@@ -229,10 +235,6 @@ namespace sic
 			m_ui_state->invoke<T_delegate_type>(m_key, in_args...);
 		}
 
-		glm::vec2 m_local_scale = { 1.0f, 1.0f };
-		glm::vec2 m_local_translation = { 0.0f, 0.0f };
-		float m_local_rotation = 0.0f;
-
 		i32 m_widget_index = -1;
 		bool m_allow_dependency_streaming = false;
 
@@ -247,22 +249,39 @@ namespace sic
 		
 		virtual void destroy(State_ui& inout_ui_state);
 
-		void destroy_render_object(State_ui& inout_ui_state, Update_list_id<Render_object_ui> in_ro_id) const;
+		void destroy_render_object(State_ui& inout_ui_state, Update_list_id<Render_object_ui>& inout_ro_id) const;
+		void update_render_object(Processor_ui& inout_processor, Update_list_id<Render_object_ui>& inout_ro_id, std::function<void(Render_object_ui&)> in_callback) const;
 
-		Ui_widget() = default;
+		Ui_widget_base() = default;
+
+		virtual void destroy_child(size_t in_slot_index, State_ui& inout_ui_state) {}
+		virtual void unchild(size_t in_slot_index) {}
 
 	private:
 		std::string m_key;
-		Ui_parent_widget_base* m_parent = nullptr;
+		Ui_widget_base* m_parent = nullptr;
 		i32 m_slot_index = -1;
 		ui32 m_sort_priority = 0;
 		On_asset_loaded::Handle m_dependencies_loaded_handle;
 		State_ui* m_ui_state = nullptr;
 
+		glm::vec2 m_local_scale = { 1.0f, 1.0f };
+		glm::vec2 m_local_translation = { 0.0f, 0.0f };
+		float m_local_rotation = 0.0f;
+
 		bool m_correctly_added = false;
 		Ui_interaction_state m_interaction_state = Ui_interaction_state::idle;
 		Interaction_consume m_interaction_consume_type = Interaction_consume::consume;
 		Ui_widget_update m_update_requested = Ui_widget_update::layout_and_appearance;
+	};
+
+	template <typename T_subtype>
+	struct Ui_widget : Ui_widget_base
+	{
+		T_subtype& interaction_consume(Interaction_consume in_interaction_consume_type) { m_interaction_consume_type = in_interaction_consume_type; request_update(Ui_widget_update::layout_and_appearance); return *reinterpret_cast<T_subtype*>(this); }
+		T_subtype& local_scale(const glm::vec2& in_scale) { m_local_scale = in_scale; request_update(Ui_widget_update::appearance); return *reinterpret_cast<T_subtype*>(this); }
+		T_subtype& local_translation(const glm::vec2& in_translation) { m_local_translation = in_translation; request_update(Ui_widget_update::appearance); return *reinterpret_cast<T_subtype*>(this); }
+		T_subtype& local_rotation(float in_rotation) { m_local_rotation = in_rotation; request_update(Ui_widget_update::appearance); return *reinterpret_cast<T_subtype*>(this); }
 	};
 
 	struct State_ui : State
@@ -273,10 +292,10 @@ namespace sic
 			Update_list_id<Render_object_window> m_id;
 		};
 
-		friend Ui_widget;
+		friend Ui_widget_base;
 		friend struct System_ui;
 
-		template <typename T_slot_type>
+		template <typename T_subtype, typename T_slot_type>
 		friend struct Ui_parent_widget;
 
 		template<typename T_widget_type>
@@ -314,6 +333,14 @@ namespace sic
 			return ret_val;
 		}
 
+		template<typename T_widget_type>
+		T_widget_type& create_get_key(std::string& out_key)
+		{
+			auto& ret_val = create<T_widget_type>({});
+			out_key = ret_val.m_key;
+			return ret_val;
+		}
+
 		void destroy(const std::string& in_key)
 		{
 			auto it = m_widget_lut.find(in_key);
@@ -321,8 +348,24 @@ namespace sic
 			if (it == m_widget_lut.end())
 				return;
 
+			if (it->second)
+				destroy(*it->second);
+		}
+
+		void destroy(Ui_widget_base& inout_widget)
+		{
+			auto it = m_widget_lut.find(inout_widget.m_key);
+
+			if (it == m_widget_lut.end())
+				return;
+
+			inout_widget.destroy(*this);
+
 			if (it->second != it->second->get_outermost_parent())
 				m_dirty_root_widgets.insert(it->second->get_outermost_parent());
+
+			if (auto* parent = it->second->get_parent())
+				parent->unchild(it->second->m_slot_index);
 
 			if (it->second == m_focused_widget)
 			{
@@ -330,21 +373,21 @@ namespace sic
 				m_focused_widget = nullptr;
 			}
 
-			it->second->destroy(*this);
+			m_root_to_window_size_lut.erase(inout_widget.m_key);
+			m_event_delegate_lut.erase(inout_widget.m_key);
 
-			m_root_to_window_size_lut.erase(in_key);
-			m_event_delegate_lut.erase(in_key);
+			m_free_widget_indices.push_back(it->second->m_widget_index);
+			m_widgets[it->second->m_widget_index].reset();
+
+			m_widget_lut.erase(it);
 		}
 
-		//finding it with write access causes it to redraw!
 		template<typename T_widget_type>
 		T_widget_type* find(const std::string& in_key)
 		{
 			auto it = m_widget_lut.find(in_key);
 			if (it == m_widget_lut.end())
 				return nullptr;
-
-			m_dirty_root_widgets.insert(it->second->get_outermost_parent());
 
 			return reinterpret_cast<T_widget_type*>(it->second);
 		}
@@ -380,6 +423,9 @@ namespace sic
 			if (event_list_it == event_lists_it->second.end())
 				return;
 
+			if (event_list_it->second.empty())
+				return;
+
 			this_thread().update_deferred
 			(
 				[listeners = event_list_it->second, in_args...](Engine_context) mutable
@@ -398,14 +444,14 @@ namespace sic
 		}
 
 	private:
-		std::vector<std::unique_ptr<Ui_widget>> m_widgets;
+		std::vector<std::unique_ptr<Ui_widget_base>> m_widgets;
 		std::vector<size_t> m_free_widget_indices;
-		std::unordered_map<std::string, Ui_widget*> m_widget_lut;
-		std::unordered_set<Ui_widget*> m_dirty_root_widgets;
+		std::unordered_map<std::string, Ui_widget_base*> m_widget_lut;
+		std::unordered_set<Ui_widget_base*> m_dirty_root_widgets;
 		std::unordered_map<std::string, Window_info> m_root_to_window_size_lut;
 
-		std::vector<Ui_widget*> m_widgets_to_redraw;
-		Ui_widget* m_focused_widget = nullptr;
+		std::vector<Ui_widget_base*> m_widgets_to_redraw;
+		Ui_widget_base* m_focused_widget = nullptr;
 
 		std::unordered_map<std::string, std::unordered_map<i32, std::vector<std::function<void()>>>> m_event_delegate_lut;
 		std::vector<Update_list_id<Render_object_ui>> m_ro_ids_to_destroy;
@@ -420,22 +466,18 @@ namespace sic
 		static void update_ui_interactions(Processor_ui in_processor);
 	};
 
-	struct Ui_parent_widget_base : Ui_widget
-	{
-	};
-
 	struct Ui_slot
 	{
 	};
 
-	template <typename T_slot_type>
-	struct Ui_parent_widget : Ui_parent_widget_base
+	template <typename T_subtype, typename T_slot_type>
+	struct Ui_parent_widget : Ui_widget<T_subtype>
 	{
 		friend struct State_ui;
 
 		using Slot_type = T_slot_type;
 
-		Ui_parent_widget& add_child(const Slot_type& in_slot_data, Ui_widget& inout_widget)
+		T_subtype& add_child(const Slot_type& in_slot_data, Ui_widget_base& inout_widget)
 		{
 			assert(inout_widget.m_correctly_added && "Widget was not created properly, please use Ui_context::create_widget");
 			assert(!inout_widget.m_parent && "Widget has already been added to some parent.");
@@ -444,81 +486,110 @@ namespace sic
 			inout_widget.m_slot_index = static_cast<i32>(m_children.size() - 1);
 			
 			m_ui_state->m_dirty_root_widgets.erase(&inout_widget);
-			m_ui_state->m_dirty_root_widgets.insert(get_outermost_parent());
 
-			return *this;
+			request_update(Ui_widget_update::layout_and_appearance);
+
+			return *reinterpret_cast<T_subtype*>(this);
+		}
+
+		virtual void destroy_child(size_t in_slot_index, State_ui& inout_ui_state) override
+		{
+			if (in_slot_index >= m_children.size())
+				return;
+
+			inout_ui_state.destroy(m_children[in_slot_index].second.get());
+
+			request_update(Ui_widget_update::layout_and_appearance);
+		}
+
+		virtual void unchild(size_t in_slot_index) override
+		{
+			if (in_slot_index >= m_children.size())
+				return;
+
+			for (size_t i = in_slot_index + 1; i < m_children.size(); i++)
+				--m_children[i].second.get().m_slot_index;
+
+			m_children[in_slot_index].second.get().m_parent = nullptr;
+			m_children[in_slot_index].second.get().m_slot_index = -1;
+			m_children.erase(m_children.begin() + in_slot_index);
 		}
 
 		void calculate_render_transform(const glm::vec2& in_window_size) override
 		{
 			for (auto&& child : m_children)
-				child.second.calculate_render_transform(in_window_size);
+				child.second.get().calculate_render_transform(in_window_size);
 
-			Ui_widget::calculate_render_transform(in_window_size);
+			Ui_widget<T_subtype>::calculate_render_transform(in_window_size);
 		}
 
 		virtual void gather_dependencies(std::vector<Asset_header*>& out_assets) const override
 		{
-			Ui_widget::gather_dependencies(out_assets);
+			Ui_widget<T_subtype>::gather_dependencies(out_assets);
 			for (auto && child : m_children)
-				child.second.gather_dependencies(out_assets);
+				child.second.get().gather_dependencies(out_assets);
 		}
 
 		const Slot_type& get_slot(size_t in_slot_index) const { return m_children[in_slot_index].first; }
 		Slot_type& get_slot(size_t in_slot_index) { return m_children[in_slot_index].first; }
 
-		const Ui_widget& get_widget(size_t in_slot_index) const { return m_children[in_slot_index].second; }
-		Ui_widget& get_widget(size_t in_slot_index) { return m_children[in_slot_index].second; }
+		const Ui_widget_base& get_widget(size_t in_slot_index) const { return m_children[in_slot_index].second.get(); }
+		Ui_widget_base& get_widget(size_t in_slot_index) { return m_children[in_slot_index].second.get(); }
 
-		const std::pair<Slot_type, Ui_widget&>& get_child(size_t in_slot_index) const { return m_children[in_slot_index]; }
-		std::pair<Slot_type, Ui_widget&>& get_child(size_t in_slot_index) { return m_children[in_slot_index]; }
+		const std::pair<Slot_type, std::reference_wrapper<Ui_widget_base>>& get_child(size_t in_slot_index) const { return m_children[in_slot_index]; }
+		std::pair<Slot_type, std::reference_wrapper<Ui_widget_base>>& get_child(size_t in_slot_index) { return m_children[in_slot_index]; }
 
-		virtual void gather_widgets_over_point(const glm::vec2& in_point, std::vector<Ui_widget*>& out_widgets) override
+		virtual void gather_widgets_over_point(const glm::vec2& in_point, std::vector<Ui_widget_base*>& out_widgets) override
 		{
 			//reverse so the widget rendered last gets the interaction first
 			for (i32 i = (i32)m_children.size() - 1; i >= 0; i--)
-				m_children[i].second.gather_widgets_over_point(in_point, out_widgets);
+				m_children[i].second.get().gather_widgets_over_point(in_point, out_widgets);
 
-			Ui_widget::gather_widgets_over_point(in_point, out_widgets);
+			Ui_widget<T_subtype>::gather_widgets_over_point(in_point, out_widgets);
 		}
 
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override
 		{
-			Ui_widget::update_render_scene(in_final_translation, in_final_size, in_final_rotation, in_window_size, in_window_id, inout_processor);
+			Ui_widget<T_subtype>::update_render_scene(in_final_translation, in_final_size, in_final_rotation, in_window_size, in_window_id, inout_processor);
 
 			in_final_translation; in_final_size; in_final_rotation;
 			for (auto&& child : m_children)
-				child.second.update_render_scene(child.second.m_render_translation, child.second.m_global_render_size, child.second.m_render_rotation, in_window_size, in_window_id, inout_processor);
+				child.second.get().update_render_scene(child.second.get().m_render_translation, child.second.get().m_global_render_size, child.second.get().m_render_rotation, in_window_size, in_window_id, inout_processor);
 		}
 
 		virtual void destroy(State_ui& inout_ui_state) override
 		{
-			for (auto&& child : m_children)
-				child.second.destroy(inout_ui_state);
+			destroy_children(inout_ui_state);
 
-			Ui_widget::destroy(inout_ui_state);
+			Ui_widget<T_subtype>::destroy(inout_ui_state);
+		}
+
+		virtual void destroy_children(State_ui& inout_ui_state)
+		{
+			for (sic::i32 i = get_child_count() - 1; i >= 0; --i)
+				destroy_child(i, inout_ui_state);
 		}
 
 		size_t get_child_count() const { return m_children.size(); }
 
-		virtual void calculate_content_size(const glm::vec2& in_window_size)
+		virtual void calculate_content_size(const glm::vec2& in_window_size) override
 		{
 			for (auto&& child : m_children)
-				child.second.calculate_content_size(in_window_size);
+				child.second.get().calculate_content_size(in_window_size);
 
-			Ui_widget::calculate_content_size(in_window_size);
+			Ui_widget<T_subtype>::calculate_content_size(in_window_size);
 		}
 
-		virtual void calculate_sort_priority(ui32& inout_current_sort_priority)
+		virtual void calculate_sort_priority(ui32& inout_current_sort_priority) override
 		{
 			m_sort_priority = ++inout_current_sort_priority;
 
 			for (auto&& child : m_children)
-				child.second.calculate_sort_priority(inout_current_sort_priority);
+				child.second.get().calculate_sort_priority(inout_current_sort_priority);
 		}
 
 	private:
-		std::vector<std::pair<Slot_type, Ui_widget&>> m_children;
+		std::vector<std::pair<Slot_type, std::reference_wrapper<Ui_widget_base>>> m_children;
 	};
 
 	struct Ui_slot_canvas : Ui_slot
@@ -542,20 +613,20 @@ namespace sic
 		ui32 m_z_order = 0;
 	};
 
-	struct Ui_widget_canvas : Ui_parent_widget<Ui_slot_canvas>
+	struct Ui_widget_canvas : Ui_parent_widget<Ui_widget_canvas, Ui_slot_canvas>
 	{
-		Ui_widget_canvas& reference_dimensions(const glm::vec2& in_reference_dimensions) { m_reference_dimensions = in_reference_dimensions; return *this; }
+		Ui_widget_canvas& reference_dimensions(const glm::vec2& in_reference_dimensions) { m_reference_dimensions = in_reference_dimensions; request_update(Ui_widget_update::layout_and_appearance); return *this; }
 
 		void calculate_render_transform(const glm::vec2& in_window_size) override
 		{
-			Ui_widget::calculate_render_transform(in_window_size);
+			Ui_widget_base::calculate_render_transform(in_window_size);
 
 			for (size_t i = 0; i < get_child_count(); i++)
 			{
 				auto&& [slot, child] = get_child(i);
 
-				child.m_render_translation = m_render_translation;
-				child.m_render_rotation = m_render_rotation;
+				child.get().m_render_translation = m_render_translation;
+				child.get().m_render_rotation = m_render_rotation;
 
 				glm::vec2 anchor_vec = slot.m_anchors.get_max() - slot.m_anchors.get_min();
 				glm::vec2 anchor_scale = anchor_vec;
@@ -576,14 +647,14 @@ namespace sic
 				if (slot.m_anchors.get_min().y < slot.m_anchors.get_max().y)
 					slot_size.y = (slot.m_anchors.get_max().y - slot.m_anchors.get_min().y) * in_window_size.y;
 
-				const glm::vec2 render_size = slot.m_autosize ? child.get_content_size(in_window_size) : slot_size / in_window_size;
+				const glm::vec2 render_size = slot.m_autosize ? child.get().get_content_size(in_window_size) : slot_size / in_window_size;
 
-				child.m_global_render_size = render_size;
-				child.m_render_translation += translation;
-				child.m_render_translation -= child.m_global_render_size * slot.m_pivot;
-				child.m_render_rotation += slot.m_rotation;
+				child.get().m_global_render_size = render_size;
+				child.get().m_render_translation += translation;
+				child.get().m_render_translation -= child.get().m_global_render_size * slot.m_pivot;
+				child.get().m_render_rotation += slot.m_rotation;
 
-				child.calculate_render_transform(in_window_size);
+				child.get().calculate_render_transform(in_window_size);
 			}
 		}
 
@@ -599,11 +670,11 @@ namespace sic
 		Ui_h_alignment m_horizontal_alignment = Ui_h_alignment::fill;
 	};
 
-	struct Ui_widget_vertical_box : Ui_parent_widget<Ui_slot_vertical_box>
+	struct Ui_widget_vertical_box : Ui_parent_widget<Ui_widget_vertical_box, Ui_slot_vertical_box>
 	{
 		void calculate_render_transform(const glm::vec2& in_window_size) override
 		{
-			Ui_widget::calculate_render_transform(in_window_size);
+			Ui_widget_base::calculate_render_transform(in_window_size);
 
 			float prev_y = 0.0f;
 
@@ -613,18 +684,18 @@ namespace sic
 
 				auto&& [slot, child] = get_child(i);
 
-				child.m_render_translation = m_render_translation;
-				child.m_render_rotation = m_render_rotation;
+				child.get().m_render_translation = m_render_translation;
+				child.get().m_render_rotation = m_render_rotation;
 
-				child.m_render_translation.x += slot.m_padding.get_left() / in_window_size.x;
+				child.get().m_render_translation.x += slot.m_padding.get_left() / in_window_size.x;
 
-				child.m_render_translation.y += prev_y;
-				child.m_render_translation.y += slot.m_padding.get_top() / in_window_size.y;
+				child.get().m_render_translation.y += prev_y;
+				child.get().m_render_translation.y += slot.m_padding.get_top() / in_window_size.y;
 
 				if (prev_slot_index >= 0)
 				{
 					const Ui_slot_vertical_box& prev_slot = get_slot(prev_slot_index);
-					child.m_render_translation.y += prev_slot.m_padding.get_bottom() / in_window_size.y;
+					child.get().m_render_translation.y += prev_slot.m_padding.get_bottom() / in_window_size.y;
 				}
 
 				const float new_render_x = m_global_render_size.x - ((slot.m_padding.get_right() + slot.m_padding.get_left()) / in_window_size.x);
@@ -632,40 +703,42 @@ namespace sic
 				switch (slot.m_horizontal_alignment)
 				{
 				case Ui_h_alignment::fill:
-					child.m_global_render_size.x = new_render_x;
+					child.get().m_global_render_size.x = new_render_x;
 					break;
 				case Ui_h_alignment::left:
-					child.m_global_render_size.x = glm::min(child.m_global_render_size.x, new_render_x);
+					child.get().m_global_render_size.x = glm::min(child.get().m_global_render_size.x, new_render_x);
 					break;
 				case Ui_h_alignment::right:
-					child.m_global_render_size.x = glm::min(child.m_global_render_size.x, new_render_x);
-					child.m_render_translation.x += new_render_x - child.m_global_render_size.x;
+					child.get().m_global_render_size.x = glm::min(child.get().m_global_render_size.x, new_render_x);
+					child.get().m_render_translation.x += new_render_x - child.get().m_global_render_size.x;
 					break;
 				case Ui_h_alignment::center:
-					child.m_global_render_size.x = glm::min(child.m_global_render_size.x, new_render_x);
-					child.m_render_translation.x += (new_render_x - child.m_global_render_size.x) * 0.5f;
+					child.get().m_global_render_size.x = glm::min(child.get().m_global_render_size.x, new_render_x);
+					child.get().m_render_translation.x += (new_render_x - child.get().m_global_render_size.x) * 0.5f;
 					break;
 				default:
 					break;
 				}
 
-				child.calculate_render_transform(in_window_size);
+				child.get().calculate_render_transform(in_window_size);
 
-				prev_y = child.m_render_translation.y - m_render_translation.y + child.m_global_render_size.y;
+				prev_y = child.get().m_render_translation.y - m_render_translation.y + child.get().m_global_render_size.y;
 			}
 		}
 
 		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override
 		{
+			
+
 			glm::vec2 size = { 0.0f, 0.0f };
 
 			for (size_t i = 0; i < get_child_count(); i++)
 			{
 				auto&& [slot, child] = get_child(i);
-				size.y += child.m_global_render_size.y;
+				size.y += child.get().m_global_render_size.y;
 				size.y += (slot.m_padding.get_top() + slot.m_padding.get_bottom()) / in_window_size.y;
 
-				const float child_content_x = child.m_global_render_size.x - ((slot.m_padding.get_left() + slot.m_padding.get_right()) / in_window_size.x);
+				const float child_content_x = child.get().m_global_render_size.x - ((slot.m_padding.get_left() + slot.m_padding.get_right()) / in_window_size.x);
 
 				size.x = glm::max(size.x, child_content_x);
 			}
@@ -683,11 +756,11 @@ namespace sic
 		Ui_v_alignment m_alignment = Ui_v_alignment::fill;
 	};
 
-	struct Ui_widget_horizontal_box : Ui_parent_widget<Ui_slot_horizontal_box>
+	struct Ui_widget_horizontal_box : Ui_parent_widget<Ui_widget_horizontal_box, Ui_slot_horizontal_box>
 	{
 		void calculate_render_transform(const glm::vec2& in_window_size) override
 		{
-			Ui_widget::calculate_render_transform(in_window_size);
+			Ui_widget_base::calculate_render_transform(in_window_size);
 
 			float prev_x = 0.0f;
 
@@ -697,18 +770,18 @@ namespace sic
 
 				auto&& [slot, child] = get_child(i);
 
-				child.m_render_translation = m_render_translation;
-				child.m_render_rotation = m_render_rotation;
+				child.get().m_render_translation = m_render_translation;
+				child.get().m_render_rotation = m_render_rotation;
 
-				child.m_render_translation.x += prev_x;
-				child.m_render_translation.x += slot.m_padding.get_left() / in_window_size.x;
+				child.get().m_render_translation.x += prev_x;
+				child.get().m_render_translation.x += slot.m_padding.get_left() / in_window_size.x;
 
-				child.m_render_translation.y += slot.m_padding.get_top() / in_window_size.y;
+				child.get().m_render_translation.y += slot.m_padding.get_top() / in_window_size.y;
 
 				if (prev_slot_index >= 0)
 				{
 					const Ui_slot_horizontal_box& prev_slot = get_slot(prev_slot_index);
-					child.m_render_translation.x += prev_slot.m_padding.get_left() / in_window_size.y;
+					child.get().m_render_translation.x += prev_slot.m_padding.get_left() / in_window_size.y;
 				}
 
 				const float new_render_y = m_global_render_size.y - ((slot.m_padding.get_top() + slot.m_padding.get_bottom()) / in_window_size.y);
@@ -716,40 +789,42 @@ namespace sic
 				switch (slot.m_alignment)
 				{
 				case Ui_v_alignment::fill:
-					child.m_global_render_size.y = new_render_y;
+					child.get().m_global_render_size.y = new_render_y;
 					break;
 				case Ui_v_alignment::top:
-					child.m_global_render_size.y = glm::min(child.m_global_render_size.y, new_render_y);
+					child.get().m_global_render_size.y = glm::min(child.get().m_global_render_size.y, new_render_y);
 					break;
 				case Ui_v_alignment::bottom:
-					child.m_global_render_size.y = glm::min(child.m_global_render_size.y, new_render_y);
-					child.m_render_translation.y += new_render_y - child.m_global_render_size.y;
+					child.get().m_global_render_size.y = glm::min(child.get().m_global_render_size.y, new_render_y);
+					child.get().m_render_translation.y += new_render_y - child.get().m_global_render_size.y;
 					break;
 				case Ui_v_alignment::center:
-					child.m_global_render_size.y = glm::min(child.m_global_render_size.y, new_render_y);
-					child.m_render_translation.y += (new_render_y - child.m_global_render_size.y) * 0.5f;
+					child.get().m_global_render_size.y = glm::min(child.get().m_global_render_size.y, new_render_y);
+					child.get().m_render_translation.y += (new_render_y - child.get().m_global_render_size.y) * 0.5f;
 					break;
 				default:
 					break;
 				}
 
-				child.calculate_render_transform(in_window_size);
+				child.get().calculate_render_transform(in_window_size);
 
-				prev_x = child.m_render_translation.x - m_render_translation.x + child.m_global_render_size.x + (slot.m_padding.get_right() / in_window_size.x);
+				prev_x = child.get().m_render_translation.x - m_render_translation.x + child.get().m_global_render_size.x + (slot.m_padding.get_right() / in_window_size.x);
 			}
 		}
 
 		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override
 		{
+			
+
 			glm::vec2 size = { 0.0f, 0.0f };
 
 			for (size_t i = 0; i < get_child_count(); i++)
 			{
 				auto&& [slot, child] = get_child(i);
-				size.x += child.m_global_render_size.x;
+				size.x += child.get().m_global_render_size.x;
 				size.x += (slot.m_padding.get_left() + slot.m_padding.get_right()) / in_window_size.x;
 
-				const float child_content_y = child.m_global_render_size.y - ((slot.m_padding.get_top() + slot.m_padding.get_bottom()) / in_window_size.y);
+				const float child_content_y = child.get().m_global_render_size.y - ((slot.m_padding.get_top() + slot.m_padding.get_bottom()) / in_window_size.y);
 
 				size.y = glm::max(size.y, child_content_y);
 			}
@@ -758,13 +833,13 @@ namespace sic
 		};
 	};
 
-	struct Ui_widget_image : Ui_widget
+	struct Ui_widget_image : Ui_widget<Ui_widget_image>
 	{
 		Ui_widget_image& material(const Asset_ref<Asset_material>& in_asset_ref) { m_material = in_asset_ref; request_update(Ui_widget_update::appearance); return *this; }
 		Ui_widget_image& image_size(const glm::vec2& in_size) { m_image_size = in_size; request_update(Ui_widget_update::layout_and_appearance); return *this; }
 		Ui_widget_image& tint(const glm::vec4& in_tint) { m_tint = in_tint; request_update(Ui_widget_update::appearance); return *this; }
 
-		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override { return m_image_size / in_window_size; };
+		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override {  return m_image_size / in_window_size; };
 
 		Asset_ref<Asset_material> m_material;
 		glm::vec2 m_image_size = { 64.0f, 64.0f };
@@ -772,7 +847,7 @@ namespace sic
 
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override
 		{
-			Ui_widget::update_render_scene(in_final_translation, in_final_size, in_final_rotation, in_window_size, in_window_id, inout_processor);
+			Ui_widget_base::update_render_scene(in_final_translation, in_final_size, in_final_rotation, in_window_size, in_window_id, inout_processor);
 
 			if (!m_material.is_valid())
 				return;
@@ -814,17 +889,7 @@ namespace sic
 				mat.get_mutable()->set_parameter_on_instance("tint", tint, inout_object.m_instance_data_index);
 			};
 
-			inout_processor.update_state_deferred<State_render_scene>
-			(
-				[this, update_lambda](State_render_scene& inout_state)
-				{
-					if (m_ro_id.is_valid())
-						inout_state.m_ui_elements.update_object(m_ro_id, update_lambda);
-					else
-						m_ro_id = inout_state.m_ui_elements.create_object(update_lambda);
-
-				}
-			);
+			update_render_object(inout_processor, m_ro_id, update_lambda);
 		}
 
 		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override final { if (m_material.is_valid()) out_assets.push_back(m_material.get_header()); }
@@ -832,7 +897,7 @@ namespace sic
 		void destroy(State_ui& inout_ui_state) override
 		{
 			destroy_render_object(inout_ui_state, m_ro_id);
-			Ui_widget::destroy(inout_ui_state);
+			Ui_widget_base::destroy(inout_ui_state);
 		}
 
 		Update_list_id<Render_object_ui> m_ro_id;
@@ -849,7 +914,7 @@ namespace sic
 		Ui_v_alignment m_vertical_alignment = Ui_v_alignment::center;
 	};
 
-	struct Ui_widget_button : Ui_parent_widget<Ui_slot_button>
+	struct Ui_widget_button : Ui_parent_widget<Ui_widget_button, Ui_slot_button>
 	{
 		struct On_toggled : Delegate<bool> {};
 
@@ -895,7 +960,7 @@ namespace sic
 		Ui_widget_button& is_toggle(bool in_is_toggle) { m_is_toggle = in_is_toggle; request_update(Ui_widget_update::appearance); return *this; }
 
 
-		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override { return m_size / in_window_size; };
+		glm::vec2 get_content_size(const glm::vec2& in_window_size) const override {  return m_size / in_window_size; };
 
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override
 		{
@@ -926,41 +991,41 @@ namespace sic
 			m_image.set_sort_priority(get_sort_priority());
 			m_image.update_render_scene(in_final_translation, in_final_size, in_final_rotation, in_window_size, in_window_id, inout_processor);
 
-			Ui_parent_widget<Ui_slot_button>::update_render_scene(in_final_translation, in_final_size, in_final_rotation, in_window_size, in_window_id, inout_processor);
+			Ui_parent_widget<Ui_widget_button, Ui_slot_button>::update_render_scene(in_final_translation, in_final_size, in_final_rotation, in_window_size, in_window_id, inout_processor);
 		}
 
 		void calculate_render_transform(const glm::vec2& in_window_size) override
 		{
-			Ui_widget::calculate_render_transform(in_window_size);
+			Ui_widget_base::calculate_render_transform(in_window_size);
 
 			if (get_child_count() == 0)
 				return;
 
 			auto&& [slot, child] = get_child(0);
 
-			child.m_render_translation = m_render_translation;
-			child.m_render_rotation = m_render_rotation;
+			child.get().m_render_translation = m_render_translation;
+			child.get().m_render_rotation = m_render_rotation;
 
-			child.m_render_translation.x += slot.m_padding.get_left() / in_window_size.x;
-			child.m_render_translation.y += slot.m_padding.get_top() / in_window_size.y;
+			child.get().m_render_translation.x += slot.m_padding.get_left() / in_window_size.x;
+			child.get().m_render_translation.y += slot.m_padding.get_top() / in_window_size.y;
 
 			const float new_render_x = m_global_render_size.x - ((slot.m_padding.get_right() + slot.m_padding.get_left()) / in_window_size.x);
 
 			switch (slot.m_horizontal_alignment)
 			{
 			case Ui_h_alignment::fill:
-				child.m_global_render_size.x = new_render_x;
+				child.get().m_global_render_size.x = new_render_x;
 				break;
 			case Ui_h_alignment::left:
-				child.m_global_render_size.x = glm::min(child.m_global_render_size.x, new_render_x);
+				child.get().m_global_render_size.x = glm::min(child.get().m_global_render_size.x, new_render_x);
 				break;
 			case Ui_h_alignment::right:
-				child.m_global_render_size.x = glm::min(child.m_global_render_size.x, new_render_x);
-				child.m_render_translation.x += new_render_x - child.m_global_render_size.x;
+				child.get().m_global_render_size.x = glm::min(child.get().m_global_render_size.x, new_render_x);
+				child.get().m_render_translation.x += new_render_x - child.get().m_global_render_size.x;
 				break;
 			case Ui_h_alignment::center:
-				child.m_global_render_size.x = glm::min(child.m_global_render_size.x, new_render_x);
-				child.m_render_translation.x += (new_render_x - child.m_global_render_size.x) * 0.5f;
+				child.get().m_global_render_size.x = glm::min(child.get().m_global_render_size.x, new_render_x);
+				child.get().m_render_translation.x += (new_render_x - child.get().m_global_render_size.x) * 0.5f;
 				break;
 			default:
 				break;
@@ -971,29 +1036,29 @@ namespace sic
 			switch (slot.m_vertical_alignment)
 			{
 			case Ui_v_alignment::fill:
-				child.m_global_render_size.y = new_render_y;
+				child.get().m_global_render_size.y = new_render_y;
 				break;
 			case Ui_v_alignment::top:
-				child.m_global_render_size.y = glm::min(child.m_global_render_size.y, new_render_y);
+				child.get().m_global_render_size.y = glm::min(child.get().m_global_render_size.y, new_render_y);
 				break;
 			case Ui_v_alignment::bottom:
-				child.m_global_render_size.y = glm::min(child.m_global_render_size.y, new_render_y);
-				child.m_render_translation.y += new_render_y - child.m_global_render_size.y;
+				child.get().m_global_render_size.y = glm::min(child.get().m_global_render_size.y, new_render_y);
+				child.get().m_render_translation.y += new_render_y - child.get().m_global_render_size.y;
 				break;
 			case Ui_v_alignment::center:
-				child.m_global_render_size.y = glm::min(child.m_global_render_size.y, new_render_y);
-				child.m_render_translation.y += (new_render_y - child.m_global_render_size.y) * 0.5f;
+				child.get().m_global_render_size.y = glm::min(child.get().m_global_render_size.y, new_render_y);
+				child.get().m_render_translation.y += (new_render_y - child.get().m_global_render_size.y) * 0.5f;
 				break;
 			default:
 				break;
 			}
 
-			child.calculate_render_transform(in_window_size);
+			child.get().calculate_render_transform(in_window_size);
 		}
 
 		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override
 		{
-			Ui_parent_widget<Ui_slot_button>::gather_dependencies(out_assets);
+			Ui_parent_widget<Ui_widget_button, Ui_slot_button>::gather_dependencies(out_assets);
 
 			out_assets.push_back(m_idle_material.get_header());
 			out_assets.push_back(m_hovered_material.get_header());
@@ -1004,7 +1069,7 @@ namespace sic
 
 		virtual void on_clicked(Mousebutton in_button, const glm::vec2& in_cursor_pos) override
 		{
-			Ui_widget::on_clicked(in_button, in_cursor_pos);
+			Ui_widget_base::on_clicked(in_button, in_cursor_pos);
 
 			if (m_is_toggle)
 			{
@@ -1015,9 +1080,9 @@ namespace sic
 
 		void destroy(State_ui& inout_ui_state) override
 		{
-			m_image.destroy_render_object(inout_ui_state, m_image.m_ro_id);
+			destroy_render_object(inout_ui_state, m_image.m_ro_id);
 
-			Ui_parent_widget<Ui_slot_button>::destroy(inout_ui_state);
+			Ui_parent_widget<Ui_widget_button, Ui_slot_button>::destroy(inout_ui_state);
 		}
 
 		glm::vec2 m_size = { 64.0f, 64.0f };
@@ -1035,9 +1100,9 @@ namespace sic
 		bool m_is_toggle = false;
 	};
 
-	struct Ui_widget_text : Ui_widget
+	struct Ui_widget_text : Ui_widget<Ui_widget_text>
 	{
-		Ui_widget_text& text(const std::string in_text) { m_text = in_text; request_update(Ui_widget_update::layout_and_appearance); return *this; }
+		Ui_widget_text& text(const std::string in_text) { if (m_text == in_text)  return *this; m_text = in_text; request_update(Ui_widget_update::layout_and_appearance); return *this; }
 		Ui_widget_text& font(const Asset_ref<Asset_font>& in_asset_ref) { m_font = in_asset_ref; request_update(Ui_widget_update::layout_and_appearance); return *this; }
 		Ui_widget_text& material(const Asset_ref<Asset_material>& in_asset_ref) { m_material = in_asset_ref; request_update(Ui_widget_update::appearance); return *this; }
 		Ui_widget_text& px(float in_px) { m_px = in_px; request_update(Ui_widget_update::layout_and_appearance); return *this; }
@@ -1063,10 +1128,7 @@ namespace sic
 			if (!font)
 				return glm::vec2(0.0f, 0.0f);
 
-			glm::vec2 size = { 0.0f, 0.0f };
-
-			if (!m_text.empty())
-				size.y = font->m_max_glyph_height;
+			glm::vec2 size = { 0.0f, font->m_max_glyph_height };
 
 			float cur_size_x = 0.0f;
 
@@ -1090,7 +1152,6 @@ namespace sic
 			}
 
 			size.x = glm::max(size.x, cur_size_x);
-			size.y = font->m_max_glyph_height;
 
 			const float scale_ratio = m_px / font->m_em_size;
 			size *= scale_ratio;
@@ -1098,11 +1159,49 @@ namespace sic
 			size /= in_window_size;
 
 			return size;
-		};
+		}
+
+		virtual void calculate_render_transform(const glm::vec2& in_window_size) override
+		{
+			if (!m_autowrap)
+				return;
+
+			const Asset_font* font = m_font.get();
+
+			if (!font)
+				return;
+
+			float new_size_y = font->m_max_glyph_height;
+			float cur_size_x = 0.0f;
+
+			for (size_t i = 0; i < m_text.size(); i++)
+			{
+				const auto c = m_text[i];
+
+				if (c == '\n' ||
+					(m_autowrap && cur_size_x + font->m_glyphs[c].m_pixel_advance > m_global_render_size.x * in_window_size.x))
+				{
+					new_size_y += font->m_max_glyph_height;
+
+					cur_size_x = 0.0f;
+					continue;
+				}
+
+				cur_size_x += font->m_glyphs[c].m_pixel_advance;
+
+				if (i > 0)
+					cur_size_x += font->m_glyphs[c].m_kerning_values[m_text[i - 1]];
+			}
+
+			const float scale_ratio = m_px / font->m_em_size;
+			new_size_y *= scale_ratio;
+
+			m_global_render_size.y = new_size_y / in_window_size.y;
+		}
 
 		virtual void on_cursor_move_over(const glm::vec2& in_cursor_pos, const glm::vec2& in_cursor_movement) override
 		{
-			Ui_widget::on_cursor_move_over(in_cursor_pos, in_cursor_movement);
+			Ui_widget_base::on_cursor_move_over(in_cursor_pos, in_cursor_movement);
 
 			if (!m_selectable)
 				return;
@@ -1117,7 +1216,7 @@ namespace sic
 		}
 		virtual void on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos) override
 		{
-			Ui_widget::on_pressed(in_button, in_cursor_pos);
+			Ui_widget_base::on_pressed(in_button, in_cursor_pos);
 			
 			if (!m_selectable)
 				return;
@@ -1138,7 +1237,7 @@ namespace sic
 
 		virtual void on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos) override
 		{
-			Ui_widget::on_released(in_button, in_cursor_pos);
+			Ui_widget_base::on_released(in_button, in_cursor_pos);
 
 			if (!m_selectable)
 				return;
@@ -1153,7 +1252,7 @@ namespace sic
 
 		virtual void on_focus_end() override
 		{
-			Ui_widget::on_focus_end();
+			Ui_widget_base::on_focus_end();
 
 			if (!m_selectable)
 				return;
@@ -1201,44 +1300,28 @@ namespace sic
 	protected:
 		virtual void update_render_scene(const glm::vec2& in_final_translation, const glm::vec2& in_final_size, float in_final_rotation, const glm::vec2& in_window_size, Update_list_id<Render_object_window> in_window_id, Processor_ui& inout_processor) override
 		{
-			Ui_widget::update_render_scene(in_final_translation, in_final_size, in_final_rotation, in_window_size, in_window_id, inout_processor);
+			Ui_widget_base::update_render_scene(in_final_translation, in_final_size, in_final_rotation, in_window_size, in_window_id, inout_processor);
 
 			const Asset_font* font = m_font.get();
 
 			if (!font)
 				return;
 
+			State_ui& ui_state = inout_processor.get_state_checked_w<State_ui>();
+
 			const float scale_ratio = m_px / font->m_em_size;
 
-			std::vector<Update_list_id<Render_object_ui>> ro_ids_to_destroy;
-
-			for (size_t i = m_text.size(); i < m_glyph_instances.size(); i++)
-			{
-				ro_ids_to_destroy.push_back(m_glyph_instances[i].m_ro_id);
-				m_glyph_instances[i].m_ro_id.reset();
-			}
+			for (size_t remove_glyph_idx = m_text.size(); remove_glyph_idx < m_glyph_instances.size(); ++remove_glyph_idx)
+				destroy_render_object(ui_state, m_glyph_instances[remove_glyph_idx].m_ro_id);
 
 			m_glyph_instances.resize(m_text.size());
 
-			generate_lines(in_final_size.x * in_window_size.x);
+			generate_lines(in_final_size.x * in_window_size.x, ui_state);
 
-			if (m_lines.empty())
-			{
-				for (auto& glyph_instance : m_glyph_instances)
-				{
-					if (!glyph_instance.m_ro_id.is_valid())
-						continue;
-
-					ro_ids_to_destroy.push_back(glyph_instance.m_ro_id);
-					glyph_instance.m_ro_id.reset();
-				}
-
-				return;
-			}
+			std::remove_if(m_lines.begin(), m_lines.end(), [](const Text_line& in_line) { return in_line.m_end_index < in_line.m_start_index; });
 
 			for (size_t i = m_lines.size(); i < m_selection_box_images.size(); i++)
-				if (m_selection_box_images[i].m_ro_id.is_valid())
-					ro_ids_to_destroy.push_back(m_selection_box_images[i].m_ro_id);
+				destroy_render_object(ui_state, m_selection_box_images[i].m_ro_id);
 			
 			m_selection_box_images.resize(m_lines.size());
 
@@ -1287,20 +1370,17 @@ namespace sic
 					//only cull edges if we are not auto-wrapping
 					if (!m_autowrap)
 					{
-						const float width_overflow = (glyph_instance.m_bottom_right.x - (top_left_start.x - render_translation.x)) - (in_final_translation.x + in_final_size.x);
+						const float width_overflow_right = (glyph_instance.m_bottom_right.x - (top_left_start.x - render_translation.x)) - (in_final_translation.x + in_final_size.x);
+
 						//cull only if it overflows by half the character or more
-						if (width_overflow >= in_final_size.x * 0.5f)
+						if (width_overflow_right >= in_final_size.x * 0.5f)
 						{
-							if (glyph_instance.m_ro_id.is_valid())
-								ro_ids_to_destroy.push_back(glyph_instance.m_ro_id);
-							glyph_instance.m_ro_id.reset();
+							destroy_render_object(ui_state, glyph_instance.m_ro_id);
 							continue;
 						}
-						else if (top_left_start.x < in_final_translation.x)
+						else if (top_left_start.x < in_final_translation.x - (in_final_size.x * 0.5f))
 						{
-							if (glyph_instance.m_ro_id.is_valid())
-								ro_ids_to_destroy.push_back(glyph_instance.m_ro_id);
-							glyph_instance.m_ro_id.reset();
+							destroy_render_object(ui_state, glyph_instance.m_ro_id);
 							continue;
 						}
 					}
@@ -1311,10 +1391,38 @@ namespace sic
 					glyph_instance.m_is_selected = false;
 					if (m_selectable && m_selection_start.has_value() && m_selection_end.has_value())
 					{
-						const glm::vec2 selection_top_left = { glm::min(m_selection_start.value().x, m_selection_end.value().x), glm::min(m_selection_start.value().y, m_selection_end.value().y) };
-						const glm::vec2 selection_bottom_right = { glm::max(m_selection_start.value().x, m_selection_end.value().x), glm::max(m_selection_start.value().y, m_selection_end.value().y) };
+						const float y_min = in_final_translation.y + ((line.m_y * scale_ratio) / in_window_size.y);
+						const float y_max = in_final_translation.y + (((font->m_max_glyph_height + line.m_y) * scale_ratio) / in_window_size.y);
 
-						if (center.x >= selection_top_left.x && center.x <= selection_bottom_right.x)
+						glm::vec2 selection_start = { m_selection_start.value().x, glm::min(m_selection_start.value().y, m_selection_end.value().y) };
+						glm::vec2 selection_end = { m_selection_end.value().x, glm::max(m_selection_start.value().y, m_selection_end.value().y) };
+
+						bool selected = false;
+
+						const bool start_is_above_line = selection_start.y < y_min;
+						const bool end_is_below_line = selection_end.y > y_max;
+
+						const bool start_is_within_line = selection_start.y >= y_min && selection_start.y <= y_max;
+						const bool end_is_within_line = selection_end.y >= y_min && selection_end.y <= y_max;
+
+						const bool selecting_above_onto_current = start_is_above_line && end_is_within_line && center.x <= selection_end.x;
+						if (selecting_above_onto_current)
+							selected = true;
+
+						const bool selecting_below_onto_current = end_is_below_line && start_is_within_line && center.x >= selection_start.x;
+						if (selecting_below_onto_current)
+							selected = true;
+
+						if (start_is_above_line && end_is_below_line)
+							selected = true;
+
+						if (start_is_within_line && end_is_within_line)
+						{
+							if (center.x >= selection_start.x && center.x <= selection_end.x)
+								selected = true;
+						}
+
+						if (selected)
 						{
 							fg_color = m_selected_foreground_color;
 							bg_color = m_selected_background_color;
@@ -1329,41 +1437,34 @@ namespace sic
 						}
 					}
 
-					auto update_lambda =
-						[font_ref = m_font, top_left = glyph_instance.m_top_left, bottom_right = glyph_instance.m_bottom_right, in_final_rotation, mat = m_material, id = in_window_id, in_window_size, atlas_offset, atlas_glyph_size, sort_priority = get_sort_priority(), fg_color, bg_color](Render_object_ui& inout_object)
+					if (c != ' ' && c != '\n')
 					{
-						inout_object.m_window_id = id;
-						inout_object.m_sort_priority = sort_priority;
-
-						if (inout_object.m_material != mat.get_mutable())
+						auto update_lambda =
+						[font_ref = m_font, top_left = glyph_instance.m_top_left, bottom_right = glyph_instance.m_bottom_right, in_final_rotation, mat = m_material, id = in_window_id, in_window_size, atlas_offset, atlas_glyph_size, sort_priority = get_sort_priority(), fg_color, bg_color](Render_object_ui& inout_object)
 						{
-							if (inout_object.m_material)
-								inout_object.m_material->remove_instance_data(inout_object.m_instance_data_index);
+							inout_object.m_window_id = id;
+							inout_object.m_sort_priority = sort_priority;
 
-							inout_object.m_instance_data_index = mat.get_mutable()->add_instance_data();
-							inout_object.m_material = mat.get_mutable();
-						}
+							if (inout_object.m_material != mat.get_mutable())
+							{
+								if (inout_object.m_material)
+									inout_object.m_material->remove_instance_data(inout_object.m_instance_data_index);
 
-						const glm::vec4 lefttop_rightbottom_packed = { top_left.x, top_left.y, bottom_right.x, bottom_right.y };
+								inout_object.m_instance_data_index = mat.get_mutable()->add_instance_data();
+								inout_object.m_material = mat.get_mutable();
+							}
 
-						mat.get_mutable()->set_parameter_on_instance("lefttop_rightbottom_packed", lefttop_rightbottom_packed, inout_object.m_instance_data_index);
-						mat.get_mutable()->set_parameter_on_instance("msdf", font_ref.as<Asset_texture_base>(), inout_object.m_instance_data_index);
-						mat.get_mutable()->set_parameter_on_instance("offset_and_size", glm::vec4(atlas_offset, atlas_glyph_size), inout_object.m_instance_data_index);
-						mat.get_mutable()->set_parameter_on_instance("fg_color", fg_color, inout_object.m_instance_data_index);
-						mat.get_mutable()->set_parameter_on_instance("bg_color", bg_color, inout_object.m_instance_data_index);
-					};
+							const glm::vec4 lefttop_rightbottom_packed = { top_left.x, top_left.y, bottom_right.x, bottom_right.y };
 
-					inout_processor.update_state_deferred<State_render_scene>
-					(
-						[&ro_id = glyph_instance.m_ro_id, update_lambda](State_render_scene& inout_state)
-						{
-							if (ro_id.is_valid())
-								inout_state.m_ui_elements.update_object(ro_id, update_lambda);
-							else
-								ro_id = inout_state.m_ui_elements.create_object(update_lambda);
-						}
-					);
+							mat.get_mutable()->set_parameter_on_instance("lefttop_rightbottom_packed", lefttop_rightbottom_packed, inout_object.m_instance_data_index);
+							mat.get_mutable()->set_parameter_on_instance("msdf", font_ref.as<Asset_texture_base>(), inout_object.m_instance_data_index);
+							mat.get_mutable()->set_parameter_on_instance("offset_and_size", glm::vec4(atlas_offset, atlas_glyph_size), inout_object.m_instance_data_index);
+							mat.get_mutable()->set_parameter_on_instance("fg_color", fg_color, inout_object.m_instance_data_index);
+							mat.get_mutable()->set_parameter_on_instance("bg_color", bg_color, inout_object.m_instance_data_index);
+						};
 
+						update_render_object(inout_processor, glyph_instance.m_ro_id, update_lambda);
+					}
 				}
 
 				if (m_selection_start.has_value() && m_selection_end.has_value())
@@ -1408,15 +1509,6 @@ namespace sic
 					selection_box_image.update_render_scene(glm::vec2(0.0f, 0.0f), glm::vec2(0.0f, 0.0f), 0.0f, in_window_size, in_window_id, inout_processor);
 				}
 			}
-
-			inout_processor.update_state_deferred<State_render_scene>
-			(
-				[ro_ids_to_destroy](State_render_scene& inout_state)
-				{
-					for (auto&& ro_id : ro_ids_to_destroy)
-						inout_state.m_ui_elements.destroy_object(ro_id);
-				}
-			);
 		}
 
 		void destroy(State_ui& inout_ui_state) override
@@ -1425,12 +1517,12 @@ namespace sic
 				destroy_render_object(inout_ui_state, glyph_instance.m_ro_id);
 
 			for (auto& image : m_selection_box_images)
-				image.destroy_render_object(inout_ui_state, image.m_ro_id);
+				destroy_render_object(inout_ui_state, image.m_ro_id);
 
 			m_glyph_instances.clear();
 			m_selection_box_images.clear();
 
-			Ui_widget::destroy(inout_ui_state);
+			Ui_widget_base::destroy(inout_ui_state);
 		}
 
 		void gather_dependencies(std::vector<Asset_header*>& out_assets) const override final { if (m_material.is_valid()) out_assets.push_back(m_material.get_header()); }
@@ -1447,7 +1539,7 @@ namespace sic
 		std::vector<Ui_widget_image> m_selection_box_images;
 
 	private:
-		void generate_lines(float in_max_line_width)
+		void generate_lines(float in_max_line_width, State_ui& inout_ui_state)
 		{
 			m_lines.clear();
 
@@ -1474,9 +1566,12 @@ namespace sic
 			{
 				const auto c = m_text[i];
 				const auto& glyph = font->m_glyphs[c];
+				auto& glyph_instance = m_glyph_instances[i];
 
 				if (c == '\n')
 				{
+					destroy_render_object(inout_ui_state, glyph_instance.m_ro_id);
+
 					cur_line->m_end_index = i - 1;
 					cur_line->m_total_width = cur_line_advance;
 
@@ -1493,10 +1588,13 @@ namespace sic
 					last_word_end = -1;
 					width_until_last_word = 0.0f;
 					cur_line_advance = cur_line->m_total_width;
+
 					continue;
 				}
 				else if (c == ' ')
 				{
+					destroy_render_object(inout_ui_state, glyph_instance.m_ro_id);
+
 					last_word_end = (i32)i - 1;
 					width_until_last_word = cur_line_advance;
 				}

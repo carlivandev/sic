@@ -78,7 +78,7 @@ namespace sic
 			m_object_exists_flags[new_instance.m_id] = true;
 		}
 
-		m_engine.invoke<Event_created<T_object>>(new_instance);
+		m_engine.invoke<Event_created<T_object>>(std::reference_wrapper<T_object>(new_instance));
 
 		return new_instance;
 	}
@@ -95,7 +95,7 @@ namespace sic
 
 		comp.m_owner = &in_object_to_attach_to;
 
-		m_engine.invoke<Event_created<T_component_type>>(comp);
+		m_engine.invoke<Event_created<T_component_type>>(std::reference_wrapper<T_component_type>(comp));
 
 		return comp;
 	}
@@ -104,7 +104,7 @@ namespace sic
 	inline void Scene::destroy_component(T_component_type& in_component_to_destroy)
 	{
 		const ui32 type_idx = Type_index<Component_base>::get<T_component_type>();
-		m_engine.invoke<event_destroyed<T_component_type>>(in_component_to_destroy);
+		m_engine.invoke<event_destroyed<T_component_type>>(std::reference_wrapper<T_component_type>(in_component_to_destroy));
 
 		Component_storage<T_component_type>* storage = reinterpret_cast<Component_storage<T_component_type>*>(m_component_storages[type_idx].get());
 		storage->destroy_component(in_component_to_destroy);

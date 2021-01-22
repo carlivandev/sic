@@ -140,6 +140,17 @@ namespace sic
 
 			if (wdw->m_dimensions.x < in_width && wdw->m_dimensions.y < in_height)
 				wdw->m_is_maximized = false;
+
+			this_thread().update_deferred
+			(
+				[window_dimensions = wdw->m_dimensions, name = wdw->get_name()](Engine_context in_context)
+				{
+					Ui_widget_canvas* canvas = in_context.get_state_checked<State_ui>().find<Ui_widget_canvas>(name);
+					assert(canvas);
+
+					canvas->reference_dimensions(window_dimensions);
+				}
+			);
 		}
 
 		static void window_moved(GLFWwindow* in_window, int in_x, int in_y)
@@ -272,7 +283,7 @@ void sic::System_window::on_shutdown(Engine_context)
 void sic::System_window::on_engine_tick(Engine_context in_context, float in_time_delta) const
 {
 	in_time_delta;
-	in_context.schedule(update_windows, Schedule_data().run_on_main_thread(true));
+	in_context.schedule(make_functor(update_windows), Schedule_data().run_on_main_thread(true));
 }
 
 void sic::System_window::update_windows(Processor_window in_processor)
@@ -328,16 +339,17 @@ void sic::System_window::update_windows(Processor_window in_processor)
 				{
 					cur_window->m_dimensions = window_dimensions;
 
-					in_processor.update_state_deferred<State_ui>
+					in_processor.schedule
 					(
-						[name = cur_window->get_name(), id = cur_window->m_window_id, window_dimensions](State_ui& inout_ui_state)
+						std::function([name = cur_window->get_name(), id = cur_window->m_window_id, window_dimensions](Processor<Processor_flag_write<State_ui>> in_processor)
 						{
-							Ui_widget_canvas* canvas = inout_ui_state.find<Ui_widget_canvas>(name);
+							auto& ui_state = in_processor.get_state_checked_w<State_ui>();
+							Ui_widget_canvas* canvas = ui_state.find<Ui_widget_canvas>(name);
 							assert(canvas);
 
 							canvas->m_reference_dimensions = window_dimensions;
-							inout_ui_state.set_window_info(name, window_dimensions, id);
-						}
+							ui_state.set_window_info(name, window_dimensions, id);
+						})
 					);
 				}
 			}
@@ -449,7 +461,7 @@ void sic::System_window::update_dragging(Window_proxy& inout_window, const Rende
 	inout_window.m_cursor_drag = { 0.0f, 0.0f };
 }
 
-sic::Window_proxy& sic::State_window::create_window(Processor_window in_processor, const std::string& in_name, const glm::ivec2& in_dimensions)
+sic::Window_proxy& sic::State_window::create_window(Processor_window in_processor, const std::string& in_name, const glm::ivec2& in_dimensions, bool in_decorated)
 {
 	std::scoped_lock lock(m_mutex);
 
@@ -474,7 +486,7 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 
 	window_interface_ptr_raw->m_window_id = scene_state.m_windows.create_object
 	(
-		[window_interface_ptr_raw, in_name, clamped_dimensions, resource_context = m_resource_context](Render_object_window& in_out_window)
+		[window_interface_ptr_raw, in_name, clamped_dimensions, resource_context = m_resource_context, in_decorated](Render_object_window& in_out_window)
 		{
 			glfwWindowHint(GLFW_SAMPLES, 4); // 4x antialiasing
 			glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); // We want OpenGL 3.3
@@ -482,7 +494,7 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 			glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
 			glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // We don't want the old OpenGL
 			glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-			glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+			glfwWindowHint(GLFW_DECORATED, in_decorated ? GLFW_TRUE : GLFW_FALSE);
 
 			in_out_window.m_context = glfwCreateWindow(clamped_dimensions.x, clamped_dimensions.y, in_name.c_str(), NULL, resource_context);
 			in_out_window.m_name = in_name;
@@ -492,6 +504,26 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 				SIC_LOG_E(g_log_renderer, "Failed to open GLFW window. GPU not 3.3 compatible.");
 				glfwTerminate();
 				return;
+			}
+
+			{
+				//center window
+
+				auto monitor = glfwGetPrimaryMonitor();
+
+				const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+				if (!mode)
+					return;
+
+				int monitorX, monitorY;
+				glfwGetMonitorPos(monitor, &monitorX, &monitorY);
+
+				int windowWidth, windowHeight;
+				glfwGetWindowSize(in_out_window.m_context, &windowWidth, &windowHeight);
+
+				glfwSetWindowPos(in_out_window.m_context,
+					monitorX + (mode->width - windowWidth) / 2,
+					monitorY + (mode->height - windowHeight) / 2);
 			}
 
 			glfwSetWindowUserPointer(in_out_window.m_context, window_interface_ptr_raw);
@@ -588,15 +620,16 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 		}
 	);
 
-	in_processor.update_state_deferred<State_ui>
+	in_processor.schedule
 	(
-		[in_name, clamped_dimensions, id = window_interface_ptr_raw->m_window_id](State_ui& inout_ui_state)
+		std::function([in_name, clamped_dimensions, id = window_interface_ptr_raw->m_window_id](Processor<Processor_flag_write<State_ui>> in_processor)
 		{
-			Ui_widget_canvas& canvas = inout_ui_state.create<Ui_widget_canvas>(in_name);
+			auto& ui_state = in_processor.get_state_checked_w<State_ui>();
+			Ui_widget_canvas& canvas = ui_state.create<Ui_widget_canvas>(in_name);
 			canvas.m_reference_dimensions = clamped_dimensions;
 
-			inout_ui_state.set_window_info(in_name, clamped_dimensions, id);
-		}
+			ui_state.set_window_info(in_name, clamped_dimensions, id);
+		})
 	);
 
 	return *window_interface_ptr;
@@ -623,12 +656,12 @@ void sic::State_window::destroy_window(Processor_window in_processor, const std:
 
 	scene_state.m_windows.destroy_object(window_interface_ptr->second->m_window_id);
 
-	in_processor.update_state_deferred<State_ui>
+	in_processor.schedule
 	(
-		[name = window_interface_ptr->second->get_name()](State_ui& inout_ui_state)
+		std::function([name = window_interface_ptr->second->get_name()](Processor<Processor_flag_write<State_ui>> in_processor)
 		{
-			inout_ui_state.destroy(name);
-		}
+			in_processor.get_state_checked_w<State_ui>().destroy(name);
+		})
 	);
 
 	if (window_interface_ptr->second.get() == m_main_window_interface)
@@ -826,11 +859,11 @@ void sic::Window_proxy::set_cursor_position(Processor<Processor_flag_deferred_wr
 {
 	m_cursor_position = in_cursor_position;
 
-	in_processor.update_state_deferred<State_render_scene>
+	in_processor.schedule
 	(
-		[window_id = m_window_id, in_cursor_position](State_render_scene& inout_state)
+		std::function([window_id = m_window_id, in_cursor_position](Processor<Processor_flag_write<State_render_scene>> in_processor)
 		{
-			inout_state.m_windows.update_object
+			in_processor.get_state_checked_w<State_render_scene>().m_windows.update_object
 			(
 				window_id,
 				[in_cursor_position](Render_object_window& inout_window)
@@ -838,7 +871,7 @@ void sic::Window_proxy::set_cursor_position(Processor<Processor_flag_deferred_wr
 					glfwSetCursorPos(inout_window.m_context, in_cursor_position.x, in_cursor_position.y);
 				}
 			);
-		}
+		})
 	);
 }
 
@@ -846,11 +879,11 @@ void sic::Window_proxy::set_input_mode(Processor<Processor_flag_deferred_write<S
 {
 	m_input_mode = in_input_mode;
 
-	in_processor.update_state_deferred<State_render_scene>
+	in_processor.schedule
 	(
-		[window_id = m_window_id, &needs_cursor_reset = m_needs_cursor_reset, in_input_mode](State_render_scene& inout_state)
+		std::function([window_id = m_window_id, &needs_cursor_reset = m_needs_cursor_reset, in_input_mode](Processor<Processor_flag_write<State_render_scene>> in_processor)
 		{
-			inout_state.m_windows.update_object
+			in_processor.get_state_checked_w<State_render_scene>().m_windows.update_object
 			(
 				window_id,
 				[&needs_cursor_reset, in_input_mode](Render_object_window& inout_window)
@@ -873,6 +906,6 @@ void sic::Window_proxy::set_input_mode(Processor<Processor_flag_deferred_write<S
 					needs_cursor_reset = true;
 				}
 			);
-		}
+		})
 	);
 }

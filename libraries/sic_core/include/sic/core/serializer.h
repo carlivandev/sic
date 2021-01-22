@@ -31,6 +31,7 @@ namespace sic
 	struct Deserialize_stream
 	{
 		Deserialize_stream(std::string&& in_bytes) : m_bytes(in_bytes) {}
+		Deserialize_stream(const std::string& in_bytes) : m_bytes(in_bytes) {}
 
 		template <typename T_data_type>
 		void read(T_data_type& out)
@@ -208,10 +209,9 @@ namespace sic
 		size_t len = 0;
 		in_stream.read(len);
 
-		size_t old_len = out_deserialized.size();
-		out_deserialized.resize(old_len + len);
+		out_deserialized.resize(len);
 
-		memcpy_s(&out_deserialized[old_len], len, &in_stream.m_bytes[in_stream.m_offset], len);
+		memcpy_s(&out_deserialized[0], len, &in_stream.m_bytes[in_stream.m_offset], len);
 
 		in_stream.m_offset += static_cast<ui32>(len);
 	}

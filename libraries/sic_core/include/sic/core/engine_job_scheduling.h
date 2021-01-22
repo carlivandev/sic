@@ -4,9 +4,32 @@
 #include <functional>
 #include <queue>
 #include <mutex>
+#include <optional>
 
 namespace sic
 {
+	enum struct Tickstep
+	{
+		pre_tick, //runs before tick, always on main thread
+		tick, //everything here runs in parallel, first added runs on main thread
+		post_tick //runs after tick, always on main thread
+	};
+
+	struct Job_id
+	{
+		struct Dependency
+		{
+			i32 m_submitted_on_thread_id = -1;
+			i32 m_id = -1;
+		};
+
+		i32 m_submitted_on_thread_id = -1;
+		i32 m_id = -1;
+		Tickstep m_tickstep;
+		std::optional<Dependency> m_job_dependency;
+		bool m_run_on_main_thread = false;
+	};
+
 	struct Job_node;
 	struct Threadpool;
 
@@ -33,5 +56,7 @@ namespace sic
 		bool m_run_on_main_thread = false;
 		Main_thread_worker* m_main_thread_worker = nullptr;
 		Threadpool* m_threadpool = nullptr;
+
+		Job_id m_id;
 	};
 }

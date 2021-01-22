@@ -69,6 +69,7 @@ add_headers(SIC_HEADERS
 	system_renderer_state_swapper.h
 	state_render_scene.h
 	component_transform.h
+	color.h
 	)
 
 add_sources(SIC_SOURCES

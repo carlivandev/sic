@@ -11,6 +11,7 @@
 
 #include "sic/core/threadpool.h"
 #include "sic/core/thread_context.h"
+#include "sic/core/engine_job_scheduling.h"
 
 #include <new>
 #include <chrono>
@@ -20,21 +21,6 @@
 
 namespace sic
 {
-	enum struct Tickstep
-	{
-		pre_tick, //runs before tick, always on main thread
-		tick, //everything here runs in parallel, first added runs on main thread
-		post_tick //runs after tick, always on main thread
-	};
-
-	struct Job_id
-	{
-		i32 m_id = -1;
-		Tickstep m_tickstep;
-		std::optional<i32> m_job_dependency;
-		bool m_run_on_main_thread = false;
-	};
-
 	struct Job_dependency
 	{
 		struct Info
@@ -100,13 +86,13 @@ namespace sic
 		bool is_shutting_down() const { return m_is_shutting_down; }
 
 		template <typename T_component_type>
-		constexpr Type_reg register_component_type(const char* in_unique_key, ui32 in_initial_capacity = 128);
+		constexpr void register_component_type(const char* in_unique_key, ui32 in_initial_capacity = 128);
 
 		template <typename T_object>
-		constexpr Type_reg register_object(const char* in_unique_key, ui32 in_initial_capacity = 128, ui32 in_bucket_capacity = 64);
+		constexpr void register_object(const char* in_unique_key, ui32 in_initial_capacity = 128, ui32 in_bucket_capacity = 64);
 
 		template <typename T_type_to_register>
-		constexpr Type_reg register_typeinfo(const char* in_unique_key);
+		constexpr void register_typeinfo(const char* in_unique_key);
 
 		template <typename T_system_type>
 		void add_system(Tickstep in_tickstep);
@@ -130,7 +116,7 @@ namespace sic
 		const T_state* get_state() const;
 
 		template <typename T_type>
-		constexpr const Typeinfo* get_typeinfo() const;
+		constexpr const rtti::Typeinfo* get_typeinfo() const;
 
 		void create_scene(Scene* in_parent_scene);
 		void destroy_scene(Scene& inout_scene);
@@ -139,13 +125,14 @@ namespace sic
 		void listen(T_functor in_func);
 
 		template <typename T_event_type, typename T_event_data>
-		void invoke(T_event_data& event_data_to_send);
+		void invoke(T_event_data event_data_to_send);
 
 		void refresh_time_delta();
 		void flush_scene_streaming();
 
 	private:
 		void tick_systems(std::vector<System*>& inout_systems);
+		void execute_scheduled_jobs();
 		void flush_deferred_updates();
 
 		std::unique_ptr<State>& get_state_at_index(i32 in_index);
@@ -162,11 +149,11 @@ namespace sic
 
 		std::vector<std::unique_ptr<Event_base>> m_engine_events;
 
-		std::vector<Typeinfo*> m_typeinfos;
-		std::vector<Typeinfo*> m_component_typeinfos;
-		std::vector<Typeinfo*> m_object_typeinfos;
-		std::vector<Typeinfo*> m_state_typeinfos;
-		std::unordered_map<std::string, std::unique_ptr<Typeinfo>> m_typename_to_typeinfo_lut;
+		std::vector<rtti::Typeinfo*> m_typeinfos;
+		std::vector<rtti::Typeinfo*> m_component_typeinfos;
+		std::vector<rtti::Typeinfo*> m_object_typeinfos;
+		std::vector<rtti::Typeinfo*> m_state_typeinfos;
+		std::unordered_map<std::string, std::unique_ptr<rtti::Typeinfo>> m_typename_to_typeinfo_lut;
 		
 		std::vector<System*> m_pre_tick_systems;
 		std::vector<System*> m_tick_systems;
@@ -174,7 +161,6 @@ namespace sic
 
 		std::unordered_map<i32, Type_schedule> m_type_index_to_schedule;
 		std::unordered_map<i32, Job_dependency> m_job_id_to_type_dependencies_lut;
-		i32 m_job_index_ticker = 0;
 
 		std::vector<Thread_context*> m_thread_contexts;
 
@@ -182,6 +168,7 @@ namespace sic
 
 		std::chrono::time_point<std::chrono::high_resolution_clock> m_previous_frame_time_point;
 		float m_time_delta = -1.0f;
+		sic::i64 m_current_frame = 0;
 
 		bool m_is_shutting_down = true;
 		bool m_initialized = false;
@@ -195,7 +182,7 @@ namespace sic
 	};
 
 	template<typename T_component_type>
-	inline constexpr Type_reg Engine::register_component_type(const char* in_unique_key, ui32 in_initial_capacity)
+	inline constexpr void Engine::register_component_type(const char* in_unique_key, ui32 in_initial_capacity)
 	{
 		m_registration_callbacks.push_back
 		(
@@ -212,11 +199,11 @@ namespace sic
 			}
 		);
 
-		return register_typeinfo<T_component_type>(in_unique_key);
+		register_typeinfo<T_component_type>(in_unique_key);
 	}
 
 	template<typename T_object>
-	inline constexpr Type_reg Engine::register_object(const char* in_unique_key, ui32 in_initial_capacity, ui32 in_bucket_capacity)
+	inline constexpr void Engine::register_object(const char* in_unique_key, ui32 in_initial_capacity, ui32 in_bucket_capacity)
 	{
 		static_assert(std::is_base_of<Object_base, T_object>::value, "object must derive from struct Object<>");
 
@@ -239,17 +226,17 @@ namespace sic
 			}
 		);
 
-		return register_typeinfo<T_object>(in_unique_key);
+		register_typeinfo<T_object>(in_unique_key);
 	}
 
 	template<typename T_type_to_register>
-	inline constexpr Type_reg Engine::register_typeinfo(const char* in_unique_key)
+	inline constexpr void Engine::register_typeinfo(const char* in_unique_key)
 	{
 		const char* type_name = typeid(T_type_to_register).name();
 
 		assert(m_typename_to_typeinfo_lut.find(type_name) == m_typename_to_typeinfo_lut.end() && "typeinfo already registered!");
 
-		auto & new_typeinfo = m_typename_to_typeinfo_lut[type_name] = std::make_unique<Typeinfo>();
+		auto& new_typeinfo = m_typename_to_typeinfo_lut[type_name] = std::make_unique<rtti::Typeinfo>();
 		new_typeinfo->m_name = type_name;
 		new_typeinfo->m_unique_key = in_unique_key;
 
@@ -286,7 +273,7 @@ namespace sic
 		}
 		else
 		{
-			const i32 type_idx = Type_index<Typeinfo>::get<T_type_to_register>();
+			const i32 type_idx = Type_index<rtti::Typeinfo>::get<T_type_to_register>();
 
 			while (type_idx >= m_typeinfos.size())
 				m_typeinfos.push_back(nullptr);
@@ -294,7 +281,7 @@ namespace sic
 			m_typeinfos[type_idx] = new_typeinfo.get();
 		}
 
-		return Type_reg(new_typeinfo.get());
+		rtti::register_type<T_type_to_register>(std::move(rtti::Type_reg(new_typeinfo.get())));
 	}
 
 	template<typename T_system_type>
@@ -395,7 +382,7 @@ namespace sic
 	}
 
 	template<typename T_type>
-	inline constexpr const Typeinfo* Engine::get_typeinfo() const
+	inline constexpr const rtti::Typeinfo* Engine::get_typeinfo() const
 	{
 		constexpr bool is_component = std::is_base_of<Component_base, T_type>::value;
 		constexpr bool is_object = std::is_base_of<Object_base, T_type>::value;
@@ -424,7 +411,7 @@ namespace sic
 		}
 		else
 		{
-			const ui32 type_idx = Type_index<Typeinfo>::get<T_type>();
+			const ui32 type_idx = Type_index<rtti::Typeinfo>::get<T_type>();
 			assert(type_idx < m_typeinfos.size() && m_typeinfos[type_idx] != nullptr && "typeinfo not registered!");
 
 			return m_typeinfos[type_idx];
@@ -450,7 +437,7 @@ namespace sic
 	}
 
 	template<typename T_event_type, typename T_event_data>
-	inline void Engine::invoke(T_event_data& event_data_to_send)
+	inline void Engine::invoke(T_event_data event_data_to_send)
 	{
 		const ui32 type_idx = Type_index<Event_base>::get<T_event_type>();
 

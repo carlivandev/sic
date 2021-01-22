@@ -1,6 +1,7 @@
 #pragma once
 #include "sic/core/thread_temporary_storage_instance.h"
 #include "sic/core/logger.h"
+#include "sic/core/engine_job_scheduling.h"
 
 #include <vector>
 #include <string>
@@ -16,6 +17,7 @@ namespace sic
 	{
 		friend Thread_temporary_storage_instance;
 		friend struct Engine;
+		friend struct Engine_context;
 
 		constexpr static size_t storage_byte_size = 32768 * 2;
 
@@ -79,10 +81,8 @@ namespace sic
 			m_deferred_updates.push_back(in_func);
 		}
 
-		const std::string& get_name() const
-		{
-			return m_name;
-		}
+		const std::string& get_name() const { return m_name; }
+		i32 get_id() const { return m_id; }
 
 	private:
 		void print_temporary_storage_status()
@@ -106,8 +106,23 @@ namespace sic
 		std::vector<char*> m_dynamically_allocated_blocks;
 
 		std::vector<std::function<void(Engine_context)>> m_deferred_updates;
+		std::vector<std::pair<Job_id, std::function<void(Engine_context, Job_id)>>> m_scheduled_items;
+
+		struct Timed_scheduled_item
+		{
+			std::function<void(Engine_context)> m_func;
+			float m_time_left = 0.0f;
+			float m_time_until_start_scheduling = 0.0f;
+			sic::i64 m_frame_when_ticked = 0;
+		};
+		std::vector<Timed_scheduled_item> m_timed_scheduled_items;
+		std::vector<size_t> m_free_timed_scheduled_items_indices;
+
+		size_t m_job_id_ticker = 0;
+		size_t m_job_index_offset = 0;
 
 		std::string m_name;
+		i32 m_id = -1;
 	};
 
 	Thread_context& this_thread();

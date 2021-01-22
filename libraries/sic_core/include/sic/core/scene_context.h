@@ -163,21 +163,10 @@ namespace sic
 			return Engine_context(*m_engine).get_r<T_type>(in_object);
 		}
 
-		template<typename T_type>
-		__forceinline void update_state_deferred(std::function<void(T_type&)> in_func) const
+		template <typename ...T>
+		Job_id schedule(std::function<void(Processor<T...>)> in_job, Schedule_data in_data = Schedule_data())
 		{
-			static_assert(verify_flags<Processor_flag_deferred_write<T_type>>() || verify_flags<Processor_flag_write<T_type>>(), "Processor does not have deferred write flag for T_type");
-
-			auto update_func =
-			[in_func](Engine_context in_context)
-			{
-				T_type* state = in_context.get_state<T_type>();
-
-				if (state)
-					in_func(*state);
-			};
-
-			this_thread().update_deferred(update_func);
+			return Engine_context(*m_engine).schedule(in_job, in_data);
 		}
 
 		template <typename T_processor_type>
@@ -356,27 +345,9 @@ namespace sic
 		}
 
 		template <typename ...T>
-		Job_id schedule(void (*in_job)(Processor<T...>), Schedule_data in_data = Schedule_data())
+		Job_id schedule(std::function<void(Processor<T...>)> in_job, Schedule_data in_data = Schedule_data())
 		{
-			Job_id job_id;
-			job_id.m_id = m_engine.m_job_index_ticker++;
-			job_id.m_run_on_main_thread = in_data.m_run_on_main_thread;
-
-			if (in_data.m_job_dependency.has_value())
-				job_id.m_job_dependency = in_data.m_job_dependency->m_id;
-
-			Scene_context context(m_engine, m_scene);
-			auto job_callback =
-			[in_job, context]()
-			{
-				Processor<T...> processor(context);
-				in_job(processor);
-			};
-
-			auto& dependency_infos = m_engine.m_job_id_to_type_dependencies_lut[job_id.m_id];
-			(Processor<T...>::schedule_for_type<T>(m_engine, dependency_infos, job_callback, job_id), ...);
-
-			return job_id;
+			return get_engine_context().schedule(in_job, in_data);
 		}
 
 		Engine_context get_engine_context() { return m_engine; }

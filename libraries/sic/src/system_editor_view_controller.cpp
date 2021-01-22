@@ -17,7 +17,7 @@ void sic::System_editor_view_controller::on_created(Engine_context in_context)
 void sic::System_editor_view_controller::on_tick(Scene_context in_context, float in_time_delta) const
 {
 	in_time_delta;
-	in_context.schedule(update_controllers);
+	in_context.schedule(make_functor(update_controllers));
 }
 
 void sic::System_editor_view_controller::update_controllers(Processor<Processor_flag_write<Component_editor_view_controller>, Processor_flag_write_single<Component_transform>, Processor_flag_read<State_input>, Processor_render_scene_update> in_processor)

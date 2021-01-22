@@ -1,6 +1,6 @@
 {
 	"asset_path": "content/textures/crysis/tex_sic_icon_small.asset",
-	"id": "9b8ffc9e-7385-4dd8-a4b4-eaad32bb694a",
+	"id": "2970acdc-4ac3-45b4-aabd-4191779593b8",
 	"name": "tex_sic_icon_small",
 	"type": "struct sic::Asset_texture"
 }

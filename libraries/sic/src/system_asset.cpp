@@ -78,7 +78,7 @@ void sic::System_asset::on_engine_finalized(Engine_context in_context) const
 void sic::System_asset::on_engine_tick(Engine_context in_context, float in_time_delta) const
 {
 	in_time_delta;
-	in_context.schedule(update_assetsystem);
+	in_context.schedule(make_functor(update_assetsystem));
 }
 
 void sic::System_asset::update_assetsystem(Processor<Processor_flag_write<State_assetsystem>> in_processor)

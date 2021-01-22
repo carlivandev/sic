@@ -23,6 +23,9 @@ namespace sic
 
 		for (auto&& system : m_systems)
 			system->execute_engine_finalized(Engine_context(*this));
+
+		while (!m_type_index_to_schedule.empty())
+			execute_scheduled_jobs();
 	}
 
 	void Engine::simulate()
@@ -54,27 +57,34 @@ namespace sic
 			[this](i32 in_index)
 			{
 				m_thread_contexts[in_index + 1] = &this_thread();
+				this_thread().m_id = in_index + 1;
 				this_thread().set_name("worker_thread: " + std::to_string(in_index + 1));
 			}
 		);
 
 		m_thread_contexts[0] = &this_thread();
+		this_thread().m_id = 0;
 		this_thread().set_name("main thread");
 	}
 
 	void Engine::tick()
 	{
 		tick_systems(m_pre_tick_systems);
+		execute_scheduled_jobs();
 
 		flush_deferred_updates();
 
 		tick_systems(m_tick_systems);
+		execute_scheduled_jobs();
 
 		flush_deferred_updates();
 
 		tick_systems(m_post_tick_systems);
+		execute_scheduled_jobs();
 
 		flush_deferred_updates();
+
+		execute_scheduled_jobs();
 
 		flush_scene_streaming();
 
@@ -144,6 +154,8 @@ namespace sic
 		const auto dif = now - m_previous_frame_time_point;
 		m_time_delta = std::chrono::duration<float, std::milli>(dif).count() * 0.001f;
 		m_previous_frame_time_point = now;
+
+		++m_current_frame;
 	}
 
 	void Engine::flush_scene_streaming()
@@ -190,7 +202,7 @@ namespace sic
 
 			for (Scene* added_scene : added_scenes)
 			{
-				invoke<Event_created<Scene>>(*added_scene);
+				invoke<Event_created<Scene>>(added_scene);
 
 				for (auto& system : m_systems)
 				{
@@ -211,8 +223,56 @@ namespace sic
 			tick_system->execute_engine_tick(Engine_context(*this), m_time_delta);
 		}
 
+	}
+
+	void Engine::execute_scheduled_jobs()
+	{
+		size_t job_count = 0;
+
+		for (auto&& thread : m_thread_contexts)
+		{
+			thread->m_job_index_offset = job_count;
+			job_count += thread->m_scheduled_items.size();
+
+			for (auto& scheduled_item : thread->m_scheduled_items)
+				scheduled_item.second(Engine_context(*this), scheduled_item.first);
+
+			thread->m_scheduled_items.clear();
+
+			for (size_t schedule_item_idx = 0; schedule_item_idx < thread->m_timed_scheduled_items.size(); ++schedule_item_idx)
+			{
+				auto& scheduled_item = thread->m_timed_scheduled_items[schedule_item_idx];
+
+				if (!scheduled_item.m_func)
+					continue;
+
+				if (scheduled_item.m_frame_when_ticked == m_current_frame)
+					continue;
+
+				scheduled_item.m_frame_when_ticked = m_current_frame;
+
+				if (scheduled_item.m_time_until_start_scheduling <= 0.0f)
+				{
+					++job_count;
+					scheduled_item.m_func(Engine_context(*this));
+
+					scheduled_item.m_time_left -= m_time_delta;
+					if (scheduled_item.m_time_left <= 0.0f)
+					{
+						scheduled_item.m_func = nullptr;
+						thread->m_free_timed_scheduled_items_indices.push_back(schedule_item_idx);
+						continue;
+					}
+				}
+				else
+				{
+					scheduled_item.m_time_until_start_scheduling -= m_time_delta;
+				}
+			}
+		}
+
 		Main_thread_worker main_thread_worker;
-		std::vector<Job_node> job_nodes(m_job_index_ticker);
+		std::vector<Job_node> job_nodes(job_count);
 		std::vector<Job_node*> leaf_nodes;
 
 		auto schedule_jobs =
@@ -225,31 +285,40 @@ namespace sic
 		{
 			for (auto&& current_job : in_jobs)
 			{
-				Job_node& current_node = job_nodes[current_job.m_id.m_id];
+				const size_t thread_job_index_offset = m_thread_contexts[current_job.m_id.m_submitted_on_thread_id]->m_job_index_offset;
+				Job_node& current_node = job_nodes[thread_job_index_offset + current_job.m_id.m_id];
 
 				//job already initialized
 				if (current_node.m_job)
+				{
+					assert
+					(
+						current_job.m_id.m_submitted_on_thread_id == current_node.m_id.m_submitted_on_thread_id &&
+						current_job.m_id.m_id == current_node.m_id.m_id
+					);
 					continue;
+				}
 
 				current_node.m_threadpool = &m_system_ticker_threadpool;
 				current_node.m_main_thread_worker = &main_thread_worker;
 				current_node.m_is_ready_to_execute = true;
 				current_node.m_run_on_main_thread = current_job.m_id.m_run_on_main_thread;
 				current_node.m_job = current_job.m_job;
+				current_node.m_id = current_job.m_id;
 				current_node.m_dependencies_left = 0;
 
 				if (current_job.m_id.m_job_dependency.has_value())
 				{
 					++current_node.m_dependencies_left;
 
-					Job_node& depends_on_node = job_nodes[current_job.m_id.m_job_dependency.value()];
+					Job_node& depends_on_node = job_nodes[m_thread_contexts[current_job.m_id.m_job_dependency.value().m_submitted_on_thread_id]->m_job_index_offset + current_job.m_id.m_job_dependency.value().m_id];
 					depends_on_node.m_depends_on_me.push_back(&current_node);
 				}
 
 				//find the other type schedules where this job is referenced
 				//grab the previous job_id in each of those lists, and add this node to their depends_on_me list
 
-				auto& type_dependencies = m_job_id_to_type_dependencies_lut[current_job.m_id.m_id];
+				auto& type_dependencies = m_job_id_to_type_dependencies_lut[thread_job_index_offset + current_job.m_id.m_id];
 				for (auto& type_dependency_info : type_dependencies.m_infos)
 				{
 					if (type_dependency_info.m_index > 0)
@@ -265,8 +334,9 @@ namespace sic
 
 							for (auto&& write_dependency : m_type_index_to_schedule.find(type_dependency_info.m_type_index)->second.m_write_jobs)
 							{
+								const i32 thread_id_offset = m_thread_contexts[write_dependency.m_id.m_submitted_on_thread_id]->m_job_index_offset;
 								const i32 id = write_dependency.m_id.m_id;
-								Job_node& write_dependency_node = job_nodes[id];
+								Job_node& write_dependency_node = job_nodes[thread_id_offset + id];
 
 								bool already_added = false;
 
@@ -307,7 +377,9 @@ namespace sic
 								continue;
 
 							const i32 id = write_jobs[type_dependency_info.m_index - 1].m_id.m_id;
-							Job_node& previous_node_write = job_nodes[id];
+							const i32 thread_id_offset = m_thread_contexts[write_jobs[type_dependency_info.m_index - 1].m_id.m_submitted_on_thread_id]->m_job_index_offset;
+
+							Job_node& previous_node_write = job_nodes[thread_id_offset + id];
 
 							bool already_added = false;
 
@@ -343,7 +415,9 @@ namespace sic
 							for (auto&& read_dependency : m_type_index_to_schedule.find(type_dependency_info.m_type_index)->second.m_read_jobs)
 							{
 								const i32 id = read_dependency.m_id.m_id;
-								Job_node& read_dependency_node = job_nodes[id];
+								const i32 thread_id_offset = m_thread_contexts[read_dependency.m_id.m_submitted_on_thread_id]->m_job_index_offset;
+
+								Job_node& read_dependency_node = job_nodes[thread_id_offset + id];
 
 								bool already_added = false;
 
@@ -384,6 +458,19 @@ namespace sic
 			schedule_jobs(type_schedule.second.m_write_jobs);
 			schedule_jobs(type_schedule.second.m_deferred_write_jobs);
 			schedule_jobs(type_schedule.second.m_single_access_jobs);
+		}
+
+		for (Job_node& job_node : job_nodes)
+			assert(job_node.m_job);
+
+		m_type_index_to_schedule.clear();
+		m_job_id_to_type_dependencies_lut.clear();
+
+
+		for (auto&& thread : m_thread_contexts)
+		{
+			thread->m_job_index_offset = 0;
+			thread->m_job_id_ticker = 0;
 		}
 
 		std::vector<Threadpool::Closure> tasks_to_run_on_workers;
@@ -436,11 +523,6 @@ namespace sic
 			if (all_leaf_nodes_finished)
 				break;
 		}
-
-		m_job_index_ticker = 0;
-
-		m_type_index_to_schedule.clear();
-		m_job_id_to_type_dependencies_lut.clear();
 	}
 
 	void Engine::flush_deferred_updates()
@@ -454,6 +536,17 @@ namespace sic
 			}
 
 			context->m_deferred_updates.clear();
+
+			if (context != &sic::this_thread())
+			{
+				for (size_t update_idx = 0; update_idx < sic::this_thread().m_deferred_updates.size(); ++update_idx)
+				{
+					const auto cur_update = sic::this_thread().m_deferred_updates[update_idx];
+					cur_update(Engine_context(*this));
+				}
+
+				sic::this_thread().m_deferred_updates.clear();
+			}
 		}
 	}
 
@@ -481,7 +574,7 @@ namespace sic
 				system->on_end_simulation(Scene_context(*this, in_scene));
 		}
 
-		invoke<event_destroyed<Scene>>(in_scene);
+		invoke<event_destroyed<Scene>>(&in_scene);
 
 		m_scene_id_to_scene_lut.erase(in_scene.m_scene_id);
 

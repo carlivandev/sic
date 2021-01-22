@@ -4,7 +4,7 @@
 sic::Log sic::g_log_ui("UI");
 sic::Log sic::g_log_ui_verbose("UI", false);
 
-void sic::Ui_widget::calculate_render_transform(const glm::vec2& in_window_size)
+void sic::Ui_widget_base::calculate_render_transform(const glm::vec2& in_window_size)
 {
 	in_window_size;
 
@@ -16,7 +16,7 @@ void sic::Ui_widget::calculate_render_transform(const glm::vec2& in_window_size)
 	}
 }
 
-sic::Ui_widget* sic::Ui_widget::get_outermost_parent()
+sic::Ui_widget_base* sic::Ui_widget_base::get_outermost_parent()
 {
 	if (m_parent)
 		return m_parent->get_outermost_parent();
@@ -24,7 +24,7 @@ sic::Ui_widget* sic::Ui_widget::get_outermost_parent()
 	return this;
 }
 
-void sic::Ui_widget::get_dependencies_not_loaded(std::vector<Asset_header*>& out_assets) const
+void sic::Ui_widget_base::get_dependencies_not_loaded(std::vector<Asset_header*>& out_assets) const
 {
 	gather_dependencies(out_assets);
 
@@ -32,7 +32,7 @@ void sic::Ui_widget::get_dependencies_not_loaded(std::vector<Asset_header*>& out
 	it;
 }
 
-bool sic::Ui_widget::get_ready_to_be_shown() const
+bool sic::Ui_widget_base::get_ready_to_be_shown() const
 {
 	if (m_allow_dependency_streaming)
 		return true;
@@ -43,25 +43,50 @@ bool sic::Ui_widget::get_ready_to_be_shown() const
 	return not_loaded_assets.empty();
 }
 
-void sic::Ui_widget::destroy(State_ui& inout_ui_state)
+void sic::Ui_widget_base::destroy(State_ui& inout_ui_state)
 {
-	if (inout_ui_state.m_focused_widget == this)
+	SIC_LOG(g_log_ui_verbose, "destroyed widget: {0}", m_key);
+}
+
+void sic::Ui_widget_base::destroy_render_object(State_ui& inout_ui_state, Update_list_id<Render_object_ui>& inout_ro_id) const
+{
+	if (!inout_ro_id.is_valid())
+		return;
+
+	SIC_LOG(g_log_ui_verbose, "destroyed RO: {0}, owner: {1}", inout_ro_id.get_id(), m_key);
+
+	const auto it = std::find_if(inout_ui_state.m_ro_ids_to_destroy.begin(), inout_ui_state.m_ro_ids_to_destroy.end(), [inout_ro_id](auto& other) {return inout_ro_id.get_id() == other.get_id(); });
+	assert(it == inout_ui_state.m_ro_ids_to_destroy.end());
+
+	inout_ui_state.m_ro_ids_to_destroy.push_back(inout_ro_id);
+	inout_ro_id.reset();
+}
+
+void sic::Ui_widget_base::update_render_object(Processor_ui& inout_processor, Update_list_id<Render_object_ui>& inout_ro_id, std::function<void(Render_object_ui&)> in_callback) const
+{
+	if (inout_ro_id.is_valid())
 	{
-		on_focus_end();
-		inout_ui_state.m_focused_widget = nullptr;
+		inout_processor.schedule
+		(
+			std::function([ro_id = inout_ro_id, callback = in_callback](Processor<Processor_flag_write<State_render_scene>> in_processor) mutable
+			{
+				in_processor.get_state_checked_w<State_render_scene>().m_ui_elements.update_object(ro_id, std::move(callback));
+			})
+		);
 	}
-
-	inout_ui_state.m_widget_lut.erase(m_key);
-	inout_ui_state.m_free_widget_indices.push_back(m_widget_index);
-	inout_ui_state.m_widgets[m_widget_index].reset();
+	else
+	{
+		inout_processor.schedule
+		(
+			std::function([&ro_id = inout_ro_id, callback = in_callback](Processor<Processor_flag_write<State_render_scene>> in_processor) mutable
+			{
+				ro_id = in_processor.get_state_checked_w<State_render_scene>().m_ui_elements.create_object(std::move(callback));
+			})
+		);
+	}
 }
 
-void sic::Ui_widget::destroy_render_object(State_ui& inout_ui_state, Update_list_id<Render_object_ui> in_ro_id) const
-{
-	inout_ui_state.m_ro_ids_to_destroy.push_back(in_ro_id);
-}
-
-void sic::Ui_widget::on_cursor_move_over(const glm::vec2& in_cursor_pos, const glm::vec2& in_cursor_movement)
+void sic::Ui_widget_base::on_cursor_move_over(const glm::vec2& in_cursor_pos, const glm::vec2& in_cursor_movement)
 {
 	SIC_LOG(g_log_ui_verbose, "on_cursor_move_over({0})", m_key);
 
@@ -71,7 +96,7 @@ void sic::Ui_widget::on_cursor_move_over(const glm::vec2& in_cursor_pos, const g
 		invoke<On_drag>(in_cursor_pos, in_cursor_movement);
 }
 
-void sic::Ui_widget::on_hover_begin(const glm::vec2& in_cursor_pos)
+void sic::Ui_widget_base::on_hover_begin(const glm::vec2& in_cursor_pos)
 {
 	in_cursor_pos;
 	SIC_LOG(g_log_ui_verbose, "on_hover_begin({0})", m_key);
@@ -79,7 +104,7 @@ void sic::Ui_widget::on_hover_begin(const glm::vec2& in_cursor_pos)
 	invoke<On_hover_begin>();
 }
 
-void sic::Ui_widget::on_hover_end(const glm::vec2& in_cursor_pos)
+void sic::Ui_widget_base::on_hover_end(const glm::vec2& in_cursor_pos)
 {
 	in_cursor_pos;
 	SIC_LOG(g_log_ui_verbose, "on_hover_end({0})", m_key);
@@ -87,7 +112,7 @@ void sic::Ui_widget::on_hover_end(const glm::vec2& in_cursor_pos)
 	invoke<On_hover_end>();
 }
 
-void sic::Ui_widget::on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos)
+void sic::Ui_widget_base::on_pressed(Mousebutton in_button, const glm::vec2& in_cursor_pos)
 {
 	in_button; in_cursor_pos;
 	SIC_LOG(g_log_ui_verbose, "on_pressed({0})", m_key);
@@ -95,7 +120,7 @@ void sic::Ui_widget::on_pressed(Mousebutton in_button, const glm::vec2& in_curso
 	invoke<On_pressed>();
 }
 
-void sic::Ui_widget::on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos)
+void sic::Ui_widget_base::on_released(Mousebutton in_button, const glm::vec2& in_cursor_pos)
 {
 	in_button; in_cursor_pos;
 	SIC_LOG(g_log_ui_verbose, "on_released({0})", m_key);
@@ -103,7 +128,7 @@ void sic::Ui_widget::on_released(Mousebutton in_button, const glm::vec2& in_curs
 	invoke<On_released>();
 }
 
-void sic::Ui_widget::on_clicked(Mousebutton in_button, const glm::vec2& in_cursor_pos)
+void sic::Ui_widget_base::on_clicked(Mousebutton in_button, const glm::vec2& in_cursor_pos)
 {
 	in_button; in_cursor_pos;
 	SIC_LOG(g_log_ui_verbose, "on_clicked({0})", m_key);
@@ -111,21 +136,21 @@ void sic::Ui_widget::on_clicked(Mousebutton in_button, const glm::vec2& in_curso
 	invoke<On_clicked>();
 }
 
-void sic::Ui_widget::on_character_input(unsigned int in_character)
+void sic::Ui_widget_base::on_character_input(unsigned int in_character)
 {
 	SIC_LOG(g_log_ui_verbose, "on_character_input({0}), character: {1}", m_key, in_character);
 
 	invoke<On_character_input>(in_character);
 }
 
-void sic::Ui_widget::on_focus_begin()
+void sic::Ui_widget_base::on_focus_begin()
 {
 	SIC_LOG(g_log_ui_verbose, "on_focus_begin({0})", m_key);
 
 	invoke<On_focus_begin>();
 }
 
-void sic::Ui_widget::on_focus_end()
+void sic::Ui_widget_base::on_focus_end()
 {
 	SIC_LOG(g_log_ui_verbose, "on_focus_end({0})", m_key);
 
@@ -140,7 +165,7 @@ void sic::System_ui::on_created(Engine_context in_context)
 void sic::System_ui::on_engine_tick(Engine_context in_context, float in_time_delta) const
 {
 	in_time_delta;
-	in_context.schedule(update_ui);
+	in_context.schedule(make_functor(update_ui));
 }
 
 void sic::System_ui::update_ui(Processor_ui in_processor)
@@ -167,7 +192,7 @@ void sic::System_ui::update_ui(Processor_ui in_processor)
 
 	std::vector<Asset_header*> asset_dependencies;
 
-	for (Ui_widget* dirty_widget : ui_state.m_dirty_root_widgets)
+	for (Ui_widget_base* dirty_widget : ui_state.m_dirty_root_widgets)
 	{
 		if (ui_state.m_widget_lut.find(dirty_widget->m_key) == ui_state.m_widget_lut.end())
 			ui_state.m_widget_lut.insert_or_assign(dirty_widget->m_key, dirty_widget);
@@ -230,7 +255,7 @@ void sic::System_ui::update_ui(Processor_ui in_processor)
 
 	ui_state.m_dirty_root_widgets.clear();
 
-	for (Ui_widget* widget_to_redraw : ui_state.m_widgets_to_redraw)
+	for (Ui_widget_base* widget_to_redraw : ui_state.m_widgets_to_redraw)
 	{
 		if (widget_to_redraw->m_update_requested == Ui_widget_update::none)
 			continue;
@@ -255,14 +280,14 @@ void sic::System_ui::update_ui(Processor_ui in_processor)
 
 	if (!ui_state.m_ro_ids_to_destroy.empty())
 	{
-		in_processor.update_state_deferred<State_render_scene>
+		in_processor.schedule
 		(
-			[ro_ids = ui_state.m_ro_ids_to_destroy](State_render_scene& inout_state)
+			std::function([ro_ids = ui_state.m_ro_ids_to_destroy](Processor<Processor_flag_write<State_render_scene>> in_processor) mutable
 			{
 				for (auto ro_id : ro_ids)
 					if (ro_id.is_valid())
-						inout_state.m_ui_elements.destroy_object(ro_id);
-			}
+						in_processor.get_state_checked_w<State_render_scene>().m_ui_elements.destroy_object(ro_id);
+			})
 		);
 
 		ui_state.m_ro_ids_to_destroy.clear();
@@ -298,10 +323,10 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 
 		const glm::vec2& cursor_pos = cur_window->get_cursor_postition() / glm::vec2(cur_window->get_dimensions().x, cur_window->get_dimensions().y);
 
-		std::vector<Ui_widget*> widgets_over_cursor;
+		std::vector<Ui_widget_base*> widgets_over_cursor;
 		root_widget_it->second->gather_widgets_over_point(cursor_pos, widgets_over_cursor);
 
-		auto consume_widget_it = std::find_if(widgets_over_cursor.begin(), widgets_over_cursor.end(), [](Ui_widget* in_widget) { return in_widget->m_interaction_consume_type == Interaction_consume::consume; });
+		auto consume_widget_it = std::find_if(widgets_over_cursor.begin(), widgets_over_cursor.end(), [](Ui_widget_base* in_widget) { return in_widget->m_interaction_consume_type == Interaction_consume::consume; });
 
 		if (consume_widget_it != widgets_over_cursor.end())
 			++consume_widget_it;
@@ -313,9 +338,9 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 
 			for (auto&& widget : ui_state.m_widgets)
 			{
-				Ui_widget* raw_widget = widget.get();
+				Ui_widget_base* raw_widget = widget.get();
 
-				if (!raw_widget || raw_widget->get_outermost_parent() != root_widget_it->second)
+				if (!raw_widget || raw_widget->get_outermost_parent() != root_widget_it->second || raw_widget->m_interaction_consume_type == Interaction_consume::disabled)
 					continue;
 
 				if (raw_widget->is_point_inside(cursor_pos))
@@ -352,7 +377,7 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 
 		for (auto widget = widgets_over_cursor.begin(); widget != consume_widget_it; ++widget)
 		{
-			if ((*widget)->m_interaction_state == Ui_interaction_state::idle)
+			if ((*widget)->m_interaction_state == Ui_interaction_state::idle && (*widget)->m_interaction_consume_type != Interaction_consume::disabled)
 			{
 				(*widget)->m_interaction_state = Ui_interaction_state::hovered;
 				(*widget)->on_interaction_state_changed();
@@ -364,7 +389,7 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 		{
 			for (auto widget = widgets_over_cursor.begin(); widget != consume_widget_it; ++widget)
 			{
-				if ((*widget)->m_interaction_state == Ui_interaction_state::hovered)
+				if ((*widget)->m_interaction_state == Ui_interaction_state::hovered && (*widget)->m_interaction_consume_type != Interaction_consume::disabled)
 				{
 					if (ui_state.m_focused_widget && *widget != ui_state.m_focused_widget)
 						ui_state.m_focused_widget->on_focus_end();
@@ -384,6 +409,9 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 		{
 			for (auto widget = widgets_over_cursor.begin(); widget != consume_widget_it; ++widget)
 			{
+				if ((*widget)->m_interaction_consume_type == Interaction_consume::disabled)
+					continue;
+
 				if ((*widget)->m_interaction_state == Ui_interaction_state::pressed)
 				{
 					(*widget)->on_clicked(released_button.value(), cursor_pos);
@@ -400,9 +428,12 @@ void sic::System_ui::update_ui_interactions(Processor_ui in_processor)
 		{
 			for (auto&& widget : ui_state.m_widgets)
 			{
-				Ui_widget* raw_widget = widget.get();
+				Ui_widget_base* raw_widget = widget.get();
 
 				if (!raw_widget || raw_widget->get_outermost_parent() != root_widget_it->second)
+					continue;
+
+				if (raw_widget->m_interaction_consume_type == Interaction_consume::disabled)
 					continue;
 
 				if (raw_widget->m_interaction_state == Ui_interaction_state::pressed_not_hovered)

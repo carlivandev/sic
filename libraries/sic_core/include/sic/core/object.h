@@ -71,7 +71,7 @@ namespace sic
 		template<typename T_to_invoke_on>
 		constexpr void invoke_post_creation_event(Scene_context& inout_scene)
 		{
-			inout_scene.m_engine.invoke<event_post_created<T_to_invoke_on>>(*std::get<T_to_invoke_on*>(m_components));
+			inout_scene.m_engine.invoke<event_post_created<T_to_invoke_on>>(std::reference_wrapper<T_to_invoke_on>(*std::get<T_to_invoke_on*>(m_components)));
 		}
 
 		template<typename T_to_destroy>
@@ -82,7 +82,6 @@ namespace sic
 			destroy_it = nullptr;
 		}
 
-	private:
 		template<typename T_to_get>
 		__forceinline constexpr T_to_get& get()
 		{
@@ -97,6 +96,7 @@ namespace sic
 			return *it;
 		}
 
+	private:
 		constexpr void make_instance(Scene_context& inout_scene)
 		{
 			m_scene_id = inout_scene.get_scene_id();
@@ -109,7 +109,7 @@ namespace sic
 		void destroy_instance(Scene_context& inout_scene) override
 		{
 			static_assert(std::is_base_of_v<Object_base, T_subtype>, "did you forget T_subtype?");
-			inout_scene.m_engine.invoke<event_destroyed<T_subtype>>(*reinterpret_cast<T_subtype*>(this));
+			inout_scene.m_engine.invoke<event_destroyed<T_subtype>>(reinterpret_cast<T_subtype*>(this));
 
 			(destroy_component<T_component>(inout_scene), ...);
 		}

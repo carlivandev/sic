@@ -4,6 +4,12 @@
 
 namespace sic
 {
+	template <typename T_return_type, typename ...T_args>
+	std::function<T_return_type(T_args...)> make_functor(T_return_type(*in_function_pointer)(T_args...))
+	{
+		return std::function<T_return_type(T_args...)>(in_function_pointer);
+	}
+
 	struct Schedule_data
 	{
 		Schedule_data& job_dependency(Job_id in_job_id) { m_job_dependency = in_job_id; return *this; }
@@ -33,19 +39,19 @@ namespace sic
 		}
 
 		template <typename T_component>
-		__forceinline constexpr Type_reg register_component_type(const char* in_unique_key, ui32 in_initial_capacity = 128)
+		__forceinline constexpr void register_component_type(const char* in_unique_key, ui32 in_initial_capacity = 128)
 		{
-			return m_engine->register_component_type<T_component>(in_unique_key, in_initial_capacity);
+			m_engine->register_component_type<T_component>(in_unique_key, in_initial_capacity);
 		}
 
 		template <typename T_object>
-		__forceinline constexpr Type_reg register_object(const char* in_unique_key, ui32 in_initial_capacity = 128, ui32 in_bucket_capacity = 64)
+		__forceinline constexpr void register_object(const char* in_unique_key, ui32 in_initial_capacity = 128, ui32 in_bucket_capacity = 64)
 		{
-			return m_engine->register_object<T_object>(in_unique_key, in_initial_capacity, in_bucket_capacity);
+			m_engine->register_object<T_object>(in_unique_key, in_initial_capacity, in_bucket_capacity);
 		}
 
 		template <typename T_state>
-		__forceinline constexpr Type_reg register_state(const char* in_unique_key)
+		__forceinline constexpr void register_state(const char* in_unique_key)
 		{
 			const ui32 type_idx = Type_index<State>::get<T_state>();
 
@@ -55,17 +61,17 @@ namespace sic
 
 			state_to_register = std::make_unique<T_state>();
 
-			return std::move(register_typeinfo<T_state>(in_unique_key));
+			register_typeinfo<T_state>(in_unique_key);
 		}
 
 		template <typename T_type_to_register>
-		__forceinline constexpr Type_reg register_typeinfo(const char* in_unique_key)
+		__forceinline constexpr void register_typeinfo(const char* in_unique_key)
 		{
-			return m_engine->register_typeinfo<T_type_to_register>(in_unique_key);
+			m_engine->register_typeinfo<T_type_to_register>(in_unique_key);
 		}
 
 		template <typename T_type>
-		__forceinline constexpr const Typeinfo* get_typeinfo() const
+		__forceinline constexpr const rtti::Typeinfo* get_typeinfo() const
 		{
 			return m_engine->get_typeinfo<T_type>();
 		}
@@ -101,11 +107,11 @@ namespace sic
 		}
 
 		template <typename T_event_type, typename T_event_data>
-		void invoke(T_event_data& event_data_to_send)
+		void invoke(T_event_data event_data_to_send)
 		{
 			this_thread().update_deferred
 			(
-				[engine = m_engine, event_data_to_send]()
+				[engine = m_engine, event_data_to_send](Engine_context)
 				{
 					engine->invoke<T_event_type, T_event_data>(event_data_to_send);
 				}
@@ -174,27 +180,87 @@ namespace sic
 		}
 
 		template <typename ...T>
-		__forceinline Job_id schedule(void (*in_job)(Processor<T...>), Schedule_data in_data = Schedule_data())
+		__forceinline Job_id schedule(std::function<void(Processor<T...>)> in_job, Schedule_data in_data = Schedule_data())
 		{
+			auto& thread_this = this_thread();
+
 			Job_id job_id;
-			job_id.m_id = m_engine->m_job_index_ticker++;
+			job_id.m_id = thread_this.m_job_id_ticker++;
+			job_id.m_submitted_on_thread_id = thread_this.get_id();
 			job_id.m_run_on_main_thread = in_data.m_run_on_main_thread;
 
 			if (in_data.m_job_dependency.has_value())
-				job_id.m_job_dependency = in_data.m_job_dependency->m_id;
-
-			Engine_context context(*m_engine);
-			auto job_callback =
-				[in_job, context]()
 			{
-				Processor<T...> processor(context);
-				in_job(processor);
-			};
+				job_id.m_job_dependency.emplace();
+				job_id.m_job_dependency.value().m_id = in_data.m_job_dependency->m_id;
+				job_id.m_job_dependency.value().m_submitted_on_thread_id = in_data.m_job_dependency->m_submitted_on_thread_id;
+			}
 
-			auto& dependency_infos = m_engine->m_job_id_to_type_dependencies_lut[job_id.m_id];
-			(Processor<T...>::schedule_for_type<T>(*m_engine, dependency_infos, job_callback, job_id), ...);
+			thread_this.m_scheduled_items.push_back
+			(
+				{
+					job_id,
+					[in_job](Engine_context in_context, Job_id in_job_id)
+					{
+						auto job_callback =
+							[in_job, in_context]()
+						{
+							Processor<T...> processor(in_context);
+							in_job(processor);
+						};
+
+						
+						const size_t job_index_offset = in_context.m_engine->m_thread_contexts[in_job_id.m_submitted_on_thread_id]->m_job_index_offset;
+						auto& dependency_infos = in_context.m_engine->m_job_id_to_type_dependencies_lut[job_index_offset + in_job_id.m_id];
+						(Processor<T...>::schedule_for_type<T>(*in_context.m_engine, dependency_infos, job_callback, in_job_id), ...);
+					}
+				}
+			);
 
 			return job_id;
+		}
+
+		template <typename ...T>
+		__forceinline void schedule_timed(std::function<void(Processor<T...>)> in_job, float in_duration, float in_delay_until_start, bool in_run_on_main_thread = false)
+		{
+			auto& thread_this = this_thread();
+
+			Job_id job_id;
+			job_id.m_id = -1;
+			job_id.m_submitted_on_thread_id = thread_this.get_id();
+			job_id.m_run_on_main_thread = in_run_on_main_thread;
+
+			Thread_context::Timed_scheduled_item* new_item = nullptr;
+
+			if (thread_this.m_free_timed_scheduled_items_indices.empty())
+			{
+				new_item = &thread_this.m_timed_scheduled_items.emplace_back();
+			}
+			else
+			{
+				new_item = &thread_this.m_timed_scheduled_items[thread_this.m_free_timed_scheduled_items_indices.back()];
+				thread_this.m_free_timed_scheduled_items_indices.pop_back();
+			}
+
+			*new_item =
+			Thread_context::Timed_scheduled_item
+			{
+				[job_id, in_job, &thread_this](Engine_context in_context) mutable
+				{
+					auto job_callback = [in_job, in_context]()
+					{
+						Processor<T...> processor(in_context);
+						in_job(processor);
+					};
+
+					job_id.m_id = thread_this.m_job_id_ticker++;
+
+					auto& dependency_infos = in_context.m_engine->m_job_id_to_type_dependencies_lut[thread_this.m_job_index_offset + job_id.m_id];
+					(Processor<T...>::schedule_for_type<T>(*in_context.m_engine, dependency_infos, job_callback, job_id), ...);
+				},
+				in_duration,
+				in_delay_until_start
+			};
 		}
 
 		void create_scene(Scene* in_parent_scene)
@@ -205,6 +271,14 @@ namespace sic
 		void destroy_scene(Scene& inout_scene)
 		{
 			m_engine->destroy_scene(inout_scene);
+		}
+
+		Scene* find_scene(sic::i32 in_scene_index)
+		{
+			if (in_scene_index >= 0 && in_scene_index < m_engine->m_scenes.size())
+				return m_engine->m_scenes[in_scene_index].get();
+
+			return nullptr;
 		}
 
 		void shutdown()

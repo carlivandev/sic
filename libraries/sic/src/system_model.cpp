@@ -72,11 +72,11 @@ void sic::Component_model::set_model(Processor_model in_processor, const Asset_r
 
 			const Asset_ref<Asset_material> mat_to_draw = material_override_it != m_material_overrides.end() ? material_override_it->second : m_model.get()->get_material((i32)idx);
 
-			in_processor.update_state_deferred<State_render_scene>
+			in_processor.schedule
 			(
-				[model = m_model, mat_to_draw, idx, ro_id = m_render_object_id_collection[idx]](State_render_scene& inout_state)
+				std::function([model = m_model, mat_to_draw, idx, ro_id = m_render_object_id_collection[idx]](Processor<Processor_flag_write<State_render_scene>> in_processor)
 				{
-					inout_state.update_object
+					in_processor.get_state_checked_w<State_render_scene>().update_object
 					(
 						ro_id,
 						[model, mat_to_draw, idx](Render_object_mesh& in_object)
@@ -88,7 +88,7 @@ void sic::Component_model::set_model(Processor_model in_processor, const Asset_r
 							in_object.m_instance_data_index = in_object.m_material->add_instance_data();
 						} 
 					);
-				}
+				})
 			);
 		}
 	}
@@ -122,11 +122,11 @@ void sic::Component_model::set_material(Processor_model in_processor, Asset_ref<
 		{
 			auto& render_object_id = m_render_object_id_collection[idx];
 
-			in_processor.update_state_deferred<State_render_scene>
+			in_processor.schedule
 			(
-				[in_material_slot, override_mat, render_object_id](State_render_scene& inout_state)
+				std::function([in_material_slot, override_mat, render_object_id](Processor<Processor_flag_write<State_render_scene>> in_processor)
 				{
-					inout_state.update_object
+						in_processor.get_state_checked_w<State_render_scene>().update_object
 					(
 						render_object_id,
 						[in_material_slot, override_mat](Render_object_mesh& in_object)
@@ -137,7 +137,7 @@ void sic::Component_model::set_material(Processor_model in_processor, Asset_ref<
 							in_object.m_instance_data_index = in_object.m_material->add_instance_data();
 						}
 					);
-				}
+				})
 			);
 		}
 	}
@@ -145,7 +145,7 @@ void sic::Component_model::set_material(Processor_model in_processor, Asset_ref<
 	{
 		override_mat.bind_on_loaded
 		(
-			[this, in_material_slot, override_mat, in_processor](Asset*)
+			[this, in_material_slot, override_mat, in_processor](Asset*) mutable
 			{
 				if (m_render_object_id_collection.empty())
 					return;
@@ -156,11 +156,11 @@ void sic::Component_model::set_material(Processor_model in_processor, Asset_ref<
 				{
 					auto& render_object_id = m_render_object_id_collection[idx];
 
-					in_processor.update_state_deferred<State_render_scene>
+					in_processor.schedule
 					(
-						[in_material_slot, override_mat, render_object_id](State_render_scene& inout_state)
+						std::function([in_material_slot, override_mat, render_object_id](Processor<Processor_flag_write<State_render_scene>> in_processor)
 						{
-							inout_state.update_object
+							in_processor.get_state_checked_w<State_render_scene>().update_object
 							(
 								render_object_id,
 								[in_material_slot, override_mat](Render_object_mesh& in_object)
@@ -171,7 +171,7 @@ void sic::Component_model::set_material(Processor_model in_processor, Asset_ref<
 									in_object.m_instance_data_index = in_object.m_material->add_instance_data();
 								}
 							);
-						}
+						})
 					);
 				}
 			}
@@ -199,11 +199,11 @@ void sic::Component_model::try_destroy_render_object(Processor_model in_processo
 			auto material_override_it = m_material_overrides.find(m_model.get()->m_meshes[i].m_material_slot);
 			const Asset_ref<Asset_material> mat_to_draw = material_override_it != m_material_overrides.end() ? material_override_it->second : m_model.get()->get_material((i32)i);
 
-			in_processor.update_state_deferred<State_render_scene>
+			in_processor.schedule
 			(
-				[render_object_id, model = m_model, mat_to_draw  /*capture it by copy to keep asset loaded until destroyed is called*/](State_render_scene& inout_state)
+				std::function([render_object_id, model = m_model, mat_to_draw  /*capture it by copy to keep asset loaded until destroyed is called*/](Processor<Processor_flag_write<State_render_scene>> in_processor)
 				{
-					inout_state.update_object
+					in_processor.get_state_checked_w<State_render_scene>().update_object
 					(
 						render_object_id,
 						[model, mat_to_draw  /*capture it by copy to keep asset loaded until destroyed is called*/](Render_object_mesh& in_out_object)
@@ -212,8 +212,8 @@ void sic::Component_model::try_destroy_render_object(Processor_model in_processo
 						}
 					);
 
-					inout_state.destroy_object(render_object_id);
-				}
+					in_processor.get_state_checked_w<State_render_scene>().destroy_object(render_object_id);
+				})
 			);
 
 			render_object_id.reset();
@@ -258,9 +258,9 @@ void sic::Component_model::try_create_render_object(Processor_model in_processor
 		if (!mat_to_draw.is_valid())
 			continue;
 
-		in_processor.update_state_deferred<State_render_scene>
+		in_processor.schedule
 		(
-			[
+			std::function([
 				&render_object_collection = m_render_object_id_collection,
 				model = m_model,
 				mat_to_draw,
@@ -268,11 +268,11 @@ void sic::Component_model::try_create_render_object(Processor_model in_processor
 				orientation = transform->get_matrix(),
 				scene_id = get_owner().get_outermost_scene_id()
 			]
-			(State_render_scene& inout_state)
+			(Processor<Processor_flag_write<State_render_scene>> in_processor)
 			{
 				render_object_collection.emplace_back
 				(
-					inout_state.create_object<Render_object_mesh>
+					in_processor.get_state_checked_w<State_render_scene>().create_object<Render_object_mesh>
 					(
 						scene_id,
 						[
@@ -290,7 +290,7 @@ void sic::Component_model::try_create_render_object(Processor_model in_processor
 						}
 					)
 				);
-			}
+			})
 		);
 	}
 }

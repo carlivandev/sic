@@ -9,8 +9,8 @@ namespace sic
 {
 	enum struct List_update_type
 	{
-		create,
-		destroy,
+		Create,
+		Destroy,
 		Update
 	};
 
@@ -36,6 +36,8 @@ namespace sic
 			return m_id != -1;
 		}
 
+		i32 get_id() const { return m_id; }
+
 	private:
 		Update_list_id(i32 in_id) : m_id(in_id) {}
 
@@ -51,7 +53,7 @@ namespace sic
 
 			Callback m_callback;
 			Update_list_id<T_object_type> m_object_id;
-			List_update_type m_type = List_update_type::create;
+			List_update_type m_type = List_update_type::Create;
 		};
 
 		Update_list_id<T_object_type> create_object(typename Update::Callback&& in_update_callback = nullptr);
@@ -101,7 +103,7 @@ namespace sic
 
 		Update_list_id<T_object_type> new_update_list_id(static_cast<i32>(new_id));
 
-		m_object_data_updates.push_back({ in_update_callback, new_update_list_id, List_update_type::create });
+		m_object_data_updates.push_back({ in_update_callback, new_update_list_id, List_update_type::Create });
 		return new_update_list_id;
 	}
 
@@ -114,7 +116,7 @@ namespace sic
 
 		m_objects_free_ids.push_back(in_id.m_id);
 
-		m_object_data_updates.push_back({ nullptr, in_id, List_update_type::destroy });
+		m_object_data_updates.push_back({ nullptr, in_id, List_update_type::Destroy });
 	}
 	template<typename T_object_type>
 	inline void Update_list<T_object_type>::update_object(Update_list_id<T_object_type> in_object_id, typename Update::Callback&& in_update_callback)
@@ -133,7 +135,7 @@ namespace sic
 
 		for (const Update& update_instance : m_object_data_updates)
 		{
-			if (update_instance.m_type == List_update_type::create)
+			if (update_instance.m_type == List_update_type::Create)
 			{
 				m_objects.emplace_back();
 
@@ -142,7 +144,7 @@ namespace sic
 				m_id_to_index_lut[update_instance.m_object_id.m_id] = last_idx;
 				m_index_to_id_lut[last_idx] = update_instance.m_object_id.m_id;
 			}
-			else if (update_instance.m_type == List_update_type::destroy)
+			else if (update_instance.m_type == List_update_type::Destroy)
 			{
 				const i32 remove_idx = m_id_to_index_lut[update_instance.m_object_id.m_id];
 				const i32 last_idx = static_cast<i32>(m_objects.size()) - 1;
@@ -166,8 +168,6 @@ namespace sic
 		}
 
 		m_object_data_updates.clear();
-
-		m_current_create_id = m_objects.size();
 	}
 	template<typename T_object_type>
 	inline T_object_type* Update_list<T_object_type>::find_object(Update_list_id<T_object_type> in_object_id)
