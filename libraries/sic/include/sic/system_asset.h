@@ -117,11 +117,20 @@ namespace sic
 
 			for (Asset_header* header : *pre_unload_assets.get())
 			{
-				SIC_LOG(g_log_asset_verbose, "Unloaded asset: \"{0}\"", header->m_name.c_str());
+				SIC_LOG(g_log_asset, "Unloaded asset: \"{0}\"", header->m_name.c_str());
 
 				in_callback(*reinterpret_cast<T_asset_type*>(header->m_loaded_asset.get()));
 				header->m_load_state = Asset_load_state::not_loaded;
 				header->m_loaded_asset.reset();
+
+				//this asset has not been saved, remove header completely
+				if (header->m_asset_path.empty())
+				{
+					m_id_to_header.erase(header->m_id);
+
+					m_free_header_indices.push_back(header->m_index.value());
+					m_asset_headers[header->m_index.value()].reset();
+				}
 			}
 
 			pre_unload_assets->clear();
@@ -141,19 +150,19 @@ namespace sic
 		}
 
 		template <typename T_asset_type>
-		inline Asset_ref<T_asset_type> create_asset(const std::string& in_asset_name, const std::string& in_asset_directory)
+		inline Asset_ref<T_asset_type> create_asset(const std::string& in_asset_name)
 		{
-			Asset_header* new_header = create_asset_internal(in_asset_name, in_asset_directory, typeid(T_asset_type).name());
+			Asset_header* new_header = create_asset_internal(in_asset_name, typeid(T_asset_type).name());
 			new_header->m_loaded_asset = std::unique_ptr<Asset>(reinterpret_cast<Asset*>(new T_asset_type()));
 			new_header->m_loaded_asset->m_header = new_header;
-
-			new_header->increment_reference_count();
 
 			SIC_LOG(g_log_asset_verbose, "Created asset: \"{0}\"", new_header->m_name.c_str());
 
 			if (new_header->m_loaded_asset.get()->has_post_load())
 			{
 				std::scoped_lock post_load_lock(m_post_load_mutex);
+
+				new_header->increment_reference_count();
 				new_header->m_load_state = Asset_load_state::loading;
 
 				std::unique_ptr<std::vector<Asset_header*>>& post_load_assets = m_typename_to_post_load_assets[typeid(T_asset_type).name()];
@@ -165,7 +174,7 @@ namespace sic
 			}
 			else
 			{
-				SIC_LOG(g_log_asset_verbose, "Loaded asset: \"{0}\"", new_header->m_name.c_str());
+				SIC_LOG(g_log_asset, "Loaded asset: \"{0}\"", new_header->m_name.c_str());
 				new_header->m_load_state = Asset_load_state::loaded;
 			}
 
@@ -173,13 +182,16 @@ namespace sic
 		}
 
 		template <typename T_asset_type>
-		inline void save_asset(const Asset_ref<T_asset_type>& in_ref)
+		inline void save_asset(const Asset_ref<T_asset_type>& in_ref, const std::string& in_asset_directory)
 		{
-			assert(in_ref.get_header() && "Asset_ref was not valid!");
-			assert(in_ref.get_header()->m_loaded_asset && "Asset was not yet loaded!");
+			Asset_header* header = in_ref.get_header();
 
-			save_asset_header(*in_ref.get_header(), typeid(T_asset_type).name());
-			save_asset_internal<T_asset_type>(in_ref.get_header()->m_loaded_asset, in_ref.get_header()->m_asset_path);
+			assert(header && "Asset_ref was not valid!");
+			assert(header->m_loaded_asset && "Asset was not yet loaded!");
+			header->m_asset_path = fmt::format("{0}/{1}.asset", in_asset_directory, header->m_name);
+
+			save_asset_header(*header, typeid(T_asset_type).name());
+			save_asset_internal<T_asset_type>(header->m_loaded_asset, header->m_asset_path);
 		}
 
 		template <typename T_asset_type>
@@ -200,7 +212,7 @@ namespace sic
 		void leave_unload_queue(const Asset_header& in_header);
 		void join_unload_queue(Asset_header& in_out_header);
 
-		Asset_header* create_asset_internal(const std::string& in_asset_name, const std::string& in_asset_directory, const std::string& in_typename);
+		Asset_header* create_asset_internal(const std::string& in_asset_name, const std::string& in_typename);
 		void save_asset_header(const Asset_header& in_header, const std::string& in_typename);
 
 		template <typename T_asset_type>
@@ -238,6 +250,8 @@ namespace sic
 		void unload_next_asset();
 
 		std::vector<std::unique_ptr<Asset_header>> m_asset_headers;
+		std::vector<size_t> m_free_header_indices;
+
 		std::unordered_map<xg::Guid, Asset_header*> m_id_to_header;
 
 		std::vector<File_load_request> m_load_requests;
@@ -262,6 +276,6 @@ namespace sic
 		void on_engine_finalized(Engine_context in_context) const override;
 		virtual void on_engine_tick(Engine_context in_context, float in_time_delta) const override;
 
-		static void update_assetsystem(Processor<Processor_flag_write<State_assetsystem>> in_processor);
+		static void update_assetsystem(Engine_processor<Processor_flag_write<State_assetsystem>> in_processor);
 	};
 }

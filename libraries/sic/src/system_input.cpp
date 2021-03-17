@@ -15,10 +15,10 @@ void sic::System_input::on_created(Engine_context in_context)
 void sic::System_input::on_engine_tick(Engine_context in_context, float in_time_delta) const
 {
 	in_time_delta;
-	in_context.schedule(make_functor(update_input));
+	in_context.schedule(update_input);
 }
 
-void sic::System_input::update_input(Processor<Processor_flag_write<State_input>, Processor_flag_write<State_window>, Processor_flag_read<State_render_scene>> in_processor)
+void sic::System_input::update_input(Engine_processor<Processor_flag_write<State_input>, Processor_flag_write<State_window>, Processor_flag_read<State_render_scene>> in_processor)
 {
 	State_input& input_state = in_processor.get_state_checked_w<State_input>();
 	State_window& window_state = in_processor.get_state_checked_w<State_window>();

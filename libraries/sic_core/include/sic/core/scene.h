@@ -22,7 +22,7 @@ namespace sic
 
 		void destroy_object(Object_base& in_object_to_destroy);
 		//carl: not threadsafe!
-		void destory_object_immediate(Object_base& inout_object_to_destroy);
+		void destroy_object_immediate(Object_base& inout_object_to_destroy);
 
 		template <typename T_component_type>
 		typename T_component_type& create_component(Object_base& in_object_to_attach_to);
@@ -54,6 +54,9 @@ namespace sic
 		Scene* m_parent_scene = nullptr;
 		i32 m_scene_id = -1;
 		i32 m_current_object_id_ticker = 0;
+
+		std::function<void()> m_on_created_callback;
+
 		mutable std::mutex m_object_creation_mutex;
 	};
 
@@ -80,6 +83,8 @@ namespace sic
 
 		m_engine.invoke<Event_created<T_object>>(std::reference_wrapper<T_object>(new_instance));
 
+		new_instance.invoke_post_creation_events(context);
+
 		return new_instance;
 	}
 
@@ -104,7 +109,7 @@ namespace sic
 	inline void Scene::destroy_component(T_component_type& in_component_to_destroy)
 	{
 		const ui32 type_idx = Type_index<Component_base>::get<T_component_type>();
-		m_engine.invoke<event_destroyed<T_component_type>>(std::reference_wrapper<T_component_type>(in_component_to_destroy));
+		m_engine.invoke<Event_destroyed<T_component_type>>(std::reference_wrapper<T_component_type>(in_component_to_destroy));
 
 		Component_storage<T_component_type>* storage = reinterpret_cast<Component_storage<T_component_type>*>(m_component_storages[type_idx].get());
 		storage->destroy_component(in_component_to_destroy);

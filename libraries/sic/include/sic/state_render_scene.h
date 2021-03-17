@@ -156,6 +156,9 @@ namespace sic
 		Asset_ref<Asset_render_target> m_render_target;
 		//std::optional<OpenGl_render_target> m_render_target;
 		i32 m_level_id = -1;
+
+		bool m_realtime = true;
+		bool m_invalidated = true;
 	};
 
 	struct Render_object_mesh : Noncopyable
@@ -171,12 +174,7 @@ namespace sic
 	struct Render_object_ui : Noncopyable
 	{
 		Asset_material* m_material = nullptr;
-
-		Update_list_id<Render_object_window> m_window_id;
-
-		ui32 m_sort_priority = 0;
-		ui32 m_custom_sort_priority = 0;
-
+		Update_list_id<Render_object_ui> m_next;
 		size_t m_instance_data_index;
 	};
 
@@ -367,19 +365,22 @@ namespace sic
 
 	struct Drawcall_ui_element : Drawcall<true, Drawcall_partition_type::disabled>
 	{
-		Drawcall_ui_element(Asset_material* in_material, char* in_instance_data, ui32 in_sort_priority, ui32 in_custom_sort_priority) :
-			m_material(in_material), m_instance_data(in_instance_data), m_sort_priority(in_sort_priority), m_custom_sort_priority(in_custom_sort_priority) {}
+		Drawcall_ui_element(Asset_material* in_material, char* in_instance_data) :
+			m_material(in_material), m_instance_data(in_instance_data) {}
 
 		Asset_material* m_material;
 		char* m_instance_data;
-
-		ui32 m_sort_priority = 0;
-		ui32 m_custom_sort_priority = 0;
 	};
 
 	template <typename T_type>
 	struct Render_object_id
 	{
+		void set(i32 in_level_id, i32 in_object_id)
+		{
+			m_level_id = in_level_id;
+			m_id.set(in_object_id);
+		}
+
 		void reset()
 		{
 			m_id.reset();
@@ -419,16 +420,13 @@ namespace sic
 		}
 
 		template <typename T_type>
-		Render_object_id<T_type> create_object(i32 in_level_id, Update_list<T_type>::Update::template Callback&& in_create_callback)
+		void create_object(Render_object_id<T_type> in_object_id, Update_list<T_type>::Update::template Callback&& in_create_callback)
 		{
 			std::scoped_lock lock(m_update_mutex);
 
-			Update_list<T_type>& list = std::get<Update_list<T_type>>(m_level_id_to_scene_lut.find(in_level_id)->second);
+			Update_list<T_type>& list = std::get<Update_list<T_type>>(m_level_id_to_scene_lut.find(in_object_id.m_level_id)->second);
 			Render_object_id<T_type> id;
-			id.m_id = list.create_object(std::move(in_create_callback));
-			id.m_level_id = in_level_id;
-
-			return id;
+			list.create_object(in_object_id.m_id, std::move(in_create_callback));
 		}
 
 		template <typename T_type>
@@ -450,18 +448,17 @@ namespace sic
 		}
 
 		Update_list<Render_object_window> m_windows;
-		Update_list<Render_object_ui> m_ui_elements;
+		std::unordered_map<i32, Update_list<Render_object_ui>> m_window_id_to_ui_elements;
+		std::unordered_map<i32, Update_list_id<Render_object_ui>> m_window_id_to_first_ui_element;
 
 		std::vector<Drawcall_mesh> m_opaque_drawcalls;
 		std::vector<Drawcall_mesh_translucent> m_translucent_drawcalls;
 		std::vector<Drawcall_ui_element> m_ui_drawcalls;
 
-	protected:
 		void flush_updates();
+	protected:
 
 		std::unordered_map<i32, Render_scene_level> m_level_id_to_scene_lut;
 		std::mutex m_update_mutex;
 	};
-
-	using Processor_render_scene_update = Processor<Processor_flag_deferred_write<State_render_scene>>;
 }
