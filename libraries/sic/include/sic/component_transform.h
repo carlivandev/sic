@@ -49,7 +49,7 @@ namespace sic
 			m_rotation = glm::normalize(m_rotation);
 		}
 
-		void look_at(const glm::vec3& in_direction, const glm::vec3& in_up)
+		void look_at(const glm::vec3& in_direction, const glm::vec3& in_up = Transform::up)
 		{
 			if (in_direction == in_up)
 				m_rotation = glm::quatLookAt(in_direction, glm::normalize(glm::vec3(in_up.x - 0.001f, in_up.y, in_up.z)));
@@ -57,6 +57,11 @@ namespace sic
 				m_rotation = glm::quatLookAt(in_direction, in_up);
 
 			m_rotation = glm::normalize(m_rotation);
+		}
+		
+		void look_at_point(const glm::vec3& in_point, const glm::vec3& in_up = Transform::up)
+		{
+			look_at(glm::normalize(in_point - m_translation), in_up);
 		}
 
 		void translate(const glm::vec3& in_translation)
@@ -133,6 +138,7 @@ namespace sic
 			}
 		}
 
+		// in radians
 		void set_rotation(const glm::vec3& in_euler_angles)
 		{
 			const glm::quat new_rot(in_euler_angles);
@@ -170,42 +176,70 @@ namespace sic
 
 		void rotate(const glm::vec3& in_euler_angles)
 		{
+			if (in_euler_angles.x == 0.0f &&
+				in_euler_angles.y == 0.0f &&
+				in_euler_angles.z == 0.0f)
+				return;
+
 			m_transform.rotate(in_euler_angles);
 			m_on_updated.invoke(*this);
 		}
 
 		void rotate_around(float in_angle, const glm::vec3& in_axis)
 		{
+			if (in_angle == 0.0f)
+				return;
+
 			m_transform.rotate_around(in_angle, in_axis);
 			m_on_updated.invoke(*this);
 		}
 
-		void look_at(const glm::vec3& in_direction, const glm::vec3& in_up)
+		void look_at(const glm::vec3& in_direction, const glm::vec3& in_up = Transform::up)
 		{
 			m_transform.look_at(in_direction, in_up);
 			m_on_updated.invoke(*this);
 		}
 
+		void look_at_point(const glm::vec3& in_point, const glm::vec3& in_up = Transform::up)
+		{
+			m_transform.look_at_point(in_point, in_up);
+			m_on_updated.invoke(*this);
+		}
+
 		void translate(const glm::vec3& in_translation)
 		{
+			if (in_translation.x == 0.0f &&
+				in_translation.y == 0.0f &&
+				in_translation.z == 0.0f)
+				return;
+
 			m_transform.translate(in_translation);
 			m_on_updated.invoke(*this);
 		}
 
 		void pitch(float in_angle)
 		{
+			if (in_angle == 0.0f)
+				return;
+
 			m_transform.pitch(in_angle);
 			m_on_updated.invoke(*this);
 		}
 
 		void yaw(float in_angle)
 		{
+			if (in_angle == 0.0f)
+				return;
+
 			m_transform.yaw(in_angle);
 			m_on_updated.invoke(*this);
 		}
 
 		void roll(float in_angle)
 		{
+			if (in_angle == 0.0f)
+				return;
+
 			m_transform.roll(in_angle);
 			m_on_updated.invoke(*this);
 		}

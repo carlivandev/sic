@@ -137,10 +137,8 @@ namespace sic
 		Double_buffer<std::vector<Synchronous_update_signature>> m_synchronous_renderer_updates;
 	};
 
-
-
 	using Processor_renderer =
-	Processor
+	Engine_processor
 	<
 		Processor_flag_read<State_window>,
 
@@ -172,8 +170,8 @@ namespace sic
 		static void render(Processor_renderer in_processor);
 
 	private:
-		static void render_view(Processor_renderer in_processor, const Render_object_window& in_window, const Render_object_view& inout_view);
-		static void render_ui(Processor_renderer in_processor, const Render_object_window& in_window);
+		static void render_view(Processor_renderer in_processor, const Render_object_view& inout_view, const OpenGl_render_target& in_render_target);
+		static void render_ui(Processor_renderer in_processor, const Render_object_window& in_window, const Update_list_id<Render_object_window>& in_window_id);
 
 		static void render_all_3d_objects(Render_all_3d_objects_data in_data);
 
@@ -197,12 +195,12 @@ namespace sic
 		static std::vector<Instancing_chunk<T_iterator_type>> gather_instancing_chunks(T_iterator_type in_begin, T_iterator_type in_end);
 
 		template <typename T_iterator_type>
-		static void render_instancing_chunk(Instancing_chunk<T_iterator_type> in_chunk, const OpenGl_vertex_buffer_array_base& in_vba, const OpenGl_buffer& in_index_buffer, State_renderer_resources& inout_renderer_resources_state);
+		static void render_instancing_chunk(Instancing_chunk<T_iterator_type> in_chunk, const OpenGl_vertex_buffer_array_base& in_vba, const OpenGl_buffer& in_index_buffer, OpenGl_uniform_block_instancing& inout_instancing_block, OpenGl_draw_interface_instanced& inout_draw_interface);
 
 		template<typename T_drawcall_type>
 		static void render_mesh(const T_drawcall_type& in_dc, const glm::mat4& in_mvp);
 
-		static void render_views_to_window_backbuffers(const std::unordered_map<const sic::Render_object_window*, std::vector<const sic::Render_object_view*>>& in_window_to_view_lut);
+		static void render_windows_to_backbuffers(const std::vector<Render_object_window>& in_windows);
 
 		static void apply_parameters(const Asset_material& in_material, const byte* in_instance_data, const OpenGl_program& in_program);
 
@@ -266,6 +264,10 @@ namespace sic
 	template<typename T_iterator_type>
 	inline void System_renderer::render_meshes_instanced(T_iterator_type in_begin, T_iterator_type in_end, const glm::mat4& in_projection_matrix, const glm::mat4& in_view_matrix, State_renderer_resources& inout_renderer_resources_state)
 	{
+		OpenGl_uniform_block_instancing* instancing_block = inout_renderer_resources_state.get_static_uniform_block<OpenGl_uniform_block_instancing>();
+		if (!instancing_block)
+			return;
+
 		auto&& instancing_chunks = gather_instancing_chunks(in_begin, in_end);
 
 		for (auto&& chunk : instancing_chunks)
@@ -298,7 +300,7 @@ namespace sic
 			else
 				glEnable(GL_CULL_FACE);
 
-			render_instancing_chunk(chunk, chunk.m_begin->m_mesh->m_vertex_buffer_array.value(), chunk.m_begin->m_mesh->m_index_buffer.value(), inout_renderer_resources_state);
+			render_instancing_chunk(chunk, chunk.m_begin->m_mesh->m_vertex_buffer_array.value(), chunk.m_begin->m_mesh->m_index_buffer.value(), *instancing_block, inout_renderer_resources_state.m_draw_interface_instanced);
 		}
 	}
 
@@ -355,26 +357,23 @@ namespace sic
 	}
 
 	template<typename T_iterator_type>
-	inline void System_renderer::render_instancing_chunk(Instancing_chunk<T_iterator_type> in_chunk, const OpenGl_vertex_buffer_array_base& in_vba, const OpenGl_buffer& in_index_buffer, State_renderer_resources& inout_renderer_resources_state)
+	inline void System_renderer::render_instancing_chunk(Instancing_chunk<T_iterator_type> in_chunk, const OpenGl_vertex_buffer_array_base& in_vba, const OpenGl_buffer& in_index_buffer, OpenGl_uniform_block_instancing& inout_instancing_block, OpenGl_draw_interface_instanced& inout_draw_interface)
 	{
 		if constexpr (std::iterator_traits<T_iterator_type>::value_type::get_uses_custom_blendmode())
 			set_blend_mode(in_chunk.m_begin->m_material->m_blend_mode);
 
-		if (OpenGl_uniform_block_instancing* instancing_block = inout_renderer_resources_state.get_static_uniform_block<OpenGl_uniform_block_instancing>())
-		{
-			GLfloat instance_data_texture_vec4_stride = (GLfloat)in_chunk.m_begin->m_material->m_instance_vec4_stride;
-			GLuint64 instance_data_tex_handle = in_chunk.m_begin->m_material->m_instance_data_texture.value().get_bindless_handle();
+		GLfloat instance_data_texture_vec4_stride = (GLfloat)in_chunk.m_begin->m_material->m_instance_vec4_stride;
+		GLuint64 instance_data_tex_handle = in_chunk.m_begin->m_material->m_instance_data_texture.value().get_bindless_handle();
 
-			instancing_block->set_data_raw(0, sizeof(GLfloat), &instance_data_texture_vec4_stride);
-			instancing_block->set_data_raw(uniform_block_alignment_functions::get_alignment<glm::vec4>(), sizeof(GLuint64), &instance_data_tex_handle);
+		inout_instancing_block.set_data_raw(0, sizeof(GLfloat), &instance_data_texture_vec4_stride);
+		inout_instancing_block.set_data_raw(uniform_block_alignment_functions::get_alignment<glm::vec4>(), sizeof(GLuint64), &instance_data_tex_handle);
 
-			inout_renderer_resources_state.m_draw_interface_instanced.begin_frame(in_vba, in_index_buffer, *in_chunk.m_begin->m_material);
+		inout_draw_interface.begin_frame(in_vba, in_index_buffer, *in_chunk.m_begin->m_material);
 
-			for (auto it = in_chunk.m_begin; it != in_chunk.m_end; ++it)
-				inout_renderer_resources_state.m_draw_interface_instanced.draw_instance(it->m_instance_data);
+		for (auto it = in_chunk.m_begin; it != in_chunk.m_end; ++it)
+			inout_draw_interface.draw_instance(it->m_instance_data);
 
-			inout_renderer_resources_state.m_draw_interface_instanced.end_frame();
-		}
+		inout_draw_interface.end_frame();
 	}
 
 	template<typename T_drawcall_type>

@@ -1,7 +1,6 @@
 #pragma once
 #include "sic/core/type_restrictions.h"
 #include "sic/core/type_index.h"
-#include "sic/core/type.h"
 
 #include "sic/core/component.h"
 #include "sic/core/object_base.h"
@@ -21,6 +20,8 @@
 
 namespace sic
 {
+	namespace rtti { struct Typeinfo; struct Rtti; };
+
 	struct Job_dependency
 	{
 		struct Info
@@ -50,6 +51,26 @@ namespace sic
 	{
 	};
 
+	struct Engine_tick_profiling_data
+	{
+		struct Thread_data
+		{
+			struct Item
+			{
+				std::string m_key;
+				float m_start = 0.0f;
+				float m_end = 0.0f;
+			};
+
+			std::string m_name;
+			std::vector<Item> m_items;
+			float m_idle_time = 0.0f;
+		};
+
+		std::vector<Thread_data> m_thread_datas;
+		float m_total_time = 0.0f;
+	};
+
 	struct Engine : Noncopyable
 	{
 		struct Type_schedule
@@ -63,7 +84,6 @@ namespace sic
 
 			std::vector<Item> m_read_jobs;
 			std::vector<Item> m_write_jobs;
-			std::vector<Item> m_deferred_write_jobs;
 			std::vector<Item> m_single_access_jobs;
 			
 			std::string m_typename;
@@ -73,7 +93,11 @@ namespace sic
 		friend struct Scene_context;
 
 		template <typename ...T_processor_flags>
-		friend struct Processor;
+		friend struct Processor_shared;
+
+		friend struct Schedule_for_type;
+
+		Engine();
 
 		void finalize();
 
@@ -85,17 +109,8 @@ namespace sic
 		void shutdown() { m_is_shutting_down = true; }
 		bool is_shutting_down() const { return m_is_shutting_down; }
 
-		template <typename T_component_type>
-		constexpr void register_component_type(const char* in_unique_key, ui32 in_initial_capacity = 128);
-
-		template <typename T_object>
-		constexpr void register_object(const char* in_unique_key, ui32 in_initial_capacity = 128, ui32 in_bucket_capacity = 64);
-
-		template <typename T_type_to_register>
-		constexpr void register_typeinfo(const char* in_unique_key);
-
 		template <typename T_system_type>
-		void add_system(Tickstep in_tickstep);
+		void add_system();
 
 		template <typename T_system_type>
 		T_system_type& create_system();
@@ -115,10 +130,7 @@ namespace sic
 		template <typename T_state>
 		const T_state* get_state() const;
 
-		template <typename T_type>
-		constexpr const rtti::Typeinfo* get_typeinfo() const;
-
-		void create_scene(Scene* in_parent_scene);
+		void create_scene(Scene* in_parent_scene, std::function<void(Scene_context)> in_on_created_callback = {});
 		void destroy_scene(Scene& inout_scene);
 
 		template <typename T_event_type, typename T_functor>
@@ -132,7 +144,7 @@ namespace sic
 
 	private:
 		void tick_systems(std::vector<System*>& inout_systems);
-		void execute_scheduled_jobs();
+		size_t execute_scheduled_jobs();
 		void flush_deferred_updates();
 
 		std::unique_ptr<State>& get_state_at_index(i32 in_index);
@@ -143,24 +155,23 @@ namespace sic
 		
 		std::vector<std::unique_ptr<Scene>> m_scenes;
 		std::vector<std::unique_ptr<Scene>> m_scenes_to_add;
-		std::vector<Scene*> m_scenes_to_remove;
+		std::vector<i32> m_scenes_to_remove;
 		std::unordered_map<i32, Scene*> m_scene_id_to_scene_lut;
 		i32 m_scene_id_ticker = 0;
 
 		std::vector<std::unique_ptr<Event_base>> m_engine_events;
 
-		std::vector<rtti::Typeinfo*> m_typeinfos;
-		std::vector<rtti::Typeinfo*> m_component_typeinfos;
-		std::vector<rtti::Typeinfo*> m_object_typeinfos;
-		std::vector<rtti::Typeinfo*> m_state_typeinfos;
-		std::unordered_map<std::string, std::unique_ptr<rtti::Typeinfo>> m_typename_to_typeinfo_lut;
+		std::unique_ptr<rtti::Rtti> m_rtti;
 		
-		std::vector<System*> m_pre_tick_systems;
 		std::vector<System*> m_tick_systems;
-		std::vector<System*> m_post_tick_systems;
 
 		std::unordered_map<i32, Type_schedule> m_type_index_to_schedule;
 		std::unordered_map<i32, Job_dependency> m_job_id_to_type_dependencies_lut;
+		std::vector<Type_schedule::Item> m_no_flag_jobs;
+
+		Main_thread_worker m_main_thread_worker;
+		std::vector<Job_node> m_job_nodes;
+		std::vector<Job_node*> m_job_leaf_nodes;
 
 		std::vector<Thread_context*> m_thread_contexts;
 
@@ -174,133 +185,20 @@ namespace sic
 		bool m_initialized = false;
 		bool m_has_prepared_threadpool = false;
 		bool m_finished_setup = false;
-
 		std::mutex m_scenes_mutex;
 
 		//callbacks to run whenever a new scene is created
 		std::vector<std::function<void(Scene&)>> m_registration_callbacks;
+
+		public:
+		Engine_tick_profiling_data m_tick_profiling_data;
+		bool m_is_profiling = true;
 	};
 
-	template<typename T_component_type>
-	inline constexpr void Engine::register_component_type(const char* in_unique_key, ui32 in_initial_capacity)
-	{
-		m_registration_callbacks.push_back
-		(
-			[in_initial_capacity](Scene& inout_scene)
-			{
-				const ui32 type_idx = Type_index<Component_base>::get<T_component_type>();
-
-				while (type_idx >= inout_scene.m_component_storages.size())
-					inout_scene.m_component_storages.push_back(nullptr);
-
-				Component_storage<T_component_type>* new_storage = new Component_storage<T_component_type>();
-				new_storage->initialize(in_initial_capacity);
-				inout_scene.m_component_storages[type_idx] = std::unique_ptr<Component_storage_base>(new_storage);
-			}
-		);
-
-		register_typeinfo<T_component_type>(in_unique_key);
-	}
-
-	template<typename T_object>
-	inline constexpr void Engine::register_object(const char* in_unique_key, ui32 in_initial_capacity, ui32 in_bucket_capacity)
-	{
-		static_assert(std::is_base_of<Object_base, T_object>::value, "object must derive from struct Object<>");
-
-		m_registration_callbacks.push_back
-		(
-			[in_initial_capacity, in_bucket_capacity](Scene& inout_scene)
-			{
-				const ui32 type_idx = Type_index<Object_base>::get<T_object>();
-
-				while (type_idx >= inout_scene.m_objects.size())
-					inout_scene.m_objects.push_back(nullptr);
-
-				auto & new_object_storage = inout_scene.get_object_storage_at_index(type_idx);
-
-				assert(new_object_storage.get() == nullptr && "object is already registered");
-
-				new_object_storage = std::make_unique<Object_storage>();
-				reinterpret_cast<Object_storage*>(new_object_storage.get())->initialize_with_typesize(in_initial_capacity, in_bucket_capacity, sizeof(T_object));
-
-			}
-		);
-
-		register_typeinfo<T_object>(in_unique_key);
-	}
-
-	template<typename T_type_to_register>
-	inline constexpr void Engine::register_typeinfo(const char* in_unique_key)
-	{
-		const char* type_name = typeid(T_type_to_register).name();
-
-		assert(m_typename_to_typeinfo_lut.find(type_name) == m_typename_to_typeinfo_lut.end() && "typeinfo already registered!");
-
-		auto& new_typeinfo = m_typename_to_typeinfo_lut[type_name] = std::make_unique<rtti::Typeinfo>();
-		new_typeinfo->m_name = type_name;
-		new_typeinfo->m_unique_key = in_unique_key;
-
-		constexpr bool is_component = std::is_base_of<Component_base, T_type_to_register>::value;
-		constexpr bool is_object = std::is_base_of<Object_base, T_type_to_register>::value;
-		constexpr bool is_state = std::is_base_of<State, T_type_to_register>::value;
-
-		if constexpr (is_component)
-		{
-			const ui32 type_idx = Type_index<Component_base>::get<T_type_to_register>();
-
-			while (type_idx >= m_component_typeinfos.size())
-				m_component_typeinfos.push_back(nullptr);
-
-			m_component_typeinfos[type_idx] = new_typeinfo.get();
-		}
-		else if constexpr (is_object)
-		{
-			const ui32 type_idx = Type_index<Object_base>::get<T_type_to_register>();
-
-			while (type_idx >= m_object_typeinfos.size())
-				m_object_typeinfos.push_back(nullptr);
-
-			m_object_typeinfos[type_idx] = new_typeinfo.get();
-		}
-		else if constexpr (is_state)
-		{
-			const ui32 type_idx = Type_index<State>::get<T_type_to_register>();
-
-			while (type_idx >= m_state_typeinfos.size())
-				m_state_typeinfos.push_back(nullptr);
-
-			m_state_typeinfos[type_idx] = new_typeinfo.get();
-		}
-		else
-		{
-			const i32 type_idx = Type_index<rtti::Typeinfo>::get<T_type_to_register>();
-
-			while (type_idx >= m_typeinfos.size())
-				m_typeinfos.push_back(nullptr);
-
-			m_typeinfos[type_idx] = new_typeinfo.get();
-		}
-
-		rtti::register_type<T_type_to_register>(std::move(rtti::Type_reg(new_typeinfo.get())));
-	}
-
 	template<typename T_system_type>
-	inline void Engine::add_system(Tickstep in_tickstep)
+	inline void Engine::add_system()
 	{
-		switch (in_tickstep)
-		{
-		case sic::Tickstep::pre_tick:
-			m_pre_tick_systems.push_back(&create_system<T_system_type>());
-			break;
-		case sic::Tickstep::tick:
-			m_tick_systems.push_back(&create_system<T_system_type>());
-			break;
-		case sic::Tickstep::post_tick:
-			m_post_tick_systems.push_back(&create_system<T_system_type>());
-			break;
-		default:
-			break;
-		}
+		m_tick_systems.push_back(&create_system<T_system_type>());
 	}
 
 	template<typename T_system_type>
@@ -347,7 +245,7 @@ namespace sic
 	inline void Engine::destroy_component(T_component_type& in_component_to_destroy)
 	{
 		const ui32 type_idx = Type_index<Component_base>::get<T_component_type>();
-		invoke<event_destroyed<T_component_type>>(in_component_to_destroy);
+		invoke<Event_destroyed<T_component_type>>(in_component_to_destroy);
 
 		Component_storage<T_component_type>* storage = reinterpret_cast<Component_storage<T_component_type>*>(m_component_storages[type_idx].get());
 		storage->destroy_component(in_component_to_destroy);
@@ -379,43 +277,6 @@ namespace sic
 		assert((type_idx < m_states.size() && m_states[type_idx].get() != nullptr) && "state not registered");
 
 		return reinterpret_cast<const T_state*>(m_states[type_idx].get());
-	}
-
-	template<typename T_type>
-	inline constexpr const rtti::Typeinfo* Engine::get_typeinfo() const
-	{
-		constexpr bool is_component = std::is_base_of<Component_base, T_type>::value;
-		constexpr bool is_object = std::is_base_of<Object_base, T_type>::value;
-		constexpr bool is_state = std::is_base_of<State, T_type>::value;
-
-		if constexpr (is_component)
-		{
-			const ui32 type_idx = Type_index<Component_base>::get<T_type>();
-			assert(type_idx < m_component_typeinfos.size() && m_component_typeinfos[type_idx] != nullptr && "typeinfo not registered!");
-
-			return m_component_typeinfos[type_idx];
-		}
-		else if constexpr (is_object)
-		{
-			const ui32 type_idx = Type_index<Object_base>::get<T_type>();
-			assert(type_idx < m_object_typeinfos.size() && m_object_typeinfos[type_idx] != nullptr && "typeinfo not registered!");
-
-			return m_object_typeinfos[type_idx];
-		}
-		else if constexpr (is_state)
-		{
-			const ui32 type_idx = Type_index<State>::get<T_type>();
-			assert(type_idx < m_states.size() && m_states[type_idx] != nullptr && "typeinfo not registered!");
-
-			return m_states[type_idx];
-		}
-		else
-		{
-			const ui32 type_idx = Type_index<rtti::Typeinfo>::get<T_type>();
-			assert(type_idx < m_typeinfos.size() && m_typeinfos[type_idx] != nullptr && "typeinfo not registered!");
-
-			return m_typeinfos[type_idx];
-		}
 	}
 
 	template<typename T_event_type, typename T_functor>
@@ -450,6 +311,7 @@ namespace sic
 			return;
 
 		T_event_type* engine_event = reinterpret_cast<T_event_type*>(engine_event_base.get());
+
 
 		engine_event->invoke(Engine_context(*this), event_data_to_send);
 	}

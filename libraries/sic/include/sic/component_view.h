@@ -17,24 +17,27 @@ namespace sic
 	{
 		friend struct System_view;
 
-		void set_window(Window_proxy* in_window);
+		//if set, render directly to window backbuffer
+		void set_window(Engine_processor<Processor_flag_write<State_render_scene>> in_processor, Window_proxy* in_window);
 
-		void set_render_target(Asset_ref<Asset_render_target> in_render_target);
+		void set_render_target(Engine_processor<Processor_flag_write<State_render_scene>> in_processor, Asset_ref<Asset_render_target> in_render_target);
 
 		//offset in percentage(0 - 1) based on window size, bottom-left
-		void set_viewport_offset(const glm::vec2& in_viewport_offset);
+		void set_viewport_offset(Engine_processor<Processor_flag_write<State_render_scene>> in_processor, const glm::vec2& in_viewport_offset);
 		//size in percentage(0 - 1) based on window size, bottom-left
-		void set_viewport_size(const glm::vec2& in_viewport_size);
+		void set_viewport_size(Engine_processor<Processor_flag_write<State_render_scene>> in_processor, const glm::vec2& in_viewport_size);
 
-		void set_fov(float in_fov);
-		void set_near_and_far_plane(float in_near, float in_far);
+		void set_fov(Engine_processor<Processor_flag_write<State_render_scene>> in_processor, float in_fov);
+		void set_near_and_far_plane(Engine_processor<Processor_flag_write<State_render_scene>> in_processor, float in_near, float in_far);
+
+		void set_realtime(Engine_processor<Processor_flag_write<State_render_scene>> in_processor, bool in_realtime);
+		void invalidate(Engine_processor<Processor_flag_write<State_render_scene>> in_processor);
 
 		Window_proxy* get_window() const { return m_window; }
 
 		glm::mat4 calculate_projection_matrix() const;
 
 	private:
-		State_render_scene* m_render_scene_state = nullptr;
 		Window_proxy* m_window = nullptr;
 
 		//pixel size
@@ -54,6 +57,8 @@ namespace sic
 		Component_transform::On_updated::Handle m_on_updated_handle;
 		Window_proxy::On_destroyed::Handle m_on_window_destroyed_handle;
 		Asset_ref<Asset_render_target> m_render_target;
+
+		bool m_realtime = true;
 	};
 
 	struct Object_view : public Object<Object_view, Component_view, Component_transform> {};

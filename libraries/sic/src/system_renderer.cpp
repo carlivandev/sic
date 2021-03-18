@@ -40,13 +40,14 @@ void sic::System_renderer::on_created(Engine_context in_context)
 				//only create new render scenes for each root level
 				render_scene_state.add_level(in_out_level.m_scene_id);
 				//only create debug drawer on root levels
-				Render_object_id<Render_object_debug_drawer> obj_id = render_scene_state.create_object<Render_object_debug_drawer>(in_out_level.m_scene_id, nullptr);
-				debug_drawing_state.m_level_id_to_debug_drawer_ids[in_out_level.m_scene_id] = obj_id;
+				auto& id = debug_drawing_state.m_level_id_to_debug_drawer_ids[in_out_level.m_scene_id];
+				id.set(in_out_level.m_scene_id, 0);
+				render_scene_state.create_object<Render_object_debug_drawer>(id, nullptr);
 			}
 		}
 	);
 
-	in_context.listen<event_destroyed<Scene>>
+	in_context.listen<Event_destroyed<Scene>>
 	(
 		[](Engine_context& in_out_context, Scene& in_out_level)
 		{
@@ -164,7 +165,7 @@ void sic::System_renderer::on_engine_tick(Engine_context in_context, float in_ti
 {
 	in_time_delta;
 
-	in_context.schedule(make_functor(System_renderer::render), Schedule_data().run_on_main_thread(true));
+	in_context.schedule(render, Schedule_data().run_on_main_thread(true));
 }
 
 void sic::System_renderer::render(Processor_renderer in_processor)
@@ -172,12 +173,6 @@ void sic::System_renderer::render(Processor_renderer in_processor)
 	const State_window& window_state = in_processor.get_state_checked_r<State_window>();
 	State_render_scene& scene_state = in_processor.get_state_checked_w<State_render_scene>();
 	State_assetsystem& assetsystem_state = in_processor.get_state_checked_w<State_assetsystem>();
-
-	std::scoped_lock asset_modification_lock(assetsystem_state.get_modification_mutex());
-
-	glfwMakeContextCurrent(window_state.m_resource_context);
-
-	do_asset_post_loads(in_processor);
 
 	//clear all window backbuffers
 	for (auto&& window : scene_state.m_windows.m_objects)
@@ -190,47 +185,52 @@ void sic::System_renderer::render(Processor_renderer in_processor)
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	}
 
-		glfwMakeContextCurrent(window_state.m_resource_context);
+	std::scoped_lock asset_modification_lock(assetsystem_state.get_modification_mutex());
+
+	glfwMakeContextCurrent(window_state.m_resource_context);
+
+	do_asset_post_loads(in_processor);
+
+	for (auto&& window : scene_state.m_windows.m_objects)
+	{
 		window.m_render_target.value().clear();
 		window.m_ui_render_target.value().clear();
 	}
 
-	std::unordered_map<const Render_object_window*, std::vector<const Render_object_view*>> window_to_views_lut;
-	
 	for (auto&& level_to_scene_it : scene_state.m_level_id_to_scene_lut)
 	{
-		const Update_list<Render_object_view>& views = std::get<Update_list<Render_object_view>>(level_to_scene_it.second);
+		Update_list<Render_object_view>& views = std::get<Update_list<Render_object_view>>(level_to_scene_it.second);
 
-		for (const Render_object_view& view : views.m_objects)
+		for (Render_object_view& view : views.m_objects)
 		{
-			const Render_object_window* window = scene_state.m_windows.find_object(view.m_window_id);
-			if (!window)
+			if (!view.m_realtime && !view.m_invalidated)
 				continue;
 
-			window_to_views_lut[window].push_back(&view);
+			const Render_object_window* window = scene_state.m_windows.find_object(view.m_window_id);
+			
+			if (window)
+			{
+				render_view(in_processor, view, window->m_render_target.value());
+				view.m_invalidated = false;
+			}
+
+			if (view.m_render_target.is_valid() && view.m_render_target.get_load_state() == Asset_load_state::loaded)
+			{
+				render_view(in_processor, view, view.m_render_target.get()->m_render_target.value());
+				view.m_invalidated = false;
+			}
 		}
 	}
 
 	for (auto& window : scene_state.m_windows.m_objects)
 	{
-		auto& views = window_to_views_lut[&window];
-
-		glfwMakeContextCurrent(window_state.m_resource_context);
-
-		sic::i32 current_window_x, current_window_y;
-		glfwGetWindowSize(window.m_context, &current_window_x, &current_window_y);
-
-		if (current_window_x == 0 || current_window_y == 0)
-			continue;
-
-		for (const Render_object_view* view : views)
-			render_view(in_processor, window, *view);
-
-		render_ui(in_processor, window);
+		auto id = scene_state.m_windows.get_id(window);
+		render_ui(in_processor, window, id);
 	}
 	
-	render_views_to_window_backbuffers(window_to_views_lut);
+	render_windows_to_backbuffers(scene_state.m_windows.m_objects);
 
 	glfwMakeContextCurrent(window_state.m_resource_context);
 	
@@ -245,18 +245,8 @@ void sic::System_renderer::render(Processor_renderer in_processor)
 	glfwMakeContextCurrent(nullptr);
 }
 
-void sic::System_renderer::render_view(Processor_renderer in_processor, const Render_object_window& in_window, const Render_object_view& inout_view)
+void sic::System_renderer::render_view(Processor_renderer in_processor, const Render_object_view& inout_view, const OpenGl_render_target& in_render_target)
 {
-	const OpenGl_render_target* view_render_target = nullptr;
-
-	if (inout_view.m_render_target.is_valid() && inout_view.m_render_target.get_load_state() == Asset_load_state::loaded)
-		view_render_target = &(inout_view.m_render_target.get()->m_render_target.value());
-	else
-		view_render_target = &(in_window.m_render_target.value()); //if no explicit render target is defined, use "fast-path" and render directly to window
-
-	if (!view_render_target)
-		return;
-
 	State_debug_drawing& debug_drawer_state = in_processor.get_state_checked_w<State_debug_drawing>();
 	State_renderer_resources& renderer_resources_state = in_processor.get_state_checked_w<State_renderer_resources>();
 	State_render_scene& scene_state = in_processor.get_state_checked_w<State_render_scene>();
@@ -274,14 +264,14 @@ void sic::System_renderer::render_view(Processor_renderer in_processor, const Re
 
 	glEnable(GL_CULL_FACE);
 
-	glm::ivec2 view_dimensions = view_render_target->get_dimensions();
+	glm::ivec2 view_dimensions = in_render_target.get_dimensions();
 
 	const float view_aspect_ratio = (view_dimensions.x * inout_view.m_viewport_size.x) / (view_dimensions.y * inout_view.m_viewport_size.y);
 
 	const glm::ivec2 target_dimensions = { view_dimensions.x * inout_view.m_viewport_size.x, view_dimensions.y * inout_view.m_viewport_size.y };
 
-	view_render_target->bind_as_target(0);
-	view_render_target->clear();
+	in_render_target.bind_as_target(0);
+	in_render_target.clear();
 
 	SIC_GL_CHECK(glViewport
 	(
@@ -339,23 +329,35 @@ void sic::System_renderer::render_view(Processor_renderer in_processor, const Re
 	set_blend_mode(Material_blend_mode::Opaque);
 }
 
-void sic::System_renderer::render_ui(Processor_renderer in_processor, const Render_object_window& in_window)
+void sic::System_renderer::render_ui(Processor_renderer in_processor, const Render_object_window& in_window, const Update_list_id<Render_object_window>& in_window_id)
 {
 	State_renderer_resources& renderer_resources_state = in_processor.get_state_checked_w<State_renderer_resources>();
 	State_render_scene& scene_state = in_processor.get_state_checked_w<State_render_scene>();
 
-	auto& ui_elements = scene_state.m_ui_elements;
+	auto& ui_elements = scene_state.m_window_id_to_ui_elements[in_window_id.get_id()];
 
 	scene_state.m_ui_drawcalls.clear();
 	scene_state.m_ui_drawcalls.reserve(ui_elements.m_objects.size());
 
-	for (const Render_object_ui& element : ui_elements.m_objects)
-	{
-		if (scene_state.m_windows.find_object(element.m_window_id) != &in_window)
-			continue;
+	auto cur_element = scene_state.m_window_id_to_first_ui_element[in_window_id.get_id()];
 
+	while (cur_element.is_valid())
+	{
+		const Render_object_ui& element = *ui_elements.find_object(cur_element);
 		Asset_material* mat = element.m_material->m_outermost_parent.is_valid() ? element.m_material->m_outermost_parent.get_mutable() : element.m_material;
 		assert(mat);
+
+		if (!mat->m_program.has_value())
+		{
+			SIC_LOG_E
+			(
+				g_log_renderer, "Failed to add drawcall, material(\"{0})\" does not have valid shaders.",
+				mat->get_header().m_name
+			);
+
+			cur_element = element.m_next;
+			continue;
+		}
 
 		const GLint mat_attrib_count = mat->m_program.value().get_attribute_count();
 		const size_t mesh_attrib_count = renderer_resources_state.m_quad_vertex_buffer_array.value().get_attribute_count();
@@ -367,6 +369,7 @@ void sic::System_renderer::render_ui(Processor_renderer in_processor, const Rend
 				mat->m_vertex_shader_path, mat_attrib_count, mesh_attrib_count
 			);
 
+			cur_element = element.m_next;
 			continue;
 		}
 
@@ -377,20 +380,24 @@ void sic::System_renderer::render_ui(Processor_renderer in_processor, const Rend
 		case Material_blend_mode::Opaque:
 		case Material_blend_mode::Masked:
 			SIC_LOG_E(g_log_renderer, "Failed to add UI drawcall, material(\"{0})\" has an invalid blendmode, only Translucent/Additive is supported.", mat->get_header().m_name);
+			cur_element = element.m_next;
 			continue;
 			break;
 
 		case Material_blend_mode::Translucent:
 		case Material_blend_mode::Additive:
 		{
-			scene_state.m_ui_drawcalls.push_back(Drawcall_ui_element(mat, instance_buffer, element.m_sort_priority, element.m_custom_sort_priority));
+			scene_state.m_ui_drawcalls.push_back(Drawcall_ui_element(mat, instance_buffer));
 		}
 		break;
 
 		case Material_blend_mode::Invalid:
 		default:
+			cur_element = element.m_next;
 			continue;
 		}
+
+		cur_element = element.m_next;
 	}
 
 	if (scene_state.m_ui_drawcalls.empty())
@@ -412,22 +419,13 @@ void sic::System_renderer::render_ui(Processor_renderer in_processor, const Rend
 	renderer_resources_state.m_quad_indexbuffer.value().bind();
 	const GLsizei idx_buffer_max_elements_count = static_cast<GLsizei>(renderer_resources_state.m_quad_indexbuffer.value().get_max_elements());
 
-	std::sort
-	(
-		scene_state.m_ui_drawcalls.begin(), scene_state.m_ui_drawcalls.end(),
-		[](const Drawcall_ui_element& in_a, const Drawcall_ui_element& in_b)
-		{
-			if (in_a.m_custom_sort_priority < in_b.m_custom_sort_priority)
-				return true;
+	if (auto* instancing_block = renderer_resources_state.get_static_uniform_block<OpenGl_uniform_block_instancing>())
+	{
+		auto&& chunks = gather_instancing_chunks(scene_state.m_ui_drawcalls.begin(), scene_state.m_ui_drawcalls.end());
 
-			return in_a.m_sort_priority < in_b.m_sort_priority;
-		}
-	);
-
-	auto&& chunks = gather_instancing_chunks(scene_state.m_ui_drawcalls.begin(), scene_state.m_ui_drawcalls.end());
-
-	for (auto&& chunk : chunks)
-		render_instancing_chunk(chunk, renderer_resources_state.m_quad_vertex_buffer_array.value(), renderer_resources_state.m_quad_indexbuffer.value(), renderer_resources_state);
+		for (auto&& chunk : chunks)
+			render_instancing_chunk(chunk, renderer_resources_state.m_quad_vertex_buffer_array.value(), renderer_resources_state.m_quad_indexbuffer.value(), *instancing_block, renderer_resources_state.m_draw_interface_instanced);
+	}
 
 	//insert post-processing here
 
@@ -478,7 +476,15 @@ void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_d
 		assert(mat);
 
 		if (!mat->m_program.has_value())
+		{
+			SIC_LOG_E
+			(
+				g_log_renderer, "Failed to add drawcall, material(\"{0})\" does not have valid shaders.",
+				mat->get_header().m_name
+			);
+
 			continue;
+		}
 
 		const GLint mat_attrib_count = mat->m_program.value().get_attribute_count();
 		const size_t mesh_attrib_count = mesh.m_mesh->m_vertex_buffer_array.value().get_attribute_count();
@@ -563,12 +569,15 @@ void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_d
  		render_meshes_instanced(instanced_begin, scene_state.m_opaque_drawcalls.end(), proj_mat, view_mat, renderer_resources_state);
 	}
 
-	debug_drawer_state.m_draw_interface_debug_lines.value().begin_frame();
+	if (debug_drawers.m_objects.size() > 0)
+	{
+		debug_drawer_state.m_draw_interface_debug_lines.value().begin_frame();
 
-	for (Render_object_debug_drawer& debug_drawer : debug_drawers.m_objects)
-		debug_drawer.draw_shapes(debug_drawer_state.m_draw_interface_debug_lines.value());
+		for (Render_object_debug_drawer& debug_drawer : debug_drawers.m_objects)
+			debug_drawer.draw_shapes(debug_drawer_state.m_draw_interface_debug_lines.value());
 
-	debug_drawer_state.m_draw_interface_debug_lines.value().end_frame();
+		debug_drawer_state.m_draw_interface_debug_lines.value().end_frame();
+	}
 
 	{
 		set_depth_mode(Depth_mode::read);
@@ -589,17 +598,17 @@ void sic::System_renderer::render_all_3d_objects(Render_all_3d_objects_data in_d
 	}
 }
 
-void sic::System_renderer::render_views_to_window_backbuffers(const std::unordered_map<const sic::Render_object_window*, std::vector<const sic::Render_object_view*>>& in_window_to_view_lut)
+void sic::System_renderer::render_windows_to_backbuffers(const std::vector<Render_object_window>& in_windows)
 {
 	set_depth_mode(Depth_mode::read_write);
 	set_blend_mode(Material_blend_mode::Opaque);
 
-	for (auto& window_to_views_it : in_window_to_view_lut)
+	for (auto&& window : in_windows)
 	{
-		glfwMakeContextCurrent(window_to_views_it.first->m_context);
-		window_to_views_it.first->draw_to_backbuffer();
+		glfwMakeContextCurrent(window.m_context);
+		window.draw_to_backbuffer();
 
-		glfwSwapBuffers(window_to_views_it.first->m_context);
+		glfwSwapBuffers(window.m_context);
 	}
 }
 

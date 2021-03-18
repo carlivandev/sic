@@ -57,9 +57,9 @@ namespace sic
 	struct Event_created : public Event<std::reference_wrapper<object_type>> {};
 
 	template <typename object_type>
-	struct event_destroyed : public Event<std::reference_wrapper<object_type>> {};
+	struct Event_destroyed : public Event<std::reference_wrapper<object_type>> {};
 
 	//called after all components on an object has been created, best place to bind references
 	template <typename object_type>
-	struct event_post_created : public Event<std::reference_wrapper<object_type>> {};
+	struct Event_post_created : public Event<std::reference_wrapper<object_type>> {};
 }

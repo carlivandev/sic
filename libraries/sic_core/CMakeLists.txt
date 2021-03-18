@@ -52,6 +52,7 @@ add_headers(SIC_CORE_HEADERS
 	magic_enum.h
 	logger.h
 	random.h
+	async_result.h
 	)
 
 add_sources(SIC_CORE_SOURCES
@@ -69,6 +70,7 @@ add_sources(SIC_CORE_SOURCES
 	scene_context.cpp
 	logger.cpp
 	random.cpp
+	async_result.cpp
 	)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
