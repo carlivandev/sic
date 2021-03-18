@@ -176,15 +176,13 @@ namespace sic
 
 			if (wdw->m_cursor_initial_drag_offset.has_value())
 			{
-				wdw->m_cursor_drag.x = static_cast<float>(in_x) - wdw->m_cursor_initial_drag_offset.value().x;
-				wdw->m_cursor_drag.y = static_cast<float>(in_y) - wdw->m_cursor_initial_drag_offset.value().y;
+				wdw->m_cursor_drag.x = in_x - wdw->m_cursor_initial_drag_offset.value().x;
+				wdw->m_cursor_drag.y = in_y - wdw->m_cursor_initial_drag_offset.value().y;
 			}
 		}
 
 		static void mousebutton(GLFWwindow* in_window, int in_button, int in_action, int in_mods)
 		{
-			in_button; in_mods;
-
 			Window_proxy* wdw = static_cast<Window_proxy*>(glfwGetWindowUserPointer(in_window));
 
 			if (!wdw)
@@ -205,14 +203,12 @@ namespace sic
 
 		static void key(GLFWwindow* in_window, int in_key, int in_scancode, int in_action, int in_mods)
 		{
-			in_scancode; in_mods;
 			Window_proxy* wdw = static_cast<Window_proxy*>(glfwGetWindowUserPointer(in_window));
 
 			if (!wdw)
 				return;
 
-			if (in_key != -1)
-				wdw->m_key_this_frame_down[in_key] = in_action == GLFW_PRESS || in_action == GLFW_REPEAT;
+			wdw->m_key_this_frame_down[in_key] = in_action == GLFW_PRESS || in_action == GLFW_REPEAT;
 		}
 
 		static void input_character(GLFWwindow* in_window, unsigned int in_character)
@@ -235,10 +231,13 @@ void sic::System_window::on_created(Engine_context in_context)
 		return;
 	}
 
+	in_context.create_subsystem<System_view>(*this);
+
 	in_context.register_state<State_window>("state_window");
 
 	State_window& window_state = in_context.get_state_checked<State_window>();
 	
+	glfwWindowHint(GLFW_SAMPLES, 4); // 4x antialiasing
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3); // We want OpenGL 3.3
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // To make MacOS happy; should not be needed
@@ -264,7 +263,6 @@ void sic::System_window::on_created(Engine_context in_context)
 
 	glfwSetErrorCallback(&System_window_functions::glfw_error);
 
-	glDisable(GL_MULTISAMPLE);
 	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 	glDebugMessageCallback(&System_window_functions::gl_debug_message_callback, nullptr);
 	GLuint unusedIds = 0;
@@ -285,7 +283,7 @@ void sic::System_window::on_shutdown(Engine_context)
 void sic::System_window::on_engine_tick(Engine_context in_context, float in_time_delta) const
 {
 	in_time_delta;
-	in_context.schedule(update_windows, Schedule_data().run_on_main_thread(true));
+	in_context.schedule(make_functor(update_windows), Schedule_data().run_on_main_thread(true));
 }
 
 void sic::System_window::update_windows(Processor_window in_processor)
@@ -343,11 +341,14 @@ void sic::System_window::update_windows(Processor_window in_processor)
 
 					in_processor.schedule
 					(
-						std::function([name = cur_window->get_name(), window_dimensions](Engine_processor<Processor_flag_write<State_ui>> in_processor)
+						std::function([name = cur_window->get_name(), id = cur_window->m_window_id, window_dimensions](Processor<Processor_flag_write<State_ui>> in_processor)
 						{
 							auto& ui_state = in_processor.get_state_checked_w<State_ui>();
-							
-							ui_state.set_window_info(name, window_dimensions);
+							Ui_widget_canvas* canvas = ui_state.find<Ui_widget_canvas>(name);
+							assert(canvas);
+
+							canvas->m_reference_dimensions = window_dimensions;
+							ui_state.set_window_info(name, window_dimensions, id);
 						})
 					);
 				}
@@ -361,6 +362,8 @@ void sic::System_window::update_windows(Processor_window in_processor)
 	{
 		if (glfwWindowShouldClose(window.m_context) != 0)
 		{
+			const Render_object_window* main_window = scene_state.m_windows.find_object(window_state.m_main_window_interface->m_window_id);
+			
 			auto to_destroy_it = window_state.m_window_name_to_interfaces_lut.find(window.m_name);
 
 			if (to_destroy_it != window_state.m_window_name_to_interfaces_lut.end())
@@ -481,13 +484,8 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 	window_interface_ptr_raw->m_dimensions = clamped_dimensions;
 	window_interface_ptr_raw->m_engine_context = Engine_context(*in_processor.m_engine);
 
-	window_interface_ptr_raw->m_window_id.set(m_id_ticker++);
-
-	scene_state.m_window_id_to_ui_elements[window_interface_ptr_raw->m_window_id.get_id()];
-
-	scene_state.m_windows.create_object
+	window_interface_ptr_raw->m_window_id = scene_state.m_windows.create_object
 	(
-		window_interface_ptr_raw->m_window_id,
 		[window_interface_ptr_raw, in_name, clamped_dimensions, resource_context = m_resource_context, in_decorated](Render_object_window& in_out_window)
 		{
 			glfwWindowHint(GLFW_SAMPLES, 4); // 4x antialiasing
@@ -560,7 +558,7 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 
 			glEnable(GL_DEBUG_OUTPUT);
 
-			glfwSwapInterval(0);
+			//glfwSwapInterval(0);
 
 			// Ensure we can capture the escape key being pressed below
 			glfwSetInputMode(in_out_window.m_context, GLFW_STICKY_KEYS, GL_TRUE);
@@ -624,10 +622,13 @@ sic::Window_proxy& sic::State_window::create_window(Processor_window in_processo
 
 	in_processor.schedule
 	(
-		std::function([in_name, clamped_dimensions, id = window_interface_ptr_raw->m_window_id](Engine_processor<Processor_flag_write<State_ui>> in_processor)
+		std::function([in_name, clamped_dimensions, id = window_interface_ptr_raw->m_window_id](Processor<Processor_flag_write<State_ui>> in_processor)
 		{
 			auto& ui_state = in_processor.get_state_checked_w<State_ui>();
-			ui_state.create_window_info(in_name, clamped_dimensions, id);
+			Ui_widget_canvas& canvas = ui_state.create<Ui_widget_canvas>(in_name);
+			canvas.m_reference_dimensions = clamped_dimensions;
+
+			ui_state.set_window_info(in_name, clamped_dimensions, id);
 		})
 	);
 
@@ -643,7 +644,7 @@ void sic::State_window::destroy_window(Processor_window in_processor, const std:
 	if (window_interface_ptr == m_window_name_to_interfaces_lut.end())
 		return;
 
-	window_interface_ptr->second->m_on_destroyed.invoke(in_processor);
+	window_interface_ptr->second->m_on_destroyed.invoke();
 
 	State_render_scene& scene_state = in_processor.get_state_checked_w<State_render_scene>();
 	Render_object_window* window_ro = scene_state.m_windows.find_object(window_interface_ptr->second->m_window_id);
@@ -654,13 +655,12 @@ void sic::State_window::destroy_window(Processor_window in_processor, const std:
 		glfwDestroyCursor(cursor_it.second);
 
 	scene_state.m_windows.destroy_object(window_interface_ptr->second->m_window_id);
-	scene_state.m_window_id_to_ui_elements.erase(window_interface_ptr->second->m_window_id.get_id());
 
 	in_processor.schedule
 	(
-		std::function([name = window_interface_ptr->second->get_name()](Processor_ui in_processor)
+		std::function([name = window_interface_ptr->second->get_name()](Processor<Processor_flag_write<State_ui>> in_processor)
 		{
-			in_processor.get_state_checked_w<State_ui>().destroy(in_processor, name);
+			in_processor.get_state_checked_w<State_ui>().destroy(name);
 		})
 	);
 
@@ -727,8 +727,6 @@ void sic::State_window::set_window_position(Processor_window in_processor, const
 
 void sic::State_window::begin_drag_window(Processor_window in_processor, const std::string& in_name)
 {
-	in_processor;
-
 	Window_proxy* window = find_window(in_name.c_str());
 	if (!window)
 		return;
@@ -738,8 +736,6 @@ void sic::State_window::begin_drag_window(Processor_window in_processor, const s
 
 void sic::State_window::end_drag_window(Processor_window in_processor, const std::string& in_name)
 {
-	in_processor;
-
 	Window_proxy* window = find_window(in_name.c_str());
 	if (!window)
 		return;
@@ -749,8 +745,6 @@ void sic::State_window::end_drag_window(Processor_window in_processor, const std
 
 void sic::State_window::begin_resize(Processor_window in_processor, const std::string& in_name, const glm::vec2& in_resize_edge)
 {
-	in_processor;
-
 	Window_proxy* window = find_window(in_name.c_str());
 	if (!window)
 		return;
@@ -760,8 +754,6 @@ void sic::State_window::begin_resize(Processor_window in_processor, const std::s
 
 void sic::State_window::end_resize(Processor_window in_processor, const std::string& in_name)
 {
-	in_processor;
-
 	Window_proxy* window = find_window(in_name.c_str());
 	if (!window)
 		return;
@@ -863,13 +855,13 @@ void sic::Window_proxy::set_dimensions(Processor_window in_processor, const glm:
 	);
 }
 
-void sic::Window_proxy::set_cursor_position(Engine_processor<> in_processor, const glm::vec2& in_cursor_position)
+void sic::Window_proxy::set_cursor_position(Processor<Processor_flag_deferred_write<State_render_scene>> in_processor, const glm::vec2& in_cursor_position)
 {
 	m_cursor_position = in_cursor_position;
 
 	in_processor.schedule
 	(
-		std::function([window_id = m_window_id, in_cursor_position](Engine_processor<Processor_flag_write<State_render_scene>> in_processor)
+		std::function([window_id = m_window_id, in_cursor_position](Processor<Processor_flag_write<State_render_scene>> in_processor)
 		{
 			in_processor.get_state_checked_w<State_render_scene>().m_windows.update_object
 			(
@@ -883,13 +875,13 @@ void sic::Window_proxy::set_cursor_position(Engine_processor<> in_processor, con
 	);
 }
 
-void sic::Window_proxy::set_input_mode(Engine_processor<> in_processor, Window_input_mode in_input_mode)
+void sic::Window_proxy::set_input_mode(Processor<Processor_flag_deferred_write<State_render_scene>> in_processor, Window_input_mode in_input_mode)
 {
 	m_input_mode = in_input_mode;
 
 	in_processor.schedule
 	(
-		std::function([window_id = m_window_id, &needs_cursor_reset = m_needs_cursor_reset, in_input_mode](Engine_processor<Processor_flag_write<State_render_scene>> in_processor)
+		std::function([window_id = m_window_id, &needs_cursor_reset = m_needs_cursor_reset, in_input_mode](Processor<Processor_flag_write<State_render_scene>> in_processor)
 		{
 			in_processor.get_state_checked_w<State_render_scene>().m_windows.update_object
 			(

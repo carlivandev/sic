@@ -10,12 +10,12 @@ namespace sic
 		(
 			[this, &in_object_to_destroy](Engine_context)
 			{
-				destroy_object_immediate(in_object_to_destroy);
+				destory_object_immediate(in_object_to_destroy);
 			}
 		);
 	}
 
-	void Scene::destroy_object_immediate(Object_base& inout_object_to_destroy)
+	void Scene::destory_object_immediate(Object_base& inout_object_to_destroy)
 	{
 		const ui32 type_idx = inout_object_to_destroy.m_type_index;
 		assert((type_idx < m_objects.size() || m_objects[type_idx].get() != nullptr) && "type not registered");
@@ -26,7 +26,7 @@ namespace sic
 		//destroy children recursive
 		const i16 last_idx = static_cast<i16>(inout_object_to_destroy.m_children.size()) - 1;
 		for (i16 i = last_idx; i >= 0; i--)
-			destroy_object_immediate(*inout_object_to_destroy.m_children[i]);
+			destory_object_immediate(*inout_object_to_destroy.m_children[i]);
 
 		//destroy in_obj
 		auto* storage_to_destroy_from = reinterpret_cast<Object_storage*>(m_objects[type_idx].get());

@@ -15,6 +15,6 @@ namespace sic
 		virtual void on_created(Engine_context in_context) override;
 		virtual void on_engine_tick(Engine_context in_context, float in_time_delta) const override;
 
-		static void update_input(Engine_processor<Processor_flag_write<State_input>, Processor_flag_write<State_window>, Processor_flag_read<State_render_scene>> in_processor);
+		static void update_input(Processor<Processor_flag_write<State_input>, Processor_flag_write<State_window>, Processor_flag_read<State_render_scene>> in_processor);
 	};
 }

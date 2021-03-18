@@ -10,7 +10,7 @@
 
 namespace sic
 {
-	using Processor_debug_draw = Scene_processor<Processor_flag_read<State_debug_drawing>>;
+	struct Processor_debug_draw : Processor<Processor_flag_read<State_debug_drawing>> {};
 
 	namespace debug_draw
 	{

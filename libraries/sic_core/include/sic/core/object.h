@@ -1,35 +1,13 @@
 #pragma once
-#include "sic/core/object_base.h"
-#include "sic/core/engine.h"
-#include "sic/core/component.h"
-#include "sic/core/object.h"
-#include "sic/core/event.h"
-#include "sic/core/scene_context.h"
+#include "object_base.h"
+#include "engine.h"
+#include "component.h"
+#include "object.h"
+#include "event.h"
+#include "scene_context.h"
 
 namespace sic
 {
-	template<typename ...T, size_t... I>
-	auto tuple_of_pointers_to_references_helper(std::tuple<T...>& t, std::index_sequence<I...>)
-	{
-		return std::tie(*std::get<I>(t)...);
-	}
-
-	template<typename ...T>
-	auto tuple_of_pointers_to_references(std::tuple<T...>& t) {
-		return tuple_of_pointers_to_references_helper<T...>(t, std::make_index_sequence<sizeof...(T)>{});
-	}
-
-	template<typename ...T, size_t... I>
-	auto tuple_of_pointers_to_const_references_helper(const std::tuple<T...>& t, std::index_sequence<I...>)
-	{
-		return std::tie(*std::get<I>(t)...);
-	}
-
-	template<typename ...T>
-	auto tuple_of_pointers_to_const_references(const std::tuple<T...>& t) {
-		return tuple_of_pointers_to_const_references_helper<T...>(t, std::make_index_sequence<sizeof...(T)>{});
-	}
-
 	/*
 		T_subtype = CRTP
 	*/
@@ -39,7 +17,6 @@ namespace sic
 		friend struct Object_storage;
 		friend struct Engine_context;
 		friend struct Scene_context;
-		friend struct Scene;
 
 		template <typename T_to_check_with>
 		bool set_if_matching(i32 in_type_idx, byte*& out_result)
@@ -94,7 +71,7 @@ namespace sic
 		template<typename T_to_invoke_on>
 		constexpr void invoke_post_creation_event(Scene_context& inout_scene)
 		{
-			inout_scene.m_engine.invoke<Event_post_created<T_to_invoke_on>>(std::reference_wrapper<T_to_invoke_on>(*std::get<T_to_invoke_on*>(m_components)));
+			inout_scene.m_engine.invoke<event_post_created<T_to_invoke_on>>(std::reference_wrapper<T_to_invoke_on>(*std::get<T_to_invoke_on*>(m_components)));
 		}
 
 		template<typename T_to_destroy>
@@ -119,16 +96,6 @@ namespace sic
 			return *it;
 		}
 
-		std::tuple<T_component&...> components()
-		{
-			return tuple_of_pointers_to_references(m_components);
-		}
-
-		std::tuple<const T_component&...> components() const
-		{
-			return tuple_of_pointers_to_const_references(m_components);
-		}
-
 	private:
 		constexpr void make_instance(Scene_context& inout_scene)
 		{
@@ -136,20 +103,16 @@ namespace sic
 			m_outermost_scene_id = inout_scene.get_outermost_scene_id();
 
 			(create_component<T_component>(inout_scene), ...);
-		}
-
-		constexpr void invoke_post_creation_events(Scene_context& inout_scene)
-		{
 			(invoke_post_creation_event<T_component>(inout_scene), ...);
 		}
 
 		void destroy_instance(Scene_context& inout_scene) override
 		{
 			static_assert(std::is_base_of_v<Object_base, T_subtype>, "did you forget T_subtype?");
-			inout_scene.m_engine.invoke<Event_destroyed<T_subtype>>(reinterpret_cast<T_subtype*>(this));
+			inout_scene.m_engine.invoke<event_destroyed<T_subtype>>(reinterpret_cast<T_subtype*>(this));
 
 			(destroy_component<T_component>(inout_scene), ...);
-		}		
+		}
 
 		std::tuple<T_component*...> m_components;
 	};

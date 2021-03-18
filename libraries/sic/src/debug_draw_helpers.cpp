@@ -12,13 +12,13 @@ namespace sic
 			void draw_shape(Processor_debug_draw in_processor, const T_type& in_shape)
 			{
 				const State_debug_drawing& debug_drawing_state = in_processor.get_state_checked_r<State_debug_drawing>();
-				in_processor.get_engine_processor().schedule
+				in_processor.schedule
 				(
 					std::function([
 						obj_id = debug_drawing_state.m_level_id_to_debug_drawer_ids.find(Scene_context(*in_processor.m_engine, *in_processor.m_scene).get_outermost_scene_id())->second,
 						in_shape
 					]
-					(Engine_processor<Processor_flag_write<State_render_scene>> in_render_scene_processor)
+					(Processor<Processor_flag_write<State_render_scene>> in_render_scene_processor)
 					{
 						in_render_scene_processor.get_state_checked_w<State_render_scene>().update_object
 						(

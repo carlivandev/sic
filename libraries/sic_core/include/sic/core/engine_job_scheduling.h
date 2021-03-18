@@ -8,6 +8,13 @@
 
 namespace sic
 {
+	enum struct Tickstep
+	{
+		pre_tick, //runs before tick, always on main thread
+		tick, //everything here runs in parallel, first added runs on main thread
+		post_tick //runs after tick, always on main thread
+	};
+
 	struct Job_id
 	{
 		struct Dependency
@@ -18,6 +25,7 @@ namespace sic
 
 		i32 m_submitted_on_thread_id = -1;
 		i32 m_id = -1;
+		Tickstep m_tickstep;
 		std::optional<Dependency> m_job_dependency;
 		bool m_run_on_main_thread = false;
 	};
@@ -46,7 +54,6 @@ namespace sic
 		bool m_is_ready_to_execute = false;
 		bool m_job_finished = false;
 		bool m_run_on_main_thread = false;
-		bool m_profiling = false;
 		Main_thread_worker* m_main_thread_worker = nullptr;
 		Threadpool* m_threadpool = nullptr;
 

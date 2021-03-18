@@ -13,30 +13,11 @@ namespace sic
 
 	struct Engine_context;
 
-	template <typename ...T>
-	struct Engine_processor;
-
-	struct Schedule_timed_handle
-	{
-		friend struct Engine_context;
-		friend struct Scene_context;
-
-		i32 get_thread_id() const { return m_thread_id; }
-		size_t get_job_index() const { return m_job_index; }
-		size_t get_unique_id() const { return m_unique_id; }
-
-	private:
-		i32 m_thread_id = -1;
-		size_t m_job_index = 0;
-		size_t m_unique_id = 0;
-	};
-
 	struct Thread_context
 	{
 		friend Thread_temporary_storage_instance;
 		friend struct Engine;
 		friend struct Engine_context;
-		friend struct Scene_context;
 
 		constexpr static size_t storage_byte_size = 32768 * 2;
 
@@ -100,27 +81,6 @@ namespace sic
 			m_deferred_updates.push_back(in_func);
 		}
 
-		void profile_start(const char* in_key)
-		{
-			Profiling_data::Item new_item;
-			new_item.m_start = std::chrono::high_resolution_clock::now();
-			new_item.m_key = in_key;
-			m_profiling_data.m_profile_stack.push_back(new_item);
-		}
-
-		void profile_end()
-		{
-			auto& back = m_profiling_data.m_profile_stack.back();
-			back.m_end = std::chrono::high_resolution_clock::now();
-
-			m_profiling_data.m_items.push_back(back);
-			m_profiling_data.m_profile_stack.pop_back();
-		}
-
-		size_t add_query();
-		void trigger_query(Thread_context* in_thread, size_t in_id);
-		void set_query(size_t in_id, std::function<void(Engine_processor<>)> in_query_job);
-
 		const std::string& get_name() const { return m_name; }
 		i32 get_id() const { return m_id; }
 
@@ -151,42 +111,18 @@ namespace sic
 		struct Timed_scheduled_item
 		{
 			std::function<void(Engine_context)> m_func;
-			std::function<bool(Engine_context)> m_unschedule_callback;
-			std::function<void()> m_job_func;
 			float m_time_left = 0.0f;
 			float m_time_until_start_scheduling = 0.0f;
 			sic::i64 m_frame_when_ticked = 0;
-			size_t m_unique_id = 0;
-			std::optional<i32> m_scene_id;
 		};
 		std::vector<Timed_scheduled_item> m_timed_scheduled_items;
 		std::vector<size_t> m_free_timed_scheduled_items_indices;
-		std::vector<Schedule_timed_handle> m_scheduled_items_to_remove;
 
-		i32 m_job_id_ticker = 0;
+		size_t m_job_id_ticker = 0;
 		size_t m_job_index_offset = 0;
-
-		size_t m_timed_schedule_handle_id_ticker = 0;
-
-		std::vector<std::function<void(Engine_processor<>)>> m_queries;
-		std::vector<size_t> m_free_query_indices;
-		std::vector<std::pair<Thread_context*, size_t>> m_queries_to_trigger;
 
 		std::string m_name;
 		i32 m_id = -1;
-
-		struct Profiling_data
-		{
-			struct Item
-			{
-				std::chrono::steady_clock::time_point m_start;
-				std::chrono::steady_clock::time_point m_end;
-				std::string m_key;
-			};
-
-			std::vector<Item> m_profile_stack;
-			std::vector<Item> m_items;
-		} m_profiling_data;
 	};
 
 	Thread_context& this_thread();

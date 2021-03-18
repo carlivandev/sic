@@ -68,10 +68,8 @@ add_headers(SIC_HEADERS
 	system_renderer.h
 	system_renderer_state_swapper.h
 	state_render_scene.h
-	system_transform.h
 	component_transform.h
 	color.h
-	easing.h
 	)
 
 add_sources(SIC_SOURCES
@@ -103,7 +101,6 @@ add_sources(SIC_SOURCES
 	system_renderer.cpp
 	system_renderer_state_swapper.cpp
 	state_render_scene.cpp
-	system_transform.cpp
 	component_transform.cpp
 	)
 

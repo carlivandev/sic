@@ -96,7 +96,7 @@ namespace sic
 		}
 		else
 		{
-			assert(std::is_trivially_copyable<T_data_type>::value && "Type is not trivially serializable! Please specialize serialize or use Serialize_stream::write_memcpy/write_raw.");
+			static_assert(std::is_trivially_copyable<T_data_type>::value, "Type is not trivially serializable! Please specialize serialize or use Serialize_stream::write_memcpy/write_raw.");
 			serialize_memcpy(in_to_serialize, out_stream);
 		}
 	}
@@ -110,7 +110,7 @@ namespace sic
 		}
 		else
 		{
-			assert(std::is_trivially_copyable<T_data_type>::value && "Type is not trivially deserializable! Please specialize deserialize or use Deserialize_stream::read_memcpy/read_raw.");
+			static_assert(std::is_trivially_copyable<T_data_type>::value, "Type is not trivially deserializable! Please specialize deserialize or use Deserialize_stream::read_memcpy/read_raw.");
 			deserialize_memcpy(in_stream, out_deserialized);
 		}
 	}
@@ -226,24 +226,5 @@ namespace sic
 
 		out_stream.m_bytes.resize(start_buf + len);
 		memcpy_s(&out_stream.m_bytes[start_buf], len, in_to_serialize.data(), len);
-	}
-
-	template <typename T_type>
-	inline void deserialize(Deserialize_stream& in_stream, std::optional<T_type>& out_deserialized)
-	{
-		bool has_value = false;
-		in_stream.read(has_value);
-
-		if (has_value)
-			in_stream.read(out_deserialized.emplace());
-	}
-
-	template <typename T_type>
-	void serialize(const std::optional<T_type>& in_to_serialize, Serialize_stream& out_stream)
-	{
-		out_stream.write(in_to_serialize.has_value());
-
-		if (in_to_serialize.has_value())
-			out_stream.write(in_to_serialize.value());
 	}
 }

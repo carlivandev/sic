@@ -32,9 +32,6 @@ namespace sic
 		friend struct System;
 		friend struct Object_storage;
 
-		template <typename T_object_or_component_type>
-		friend struct Scene_view_single;
-
 		bool is_valid() const
 		{
 			return m_type_index != -1 && !m_pending_destroy;

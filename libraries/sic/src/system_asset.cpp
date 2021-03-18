@@ -51,7 +51,7 @@ void sic::System_asset::on_created(Engine_context in_context)
 	State_assetsystem* assetsystem_state = in_context.get_state<State_assetsystem>();
 
 	assetsystem_state->m_asset_headers.reserve(asset_headers_to_load.size());
-	assetsystem_state->m_unload_queue.set_size(1);
+	assetsystem_state->m_unload_queue.set_size(50);
 
 	for (const std::filesystem::path& asset_header_path : asset_headers_to_load)
 	{
@@ -65,7 +65,6 @@ void sic::System_asset::on_created(Engine_context in_context)
 		if (!new_header)
 			continue;
 
-		new_header->m_index = assetsystem_state->m_asset_headers.size();
 		assetsystem_state->m_asset_headers.push_back(std::move(new_header));
 		assetsystem_state->m_id_to_header[assetsystem_state->m_asset_headers.back()->m_id] = assetsystem_state->m_asset_headers.back().get();
 	}
@@ -79,10 +78,10 @@ void sic::System_asset::on_engine_finalized(Engine_context in_context) const
 void sic::System_asset::on_engine_tick(Engine_context in_context, float in_time_delta) const
 {
 	in_time_delta;
-	in_context.schedule(update_assetsystem);
+	in_context.schedule(make_functor(update_assetsystem));
 }
 
-void sic::System_asset::update_assetsystem(Engine_processor<Processor_flag_write<State_assetsystem>> in_processor)
+void sic::System_asset::update_assetsystem(Processor<Processor_flag_write<State_assetsystem>> in_processor)
 {
 	State_assetsystem& state = in_processor.get_state_checked_w<State_assetsystem>();
 
@@ -93,9 +92,9 @@ void sic::System_asset::update_assetsystem(Engine_processor<Processor_flag_write
 
 		if (!gatherer.has_dependencies_to_load())
 		{
-			SIC_LOG(g_log_asset, "Loaded asset: \"{0}\"", header->m_name.c_str());
+			SIC_LOG(g_log_asset_verbose, "Loaded asset: \"{0}\"", header->m_name.c_str());
 			header->m_load_state = Asset_load_state::loaded;
-			header->m_on_loaded_delegate.invoke({ in_processor, header->m_loaded_asset.get() });
+			header->m_on_loaded_delegate.invoke(header->m_loaded_asset.get());
 			header->decrement_reference_count();
 		}
 	}
@@ -105,13 +104,12 @@ void sic::System_asset::update_assetsystem(Engine_processor<Processor_flag_write
 
 void sic::State_assetsystem::leave_unload_queue(const Asset_header& in_header)
 {
-	if (in_header.m_unload_ticket.has_value())
-		m_unload_queue.leave_queue(in_header.m_unload_ticket.value());
+	m_unload_queue.leave_queue(in_header.m_unload_ticket);
 }
 
 void sic::State_assetsystem::join_unload_queue(Asset_header& in_out_header)
 {
-	while (m_unload_queue.is_queue_full())
+	if (m_unload_queue.is_queue_full())
 		unload_next_asset();
 
 	in_out_header.m_unload_ticket = m_unload_queue.enqueue(&in_out_header);
@@ -123,30 +121,18 @@ void sic::State_assetsystem::force_unload_unreferenced_assets()
 		unload_next_asset();
 }
 
-sic::Asset_header* sic::State_assetsystem::create_asset_internal(const std::string& in_asset_name, const std::string& in_typename)
+sic::Asset_header* sic::State_assetsystem::create_asset_internal(const std::string& in_asset_name, const std::string& in_asset_directory, const std::string& in_typename)
 {
-	Asset_header* new_header = nullptr;
-
-	if (m_free_header_indices.empty())
-	{
-		m_asset_headers.push_back(std::make_unique<Asset_header>(*this));
-		new_header = m_asset_headers.back().get();
-		new_header->m_index = m_asset_headers.size() - 1;
-	}
-	else
-	{
-		m_asset_headers[m_free_header_indices.back()] = std::make_unique<Asset_header>(*this);
-		new_header = m_asset_headers[m_free_header_indices.back()].get();
-		new_header->m_index = m_free_header_indices.back();
-		m_free_header_indices.pop_back();
-	}
+	m_asset_headers.push_back(std::make_unique<Asset_header>(*this));
+	Asset_header* new_header = m_asset_headers.back().get();
 
 	new_header->m_id = xg::newGuid();
 	new_header->m_name = in_asset_name;
+	new_header->m_asset_path = fmt::format("{0}/{1}.asset", in_asset_directory, in_asset_name);
 	new_header->m_load_state = Asset_load_state::loaded;
 	new_header->m_typename = in_typename;
 
-	m_id_to_header[new_header->m_id] = new_header;
+	m_id_to_header[m_asset_headers.back()->m_id] = m_asset_headers.back().get();
 
 	return new_header;
 }
@@ -185,14 +171,5 @@ void sic::State_assetsystem::unload_next_asset()
 
 		header->m_load_state = Asset_load_state::not_loaded;
 		header->m_loaded_asset.reset();
-
-		//this asset has not been saved, remove header completely
-		if (header->m_asset_path.empty())
-		{
-			m_id_to_header.erase(header->m_id);
-
-			m_free_header_indices.push_back(header->m_index.value());
-			m_asset_headers[header->m_index.value()].reset();
-		}
 	}
 }

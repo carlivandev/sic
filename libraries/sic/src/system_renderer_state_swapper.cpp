@@ -9,16 +9,16 @@ void sic::System_renderer_state_swapper::on_engine_tick(Engine_context in_contex
 {
 	in_time_delta;
 
-	in_context.schedule
-	(std::function([](Engine_processor<Processor_flag_write<State_render_scene>, Processor_flag_read<State_window>, Processor_flag_write<State_assetsystem>> in_processor)
-	{
-		std::scoped_lock asset_modification_lock(in_processor.get_state_checked_w<State_assetsystem>().get_modification_mutex());
-
-		glfwMakeContextCurrent(in_processor.get_state_checked_r<State_window>().m_resource_context);
-		in_processor.get_state_checked_w<State_render_scene>().flush_updates();
-	}), Schedule_data().run_on_main_thread(true));
-
+	State_render_scene& scene_state = in_context.get_state_checked<State_render_scene>();
+	State_window& window_state = in_context.get_state_checked<State_window>();
 	State_renderer& renderer_state = in_context.get_state_checked<State_renderer>();
+	State_assetsystem& assetsystem_state = in_context.get_state_checked<State_assetsystem>();
+
+	std::scoped_lock asset_modification_lock(assetsystem_state.get_modification_mutex());
+
+	glfwMakeContextCurrent(window_state.m_resource_context);
+
+	scene_state.flush_updates();
 
 	renderer_state.m_synchronous_renderer_updates.read
 	(

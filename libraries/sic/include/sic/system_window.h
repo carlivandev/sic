@@ -24,7 +24,7 @@ namespace sic
 	struct State_render_scene;
 	struct State_ui;
 
-	using Processor_window = Engine_processor<Processor_flag_write<State_window>, Processor_flag_write<State_render_scene>>;
+	using Processor_window = Processor<Processor_flag_write<State_window>, Processor_flag_write<State_render_scene>, Processor_flag_deferred_write<State_ui>>;
 
 	enum struct Window_input_mode
 	{
@@ -35,7 +35,7 @@ namespace sic
 
 	struct Window_proxy : Noncopyable
 	{
-		struct On_destroyed : Delegate<Processor_window> {};
+		struct On_destroyed : Delegate<> {};
 
 		friend struct System_window;
 		friend struct State_window;
@@ -45,10 +45,10 @@ namespace sic
 		void set_dimensions(Processor_window in_processor, const glm::ivec2& in_dimensions);
 		const glm::ivec2& get_dimensions() const { return m_dimensions; }
 
-		void set_cursor_position(Engine_processor<> in_processor, const glm::vec2& in_cursor_position);
+		void set_cursor_position(Processor<Processor_flag_deferred_write<State_render_scene>> in_processor, const glm::vec2& in_cursor_position);
 		void set_cursor_position_internal(const glm::vec2& in_cursor_position) { m_cursor_position = in_cursor_position; }
 
-		void set_input_mode(Engine_processor<> in_processor, Window_input_mode in_input_mode);
+		void set_input_mode(Processor<Processor_flag_deferred_write<State_render_scene>> in_processor, Window_input_mode in_input_mode);
 
 		const glm::vec2& get_cursor_movement() const { return m_cursor_movement; }
 		const glm::vec2& get_cursor_postition() const { return m_cursor_position; }
@@ -118,7 +118,6 @@ namespace sic
 	private:
 		std::unordered_map<std::string, std::unique_ptr<Window_proxy>> m_window_name_to_interfaces_lut;
 		std::mutex m_mutex;
-		i32 m_id_ticker = 0;
 	};
 
 	struct System_window : System

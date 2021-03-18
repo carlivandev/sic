@@ -10,20 +10,20 @@
 
 void sic::System_editor_view_controller::on_created(Engine_context in_context)
 {
-	in_context.register_component<Component_editor_view_controller>("evcd", 1);
+	in_context.register_component_type<Component_editor_view_controller>("evcd", 1);
 	in_context.register_object<Object_editor_view_controller>("evc", 1);
 }
 
 void sic::System_editor_view_controller::on_tick(Scene_context in_context, float in_time_delta) const
 {
 	in_time_delta;
-	in_context.schedule(update_controllers);
+	in_context.schedule(make_functor(update_controllers));
 }
 
-void sic::System_editor_view_controller::update_controllers(Scene_processor<Processor_flag_write<Component_editor_view_controller>, Processor_flag_write_single<Component_transform>, Processor_flag_read<State_input>> in_processor)
+void sic::System_editor_view_controller::update_controllers(Processor<Processor_flag_write<Component_editor_view_controller>, Processor_flag_write_single<Component_transform>, Processor_flag_read<State_input>, Processor_render_scene_update> in_processor)
 {
 	const State_input& input_state = in_processor.get_state_checked_r<State_input>();
-	in_processor.for_each
+	in_processor.for_each_w<Component_editor_view_controller>
 	(
 		[in_processor, time_delta = in_processor.get_time_delta(), &input_state](Component_editor_view_controller& evc) mutable
 		{
@@ -39,9 +39,9 @@ void sic::System_editor_view_controller::update_controllers(Scene_processor<Proc
 				return;
 
 			if (input_state.is_mousebutton_pressed(Mousebutton::right))
-				wd->set_input_mode(in_processor.get_engine_processor(), Window_input_mode::disabled);
+				wd->set_input_mode(in_processor, Window_input_mode::disabled);
 			else if (input_state.is_mousebutton_released(Mousebutton::right))
-				wd->set_input_mode(in_processor.get_engine_processor(), Window_input_mode::normal);
+				wd->set_input_mode(in_processor, Window_input_mode::normal);
 
 			if (!input_state.is_mousebutton_down(Mousebutton::right))
 				return;
